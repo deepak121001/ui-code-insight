@@ -1,0 +1,22 @@
+{
+  "extends": [
+    "stylelint-config-standard-scss",
+    "stylelint-config-prettier-scss"
+  ],
+  "syntax": "scss",
+  "rules": {
+    "selector-max-id": 1,
+    "selector-max-class": 3,
+    "selector-max-compound": 3,
+    "selector-no-qualifying-type": true,
+    "selector-max-universal": 0,
+    "declaration-no-important": true,
+    "declaration-block-no-duplicate-properties": true,
+    "declaration-block-no-shorthand-property-overrides": true,
+    "property-no-unknown": true,
+    "value-no-vendor-prefix": true,
+    "property-no-vendor-prefix": true,
+    "at-rule-no-vendor-prefix": true,
+    "media-feature-name-no-vendor-prefix": true
+  }
+}
