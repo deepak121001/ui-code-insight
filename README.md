@@ -26,7 +26,7 @@ This project is currently at version 1.0.0, providing a stable foundation for cr
 Install the UI Insights Report Generator globally using the following npm command:
 
 ```
-npm install git@git.corp.adobe.com:deepaksharma/ui-code-insight.git
+npm install git@github.com:deepak121001/ui-code-insight.git
 
 ```
 
