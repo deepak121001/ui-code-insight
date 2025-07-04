@@ -12,15 +12,41 @@ const ESLINTRC_JSON = ".eslintrc.json";
 const ESLINTRC_JS = ".eslintrc.js";
 const ESLINTRC_YML = ".eslintrc.yml";
 const ESLINTRC = ".eslintrc";
+const ESLINTRC_REACT = "eslintrc.react.json";
+const ESLINTRC_NODE = "eslintrc.node.json";
+const ESLINTRC_VANILLA = "eslintrc.vanilla.json";
+const ESLINTRC_TS = "eslintrc.typescript.json";
+const ESLINTRC_TSREACT = "eslintrc.tsreact.json";
 
 /**
  * Function to determine ESLint configuration file path
  * @param {boolean} recommendedLintRules
+ * @param {string} projectType
  * @returns {string} lintConfigFile
  */
-const getLintConfigFile = (recommendedLintRules) => {
+const getLintConfigFile = (recommendedLintRules, projectType = '') => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
+  let configFileName = ESLINTRC_JSON;
+
+  if (projectType.toLowerCase() === 'react') {
+    configFileName = ESLINTRC_REACT;
+  } else if (projectType.toLowerCase() === 'node') {
+    configFileName = ESLINTRC_NODE;
+  } else if (projectType.toLowerCase() === 'vanilla') {
+    configFileName = ESLINTRC_VANILLA;
+  } else if (projectType.toLowerCase() === 'typescript') {
+    configFileName = ESLINTRC_TS;
+  } else if (projectType.toLowerCase() === 'typescript + react' || projectType.toLowerCase() === 'tsreact') {
+    configFileName = ESLINTRC_TSREACT;
+  }
+
+  const configFilePath = path.join(__dirname, CONFIG_FOLDER, configFileName);
+  if (fs.existsSync(configFilePath)) {
+    return configFilePath;
+  }
+
+  // fallback to default logic
   const recommendedLintRulesConfigFile = path.join(
     __dirname,
     CONFIG_FOLDER,
@@ -157,10 +183,12 @@ export const generateESLintReport = async (
   projectType = '',
   reports = []
 ) => {
-  const lintConfigFile = getLintConfigFile(recommendedLintRules);
+  const lintConfigFile = getLintConfigFile(recommendedLintRules, projectType);
   if (!lintConfigFile) {
     throw new Error(".eslintrc file is missing");
   }
+
+  console.log(chalk.blue(`Using ESLint config: ${lintConfigFile}`));
 
   const eslint = new ESLint({
     useEslintrc: false,

@@ -10,7 +10,12 @@ const defaultConfig = {
     "./src/**/*.tsx",
     "!./src/**/*.stories.js",
   ],
-  scssFilePathPattern: ["./src/**/*.scss", "!./node_modules/**"],
+  scssFilePathPattern: [
+    "./src/**/*.scss",
+    "./src/**/*.less",
+    "./src/**/*.css",
+    "!./node_modules/**",
+  ],
   npmReport: false,
   recommendedLintRules: true,
   bundleAnalyzer: false,

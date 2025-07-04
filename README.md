@@ -1,41 +1,55 @@
 # UI Insights Report Generator (ui-code-insight)
 
-The UI Insights Report Generator empowers you to effortlessly create insightful dashboards for your ESLint, Stylelint, NPM packages, Bundle Analyzer and AEM component usage reports.
+A powerful CLI tool to generate dashboards and reports for code quality, style, and package analysis in modern JavaScript, TypeScript, and CSS projects.
 
-# Demo
-You can view a live demo of this project [here](https://audit-hazel.vercel.app/pdc/report.html).
+---
 
+**Quick Start with npx**
 
-## Overview
+Run instantly without a global install:
 
-This project is currently at version 1.0.0, providing a stable foundation for creating detailed reports on your project's code quality (JavaScript, CSS), NPM package dependencies, and AEM component usage based on the configuration.
+```bash
+npx ui-code-insight ./config.json
+```
+
+---
+
+## Table of Contents
+- [Features](#features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Supported Project Types & ESLint Configs](#supported-project-types--eslint-configs)
+- [Overriding Stylelint Config](#overriding-stylelint-config)
+- [CLI Usage](#cli-usage)
+- [Add to package.json](#add-to-packagejson)
+- [Dependencies](#dependencies)
+- [Repository](#repository)
 
 ## Features
-
-- **ESLint Reports**: Easily visualize and analyze ESLint code quality metrics.
-- **Stylelint Reports**: Gain insights into your project's style and CSS linting.
-- **NPM Packages Reports**: Understand your project's dependency landscape and identify potential vulnerabilities.
-- **AEM Component Usage Reports**: Track and analyze the usage of Adobe Experience Manager components.
-- **Bundle Analyzer**: Visualize size of webpack output files with an interactive zoomable treemap.
-- **Detailed Insights**: Drill down into specific issues for a deeper understanding of problem areas.
-- **Code Quality Recommendations**: Receive suggestions and best practices for improving code quality.
-- **Streamlined Analysis**: Easily integrate into your project workflow to streamline the process of analyzing code quality and style violations.
-
+- **Interactive CLI**: Select project type and reports to generate with easy prompts.
+- **Multi-environment support**: React, Node, Vanilla JS, TypeScript, TypeScript + React.
+- **Comprehensive linting**: ESLint for JS/TS, Stylelint for SCSS, LESS, and CSS.
+- **NPM package analysis**: Audit and report on dependencies.
+- **Bundle analysis**: Visualize your webpack output.
+- **Customizable**: Override lint configs with your own.
 
 ## Installation
-Install the UI Insights Report Generator globally using the following npm command:
 
+Install globally (recommended):
+```bash
+npm install -g ui-code-insight
 ```
-npm install git@github.com:deepak121001/ui-code-insight.git
 
+Or as a dev dependency:
+```bash
+npm install --save-dev ui-code-insight
 ```
 
 ## Configuration
 
-Create a config.json file in your project's root directory. You can name the file anything you want.
-Example config.json:
+Create a config file (e.g., `config.json`) in your project root:
 
-```
+```json
 {
   "jsFilePathPattern": [
     "./src/**/*.js",
@@ -44,114 +58,98 @@ Example config.json:
     "./src/**/*.tsx",
     "!./src/**/*.stories.js"
   ],
-  "scssFilePathPattern": ["./src/**/*.scss", "!./node_modules/**"],
+  "scssFilePathPattern": [
+    "./src/**/*.scss",
+    "./src/**/*.less",
+    "./src/**/*.css",
+    "!./node_modules/**"
+  ],
   "npmReport": false,
-  "recommendedLintRules": false,
-  
-    
-    // optional configurations
-    
-    // Required for getting the component usage report. This requires an AEM instance to be up & running
-    "aemBasePath":"http://localhost:4502", 
-    "aemContentPath":"/content/wknd",
-    "aemAppsPath":"/apps/wknd",
-    "slingResourceTypeBase":"wknd/components/",
-    
-    // bundleAnalyzer configuration
-    "bundleAnalyzer":true,
-    "webpackConfigFile":"./webpack.config.js",
-    "webpackBundleFolder":"dist"
+  "recommendedLintRules": false
 }
-
-```
-Adjust the file patterns to match the structure of your project.
-
-- **jsFilePathPattern**: An array of patterns specifying JavaScript/TypeScript file paths to be included in the reports. Supports glob patterns for file matching.
-- **scssFilePathPattern**: An array of patterns specifying SCSS file paths to be included in the reports. Supports glob patterns for file matching.
-- **npmReport**: An boolean value to run Npm packages report.
-- **bundleAnalyzer**: An boolean value to run bundleanalizer.
-- **recommendedLintRules**: A boolean value that, when set to `true`, indicates the use of Adobe's recommended linting standards. Enabling this flag will overwrite your project's existing linting configuration with Adobe's default settings.
-
-## Usage
-
-Once you have created your configuration file, you can generate reports using the CLI from anywhere in your terminal:
-
-```
-ui-code-insight path/to/your/config.json [options]
 ```
 
-- Replace `path/to/your/config.json` with the path to your configuration file.
-- You can run this command from any directory if the package is installed globally.
+- `jsFilePathPattern`: JS/TS file globs
+- `scssFilePathPattern`: SCSS, LESS, CSS file globs
+- `npmReport`: Enable NPM package report
+- `recommendedLintRules`: Use recommended lint rules
 
-**Example:**
+## Supported Project Types & ESLint Configs
+
+When prompted, select your project type:
+- React
+- Node
+- Vanilla JS
+- TypeScript
+- TypeScript + React
+
+Each type uses a dedicated ESLint config in `src/config/` (e.g., `eslintrc.react.json`, `eslintrc.typescript.json`). All configs extend Airbnb and recommended plugins.
+
+## Overriding Stylelint Config
+
+To use your own Stylelint configuration:
+1. Create a Stylelint config file in your project root (e.g., `.stylelintrc.json`, `.stylelintrc.js`, or `stylelint.config.js`).
+2. Set `"recommendedLintRules": false` in your `config.json`.
+
+Example `.stylelintrc.json`:
+```json
+{
+  "extends": "stylelint-config-standard",
+  "rules": {
+    "color-no-invalid-hex": true
+  }
+}
 ```
+
+## CLI Usage
+
+Run the CLI with your config file:
+
+**Global install:**
+```bash
 ui-code-insight ./config.json
 ```
-
-### Optional: Add a Custom Command to package.json
-
-If you prefer, you can add a script to your `package.json` for convenience:
-
-```
-"scripts": {
-  "generate-report": "ui-code-insight config.json"
-}
-```
-Then run:
-```
-npm run generate-report
+**npx or local install:**
+```bash
+npx ui-code-insight ./config.json
 ```
 
-This npm script executes the `ui-code-insight` command with the specified config file, making it a convenient way to generate reports for your project. This step is optional if you use the CLI directly.
+You will be prompted to select:
+- **Project type** (React, Node, Vanilla JS, TypeScript, TypeScript + React, Other)
+- **Reports to generate** (ESLint, Stylelint, Package Report, All)
 
-Feel free to customize the script name and configuration file path based on your preferences.
+**Prompt navigation:**
+- Use **arrow keys** to move.
+- Press **spacebar** to select/deselect (multi-select).
+- Press **enter** to confirm.
+
+Example prompt:
+```
+? What type of project is this? (Use arrow keys)
+❯ React
+  Node
+  Vanilla JS
+  TypeScript
+  TypeScript + React
+  Other
+
+? Which report(s) do you want to generate? (Press <space> to select, <a> to toggle all, <i> to invert selection)
+❯◯ ESLint
+ ◯ Stylelint
+ ◯ Package Report
+ ◯ All
+```
+
+The tool will use the correct ESLint config and generate the selected reports.
 
 ## Dependencies
+- [Stylelint](https://www.npmjs.com/package/stylelint)
+- [ESLint](https://www.npmjs.com/package/eslint)
+- [@typescript-eslint/eslint-plugin](https://www.npmjs.com/package/@typescript-eslint/eslint-plugin)
+- [eslint-config-airbnb](https://www.npmjs.com/package/eslint-config-airbnb)
+- [eslint-config-airbnb-base](https://www.npmjs.com/package/eslint-config-airbnb-base)
+- [eslint-config-airbnb-typescript](https://www.npmjs.com/package/eslint-config-airbnb-typescript)
 
-This module relies on the following npm packages:
+## Repository
 
-- [Stylelint](https://www.npmjs.com/package/stylelint) - License: MIT
-- [ESLint](https://www.npmjs.com/package/eslint) - License: MIT
-
-## XSS Safety Audit
-
-UI Code Insight now audits for potential XSS vulnerabilities by:
-- Detecting usage of unsafe DOM manipulation APIs (e.g., innerHTML, outerHTML, insertAdjacentHTML).
-- Recommending the use of safer alternatives (e.g., textContent) or sanitization (e.g., sanitize-html).
-- Integrating [eslint-plugin-no-unsanitized](https://www.npmjs.com/package/eslint-plugin-no-unsanitized) to statically analyze and flag risky code patterns.
-
-### How it works
-- The audit will flag any direct use of innerHTML, outerHTML, insertAdjacentHTML, etc., in your codebase.
-- The report will recommend using [sanitize-html](https://www.npmjs.com/package/sanitize-html) to sanitize any dynamic HTML before inserting it into the DOM.
-- The tool will also recommend enabling the ESLint plugin 'eslint-plugin-no-unsanitized' for ongoing static analysis.
-
-### Remediation
-- Use `textContent` for plain text insertion.
-- Use `sanitize-html` for any dynamic HTML.
-- Fix or refactor any code flagged by the audit or ESLint plugin.
-
-## Code Complexity & Cognitive Complexity Audit
-
-UI Code Insight now audits for code complexity and cognitive complexity issues by:
-- Detecting functions with too many parameters, deeply nested blocks, and high cyclomatic/cognitive complexity.
-- Highlighting redundant conditions, unnecessary operations, and code smells.
-- Integrating [eslint-plugin-sonarjs](https://www.npmjs.com/package/eslint-plugin-sonarjs) for advanced static analysis.
-
-### How it works
-- The audit will flag:
-  - Functions with more than 4 parameters.
-  - Functions with more than 3 levels of nesting.
-  - Functions with a cognitive complexity score above 15.
-  - Redundant or always-true/false conditions.
-  - Unnecessary boolean casts or operations.
-- The tool uses the following ESLint rules:
-  - `complexity` (max 10)
-  - `max-params` (max 4)
-  - `max-depth` (max 3)
-  - `sonarjs/cognitive-complexity` (max 15)
-
-### Remediation
-- Refactor flagged functions to reduce complexity.
-- Split large or deeply nested functions into smaller, simpler ones.
-- Remove redundant or unnecessary code.
-- Fix or refactor any code flagged by the audit or ESLint plugin.
+GitHub: [https://github.com/deepak121001/ui-code-insight.git](https://github.com/deepak121001/ui-code-insight.git)

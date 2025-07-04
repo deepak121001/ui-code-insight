@@ -8,7 +8,14 @@ async function main() {
       type: 'list',
       name: 'projectType',
       message: 'What type of project is this?',
-      choices: ['React', 'Node', 'Vanilla JS', 'Other'],
+      choices: [
+        'React',
+        'Node',
+        'Vanilla JS',
+        'TypeScript',
+        'TypeScript + React',
+        'Other',
+      ],
     },
   ]);
 

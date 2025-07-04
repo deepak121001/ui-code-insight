@@ -156,15 +156,6 @@
       "deprecated": "Not deprecated"
     },
     {
-      "name": "eslint-plugin-sonarjs",
-      "version": "3.0.4",
-      "license": "LGPL-3.0-only",
-      "download": "https://registry.npmjs.org/eslint-plugin-sonarjs/-/eslint-plugin-sonarjs-3.0.4.tgz",
-      "description": "SonarJS rules for ESLint",
-      "unpackedSize": "3227.54 MB",
-      "deprecated": "Not deprecated"
-    },
-    {
       "name": "rollup",
       "version": "4.44.2",
       "license": "MIT",
@@ -207,6 +198,24 @@
       "download": "https://registry.npmjs.org/sass/-/sass-1.89.2.tgz",
       "description": "A pure JavaScript implementation of Sass.",
       "unpackedSize": "5567.67 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "stylelint",
+      "version": "16.21.1",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/stylelint/-/stylelint-16.21.1.tgz",
+      "description": "A mighty CSS linter that helps you avoid errors and enforce conventions.",
+      "unpackedSize": "1621.37 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "typescript",
+      "version": "5.8.3",
+      "license": "Apache-2.0",
+      "download": "https://registry.npmjs.org/typescript/-/typescript-5.8.3.tgz",
+      "description": "TypeScript is a language for application scale JavaScript development",
+      "unpackedSize": "22331.74 MB",
       "deprecated": "Not deprecated"
     }
   ]
