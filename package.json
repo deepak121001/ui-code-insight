@@ -1,8 +1,8 @@
 {
   "name": "ui-code-insight",
   "version": "1.0.0",
-  "description": "Your package description",
-  "author": "Deepak Sharma <depaksharma@adobe.com>",
+  "description": "Interactive CLI for generating code quality, style, and package analysis reports for JavaScript, TypeScript, CSS, and modern web projects.",
+  "author": "Deepak Sharma",
   "main": "index.js",
   "bin": {
     "ui-code-insight": "bin/index.js"
@@ -12,8 +12,19 @@
     "build": "rollup -c",
     "install-peers": "npx install-peers"
   },
-  "keywords": [],
-  "private": true,
+  "keywords": [
+    "eslint",
+    "stylelint",
+    "dashboard",
+    "report",
+    "cli",
+    "code-quality",
+    "aem",
+    "bundle-analyzer",
+    "typescript",
+    "react"
+  ],
+  "private": false,
   "license": "MIT",
   "dependencies": {
     "chalk": "^5.3.0",
@@ -51,11 +62,10 @@
     "stylelint-config-standard-scss": "^11.0.0"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com/@deepaksharma/",
     "access": "public"
   },
   "repository": {
     "type": "git",
-    "url": "git@git.corp.adobe.com:deepaksharma/ui-code-insight.git"
+    "url": "https://github.com/deepak121001/ui-code-insight.git"
   }
 }
