@@ -126,8 +126,10 @@ const lintFile$1 = async (filePath, eslint) => {
  * @param {Array<string>} files
  * @param {string} folderPath
  * @param {ESLint} eslint
+ * @param {string} projectType
+ * @param {Array<string>} reports
  */
-const lintAllFiles$1 = async (files, folderPath, eslint) => {
+const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) => {
   console.log(
     chalk.green(
       `Total files count is ${files.length} This linting task will take some time.`
@@ -137,18 +139,22 @@ const lintAllFiles$1 = async (files, folderPath, eslint) => {
 
   try {
     const lintResults = await Promise.all(lintPromises);
-    const jsonReport = lintResults.map((result) => ({
-      filePath: result?.filePath,
-      errorCount: result?.errorCount,
-      warningCount: result?.warningCount,
-      messages: result?.messages.map((message) => ({
-        ruleId: message.ruleId,
-        severity: message.severity,
-        line: message.line,
-        column: message.column,
-        message: message.message,
+    const jsonReport = {
+      projectType,
+      reports,
+      results: lintResults.map((result) => ({
+        filePath: result?.filePath,
+        errorCount: result?.errorCount,
+        warningCount: result?.warningCount,
+        messages: result?.messages.map((message) => ({
+          ruleId: message.ruleId,
+          severity: message.severity,
+          line: message.line,
+          column: message.column,
+          message: message.message,
+        })),
       })),
-    }));
+    };
 
     await writeFile(
       path.join(folderPath, "eslint-report.json"),
@@ -164,11 +170,15 @@ const lintAllFiles$1 = async (files, folderPath, eslint) => {
  * @param {String} folderPath
  * @param {String} jsFilePathPattern
  * @param {Boolean} recommendedLintRules
+ * @param {String} projectType
+ * @param {Array<string>} reports
  */
 const generateESLintReport = async (
   folderPath,
   jsFilePathPattern,
-  recommendedLintRules
+  recommendedLintRules,
+  projectType = '',
+  reports = []
 ) => {
   const lintConfigFile = getLintConfigFile$1(recommendedLintRules);
   if (!lintConfigFile) {
@@ -181,7 +191,7 @@ const generateESLintReport = async (
   });
 
   const files = await globby([...jsFilePathPattern]);
-  await lintAllFiles$1(files, folderPath, eslint);
+  await lintAllFiles$1(files, folderPath, eslint, projectType, reports);
 };
 
 const { lint } = stylelint;
@@ -493,6 +503,11 @@ const handleReportError = (message, error) => {
   console.error(chalk.red(`${message}: ${error}`));
 };
 
+/**
+ * Copies static files to the report folder.
+ * @async
+ * @returns {Promise<void>}
+ */
 const createReportFolder = async () => {
   try {
     console.log(chalk.blue("Copying static files..."));
@@ -503,23 +518,43 @@ const createReportFolder = async () => {
   }
 };
 
+/**
+ * Generates a bundle analyzer report using webpack and webpack-bundle-analyzer.
+ * @async
+ * @param {string} webpackConfigFile - Path to the webpack config file.
+ * @param {string} webpackBundleFolder - Path to the webpack bundle folder.
+ * @returns {Promise<void>}
+ */
 const bundleAnalyzerReport = async (webpackConfigFile, webpackBundleFolder) => {
-  console.log(
-    chalk.blue(
-      `Generating Bundle Analyser Report with webpackConfigFile:${webpackConfigFile} & webpackBundleFolder:${webpackBundleFolder}!`
-    )
-  );
-  execSync("npm i webpack-bundle-analyzer");
-
-  execSync(
-    `npx webpack --config ${webpackConfigFile} --profile --json > report/stats.json`
-  );
-  execSync(
-    `npx webpack-bundle-analyzer report/stats.json ${webpackBundleFolder} --default-sizes stat --mode static --report report/bundle-report.html --no-open`
-  );
-  console.log(chalk.green("Bundle Analyser Run!"));
+  try {
+    console.log(
+      chalk.blue(
+        `Generating Bundle Analyser Report with webpackConfigFile:${webpackConfigFile} & webpackBundleFolder:${webpackBundleFolder}!`
+      )
+    );
+    execSync("npm i webpack-bundle-analyzer");
+    execSync(
+      `npx webpack --config ${webpackConfigFile} --profile --json > report/stats.json`
+    );
+    execSync(
+      `npx webpack-bundle-analyzer report/stats.json ${webpackBundleFolder} --default-sizes stat --mode static --report report/bundle-report.html --no-open`
+    );
+    console.log(chalk.green("Bundle Analyser Run!"));
+  } catch (err) {
+    handleReportError("Error generating Bundle Analyzer report", err);
+  }
 };
 
+/**
+ * Generates a component usage report.
+ * @async
+ * @param {string} authToken
+ * @param {string} aemBasePath
+ * @param {string} aemContentPath
+ * @param {string} aemAppsPath
+ * @param {string} slingResourceTypeBase
+ * @returns {Promise<void>}
+ */
 const generateComponentUsageReportWrapper = async (
   authToken,
   aemBasePath,
@@ -549,6 +584,13 @@ const generateComponentUsageReportWrapper = async (
   }
 };
 
+/**
+ * Generates an ESLint report.
+ * @async
+ * @param {string[]} jsFilePathPattern
+ * @param {boolean} recommendedLintRules
+ * @returns {Promise<void>}
+ */
 const generateESLintReportWrapper = async (
   jsFilePathPattern,
   recommendedLintRules
@@ -570,6 +612,13 @@ const generateESLintReportWrapper = async (
   }
 };
 
+/**
+ * Generates a Stylelint report.
+ * @async
+ * @param {string[]} scssFilePathPattern
+ * @param {boolean} recommendedLintRules
+ * @returns {Promise<void>}
+ */
 const generateStyleLintReportWrapper = async (
   scssFilePathPattern,
   recommendedLintRules
@@ -591,6 +640,10 @@ const generateStyleLintReportWrapper = async (
   }
 };
 
+/**
+ * Generates an npm package report.
+ * @returns {void}
+ */
 const generateNpmPackageReportWrapper = () => {
   try {
     console.log(chalk.blue("Generating npm packages report..."));
@@ -600,6 +653,18 @@ const generateNpmPackageReportWrapper = () => {
   }
 };
 
+/**
+ * Generates all reports as configured.
+ * @async
+ * @param {boolean} npmReport
+ * @param {string[]} jsFilePathPattern
+ * @param {string[]} scssFilePathPattern
+ * @param {boolean} recommendedLintRules
+ * @param {boolean} bundleAnalyzer
+ * @param {string} webpackConfigFile
+ * @param {string} webpackBundleFolder
+ * @returns {Promise<void>}
+ */
 const generateAllReport = async (
   npmReport,
   jsFilePathPattern,
@@ -618,7 +683,7 @@ const generateAllReport = async (
     generateNpmPackageReportWrapper();
   }
   if (bundleAnalyzer) {
-    bundleAnalyzerReport(webpackConfigFile, webpackBundleFolder);
+    await bundleAnalyzerReport(webpackConfigFile, webpackBundleFolder);
   }
   console.log(chalk.bold.green("Report generation completed!"));
 };
@@ -632,7 +697,6 @@ var audit = {
   generateNpmPackageReport: generateNpmPackageReportWrapper,
 };
 
-const args = process.argv.slice(3);
 const configPath = process.argv[2];
 const defaultConfig = {
   jsFilePathPattern: [
@@ -649,7 +713,8 @@ const defaultConfig = {
   webpackConfigFile: "./webpack.prod.js",
   webpackBundleFolder: "dist",
 };
-const codeInsightInit = async () => {
+
+const codeInsightInit = async (options = {}) => {
   try {
     let data;
     // Check if configPath is available
@@ -659,7 +724,7 @@ const codeInsightInit = async () => {
       console.log("Config file not available hence using default config");
       data = defaultConfig;
     }
-    const {
+    let {
       npmReport,
       jsFilePathPattern,
       scssFilePathPattern,
@@ -667,56 +732,34 @@ const codeInsightInit = async () => {
       aemContentPath,
       aemAppsPath,
       slingResourceTypeBase,
-      recommendedLintRules,
+      recommendedLintRules = true,
       bundleAnalyzer,
       webpackConfigFile,
       webpackBundleFolder
     } = configPath ? JSON.parse(data) : data;
     await audit.createReportFolder();
 
-    if (args.includes("--js")) {
-      audit.eslintReport(jsFilePathPattern);
+    const { reports = [], projectType } = options;
+    if (projectType) {
+      console.log(`Project type selected: ${projectType}`);
+      // Adjust recommendedLintRules based on projectType
+      if (projectType === 'React') {
+        recommendedLintRules = true;
+      } else if (projectType === 'Node') {
+        recommendedLintRules = false;
+      }
     }
 
-    const aemToken = args.find((item) => item.includes("--aem-token"));
-    if (aemToken) {
-      const token = aemToken.split("=")[1];
-      audit.componentUsageReport(
-        token,
-        aemBasePath,
-        aemContentPath,
-        aemAppsPath,
-        slingResourceTypeBase
-      );
+    if (reports.includes('all') || reports.includes('eslint')) {
+      await audit.generateESLintReport(jsFilePathPattern, recommendedLintRules, projectType, reports);
     }
-
-    if (args.includes("--scss")) {
-      audit.scssReport(scssFilePathPattern);
+    if (reports.includes('all') || reports.includes('stylelint')) {
+      await audit.generateStyleLintReport(scssFilePathPattern, recommendedLintRules, projectType, reports);
     }
-
-    if (args.includes("--bundle-analyse")) {
-      audit.bundleAnalyzerReport(
-        webpackConfigFile,
-        webpackBundleFolder
-      );
+    if (reports.includes('all') || reports.includes('package')) {
+      await audit.generateNpmPackageReport(projectType, reports);
     }
-
-    if (args.includes("--npm")) {
-      audit.npmPackageReport();
-    }
-
-    if (args.length === 0) {
-      audit.generateAllReport(
-        npmReport,
-        jsFilePathPattern,
-        scssFilePathPattern,
-        recommendedLintRules,
-        bundleAnalyzer,
-        webpackConfigFile,
-        webpackBundleFolder
-
-      );
-    }
+    // You can add more report types here as needed
   } catch (error) {
     console.error("Error reading the file:", error);
   }

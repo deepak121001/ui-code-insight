@@ -18,6 +18,7 @@ export const packageReportInit = () => {
         npmReportSection.style.display = "block";
       }
       const data = await fetchData("npm");
+      console.log(data);
       if (data.dependencies.length) {
         renderTable(data.dependencies, npmReportTable);
       }

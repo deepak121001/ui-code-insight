@@ -103,8 +103,10 @@ const lintFile = async (filePath, eslint) => {
  * @param {Array<string>} files
  * @param {string} folderPath
  * @param {ESLint} eslint
+ * @param {string} projectType
+ * @param {Array<string>} reports
  */
-const lintAllFiles = async (files, folderPath, eslint) => {
+const lintAllFiles = async (files, folderPath, eslint, projectType, reports) => {
   console.log(
     chalk.green(
       `Total files count is ${files.length} This linting task will take some time.`
@@ -114,18 +116,22 @@ const lintAllFiles = async (files, folderPath, eslint) => {
 
   try {
     const lintResults = await Promise.all(lintPromises);
-    const jsonReport = lintResults.map((result) => ({
-      filePath: result?.filePath,
-      errorCount: result?.errorCount,
-      warningCount: result?.warningCount,
-      messages: result?.messages.map((message) => ({
-        ruleId: message.ruleId,
-        severity: message.severity,
-        line: message.line,
-        column: message.column,
-        message: message.message,
+    const jsonReport = {
+      projectType,
+      reports,
+      results: lintResults.map((result) => ({
+        filePath: result?.filePath,
+        errorCount: result?.errorCount,
+        warningCount: result?.warningCount,
+        messages: result?.messages.map((message) => ({
+          ruleId: message.ruleId,
+          severity: message.severity,
+          line: message.line,
+          column: message.column,
+          message: message.message,
+        })),
       })),
-    }));
+    };
 
     await writeFile(
       path.join(folderPath, "eslint-report.json"),
@@ -141,11 +147,15 @@ const lintAllFiles = async (files, folderPath, eslint) => {
  * @param {String} folderPath
  * @param {String} jsFilePathPattern
  * @param {Boolean} recommendedLintRules
+ * @param {String} projectType
+ * @param {Array<string>} reports
  */
 export const generateESLintReport = async (
   folderPath,
   jsFilePathPattern,
-  recommendedLintRules
+  recommendedLintRules,
+  projectType = '',
+  reports = []
 ) => {
   const lintConfigFile = getLintConfigFile(recommendedLintRules);
   if (!lintConfigFile) {
@@ -158,5 +168,5 @@ export const generateESLintReport = async (
   });
 
   const files = await globby([...jsFilePathPattern]);
-  await lintAllFiles(files, folderPath, eslint);
+  await lintAllFiles(files, folderPath, eslint, projectType, reports);
 };

@@ -6,6 +6,7 @@ import { packageReportInit } from "./js/packages-dom";
 import { stylelintDom } from "./js/stylelint-dom";
 import {componentUsageDom} from "./js/component-usage";
 import "./main.scss";
+import './js/dashboard.js';
 
 document.addEventListener("DOMContentLoaded", () => {
   chartInit();
@@ -13,5 +14,5 @@ document.addEventListener("DOMContentLoaded", () => {
   stylelintDom();
   globalInit();
   packageReportInit();
-  componentUsageDom();
+  // componentUsageDom();
 });

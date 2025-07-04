@@ -1,0 +1,213 @@
+{
+  "dependencies": [
+    {
+      "name": "chalk",
+      "version": "5.4.1",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/chalk/-/chalk-5.4.1.tgz",
+      "description": "Terminal string styling done right",
+      "unpackedSize": "43.21 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "dotenv",
+      "version": "17.0.1",
+      "license": "BSD-2-Clause",
+      "download": "https://registry.npmjs.org/dotenv/-/dotenv-17.0.1.tgz",
+      "description": "Loads environment variables from .env file",
+      "unpackedSize": "74.71 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "globby",
+      "version": "14.1.0",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/globby/-/globby-14.1.0.tgz",
+      "description": "User-friendly glob matching",
+      "unpackedSize": "28.31 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "inquirer",
+      "version": "12.7.0",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/inquirer/-/inquirer-12.7.0.tgz",
+      "description": "A collection of common interactive command line user interfaces.",
+      "unpackedSize": "70.79 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "node-fetch",
+      "version": "3.3.2",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/node-fetch/-/node-fetch-3.3.2.tgz",
+      "description": "A light-weight module that brings Fetch API to node.js",
+      "unpackedSize": "104.80 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "puppeteer",
+      "version": "24.11.2",
+      "license": "Apache-2.0",
+      "download": "https://registry.npmjs.org/puppeteer/-/puppeteer-24.11.2.tgz",
+      "description": "A high-level API to control headless Chrome over the DevTools Protocol",
+      "unpackedSize": "354.09 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "webpack",
+      "version": "5.99.9",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/webpack/-/webpack-5.99.9.tgz",
+      "description": "Packs ECMAScript/CommonJs/AMD modules for the browser. Allows you to split your codebase into multiple bundles, which can be loaded on demand. Supports loaders to preprocess files, i.e. json, jsx, es7, css, less, ... and your custom stuff.",
+      "unpackedSize": "5206.31 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "webpack-bundle-analyzer",
+      "version": "4.10.2",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/webpack-bundle-analyzer/-/webpack-bundle-analyzer-4.10.2.tgz",
+      "description": "Webpack plugin and CLI utility that represents bundle content as convenient interactive zoomable treemap",
+      "unpackedSize": "1204.67 MB",
+      "deprecated": "Not deprecated"
+    }
+  ],
+  "devDependencies": [
+    {
+      "name": "@typescript-eslint/eslint-plugin",
+      "version": "8.35.1",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/@typescript-eslint/eslint-plugin/-/eslint-plugin-8.35.1.tgz",
+      "description": "TypeScript plugin for ESLint",
+      "unpackedSize": "1954.67 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "@typescript-eslint/parser",
+      "version": "8.35.1",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/@typescript-eslint/parser/-/parser-8.35.1.tgz",
+      "description": "An ESLint custom parser which leverages TypeScript ESTree",
+      "unpackedSize": "14.02 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "eslint",
+      "version": "9.30.1",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/eslint/-/eslint-9.30.1.tgz",
+      "description": "An AST-based pattern checker for JavaScript.",
+      "unpackedSize": "2882.45 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "eslint-config-airbnb",
+      "version": "19.0.4",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/eslint-config-airbnb/-/eslint-config-airbnb-19.0.4.tgz",
+      "description": "Airbnb's ESLint config, following our styleguide",
+      "unpackedSize": "79.82 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "eslint-plugin-import",
+      "version": "2.32.0",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/eslint-plugin-import/-/eslint-plugin-import-2.32.0.tgz",
+      "description": "Import with sanity.",
+      "unpackedSize": "1384.43 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "eslint-plugin-jsx-a11y",
+      "version": "6.10.2",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/eslint-plugin-jsx-a11y/-/eslint-plugin-jsx-a11y-6.10.2.tgz",
+      "description": "Static AST checker for accessibility rules on JSX elements.",
+      "unpackedSize": "735.15 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "eslint-plugin-no-unsanitized",
+      "version": "4.1.2",
+      "license": "MPL-2.0",
+      "download": "https://registry.npmjs.org/eslint-plugin-no-unsanitized/-/eslint-plugin-no-unsanitized-4.1.2.tgz",
+      "description": "ESLint rule to disallow unsanitized code",
+      "unpackedSize": "64.27 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "eslint-plugin-node",
+      "version": "11.1.0",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/eslint-plugin-node/-/eslint-plugin-node-11.1.0.tgz",
+      "description": "Additional ESLint's rules for Node.js",
+      "unpackedSize": "262.39 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "eslint-plugin-react",
+      "version": "7.37.5",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/eslint-plugin-react/-/eslint-plugin-react-7.37.5.tgz",
+      "description": "React specific linting rules for ESLint",
+      "unpackedSize": "915.59 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "eslint-plugin-sonarjs",
+      "version": "3.0.4",
+      "license": "LGPL-3.0-only",
+      "download": "https://registry.npmjs.org/eslint-plugin-sonarjs/-/eslint-plugin-sonarjs-3.0.4.tgz",
+      "description": "SonarJS rules for ESLint",
+      "unpackedSize": "3227.54 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "rollup",
+      "version": "4.44.2",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/rollup/-/rollup-4.44.2.tgz",
+      "description": "Next-generation ES module bundler",
+      "unpackedSize": "2676.48 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "rollup-plugin-copy",
+      "version": "3.5.0",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/rollup-plugin-copy/-/rollup-plugin-copy-3.5.0.tgz",
+      "description": "Copy files and folders using Rollup",
+      "unpackedSize": "16.19 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "rollup-plugin-scss",
+      "version": "4.0.1",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/rollup-plugin-scss/-/rollup-plugin-scss-4.0.1.tgz",
+      "description": "Rollup multiple .scss, .sass and .css imports",
+      "unpackedSize": "37.31 MB",
+      "deprecated": "Not deprecated"
+    },
+    {
+      "name": "rollup-plugin-terser",
+      "version": "7.0.2",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/rollup-plugin-terser/-/rollup-plugin-terser-7.0.2.tgz",
+      "description": "Rollup plugin to minify generated es bundle",
+      "unpackedSize": "8.27 MB",
+      "deprecated": "Deprecated"
+    },
+    {
+      "name": "sass",
+      "version": "1.89.2",
+      "license": "MIT",
+      "download": "https://registry.npmjs.org/sass/-/sass-1.89.2.tgz",
+      "description": "A pure JavaScript implementation of Sass.",
+      "unpackedSize": "5567.67 MB",
+      "deprecated": "Not deprecated"
+    }
+  ]
+}

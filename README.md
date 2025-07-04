@@ -74,20 +74,35 @@ Adjust the file patterns to match the structure of your project.
 
 ## Usage
 
-Once you have created your configuration file, follow these steps to seamlessly integrate it into your project:
+Once you have created your configuration file, you can generate reports using the CLI from anywhere in your terminal:
 
-- **Add a Custom Command to package.json:** Open your package.json file and navigate to the "scripts" section. Add the following custom command:
+```
+ui-code-insight path/to/your/config.json [options]
+```
+
+- Replace `path/to/your/config.json` with the path to your configuration file.
+- You can run this command from any directory if the package is installed globally.
+
+**Example:**
+```
+ui-code-insight ./config.json
+```
+
+### Optional: Add a Custom Command to package.json
+
+If you prefer, you can add a script to your `package.json` for convenience:
 
 ```
 "scripts": {
   "generate-report": "ui-code-insight config.json"
 }
 ```
-This command allows you to generate reports using your configuration file without having to type the full command in the terminal each time.
+Then run:
 ```
 npm run generate-report
 ```
-This npm script executes the ui-code-insight command with the specified config.json file, making it a convenient way to generate reports for your project.
+
+This npm script executes the `ui-code-insight` command with the specified config file, making it a convenient way to generate reports for your project. This step is optional if you use the CLI directly.
 
 Feel free to customize the script name and configuration file path based on your preferences.
 
@@ -97,3 +112,46 @@ This module relies on the following npm packages:
 
 - [Stylelint](https://www.npmjs.com/package/stylelint) - License: MIT
 - [ESLint](https://www.npmjs.com/package/eslint) - License: MIT
+
+## XSS Safety Audit
+
+UI Code Insight now audits for potential XSS vulnerabilities by:
+- Detecting usage of unsafe DOM manipulation APIs (e.g., innerHTML, outerHTML, insertAdjacentHTML).
+- Recommending the use of safer alternatives (e.g., textContent) or sanitization (e.g., sanitize-html).
+- Integrating [eslint-plugin-no-unsanitized](https://www.npmjs.com/package/eslint-plugin-no-unsanitized) to statically analyze and flag risky code patterns.
+
+### How it works
+- The audit will flag any direct use of innerHTML, outerHTML, insertAdjacentHTML, etc., in your codebase.
+- The report will recommend using [sanitize-html](https://www.npmjs.com/package/sanitize-html) to sanitize any dynamic HTML before inserting it into the DOM.
+- The tool will also recommend enabling the ESLint plugin 'eslint-plugin-no-unsanitized' for ongoing static analysis.
+
+### Remediation
+- Use `textContent` for plain text insertion.
+- Use `sanitize-html` for any dynamic HTML.
+- Fix or refactor any code flagged by the audit or ESLint plugin.
+
+## Code Complexity & Cognitive Complexity Audit
+
+UI Code Insight now audits for code complexity and cognitive complexity issues by:
+- Detecting functions with too many parameters, deeply nested blocks, and high cyclomatic/cognitive complexity.
+- Highlighting redundant conditions, unnecessary operations, and code smells.
+- Integrating [eslint-plugin-sonarjs](https://www.npmjs.com/package/eslint-plugin-sonarjs) for advanced static analysis.
+
+### How it works
+- The audit will flag:
+  - Functions with more than 4 parameters.
+  - Functions with more than 3 levels of nesting.
+  - Functions with a cognitive complexity score above 15.
+  - Redundant or always-true/false conditions.
+  - Unnecessary boolean casts or operations.
+- The tool uses the following ESLint rules:
+  - `complexity` (max 10)
+  - `max-params` (max 4)
+  - `max-depth` (max 3)
+  - `sonarjs/cognitive-complexity` (max 15)
+
+### Remediation
+- Refactor flagged functions to reduce complexity.
+- Split large or deeply nested functions into smaller, simpler ones.
+- Remove redundant or unnecessary code.
+- Fix or refactor any code flagged by the audit or ESLint plugin.

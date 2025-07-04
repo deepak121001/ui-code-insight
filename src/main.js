@@ -17,6 +17,11 @@ const handleReportError = (message, error) => {
   console.error(chalk.red(`${message}: ${error}`));
 };
 
+/**
+ * Copies static files to the report folder.
+ * @async
+ * @returns {Promise<void>}
+ */
 const createReportFolder = async () => {
   try {
     console.log(chalk.blue("Copying static files..."));
@@ -27,23 +32,43 @@ const createReportFolder = async () => {
   }
 };
 
+/**
+ * Generates a bundle analyzer report using webpack and webpack-bundle-analyzer.
+ * @async
+ * @param {string} webpackConfigFile - Path to the webpack config file.
+ * @param {string} webpackBundleFolder - Path to the webpack bundle folder.
+ * @returns {Promise<void>}
+ */
 const bundleAnalyzerReport = async (webpackConfigFile, webpackBundleFolder) => {
-  console.log(
-    chalk.blue(
-      `Generating Bundle Analyser Report with webpackConfigFile:${webpackConfigFile} & webpackBundleFolder:${webpackBundleFolder}!`
-    )
-  );
-  execSync("npm i webpack-bundle-analyzer");
-
-  execSync(
-    `npx webpack --config ${webpackConfigFile} --profile --json > report/stats.json`
-  );
-  execSync(
-    `npx webpack-bundle-analyzer report/stats.json ${webpackBundleFolder} --default-sizes stat --mode static --report report/bundle-report.html --no-open`
-  );
-  console.log(chalk.green("Bundle Analyser Run!"));
+  try {
+    console.log(
+      chalk.blue(
+        `Generating Bundle Analyser Report with webpackConfigFile:${webpackConfigFile} & webpackBundleFolder:${webpackBundleFolder}!`
+      )
+    );
+    execSync("npm i webpack-bundle-analyzer");
+    execSync(
+      `npx webpack --config ${webpackConfigFile} --profile --json > report/stats.json`
+    );
+    execSync(
+      `npx webpack-bundle-analyzer report/stats.json ${webpackBundleFolder} --default-sizes stat --mode static --report report/bundle-report.html --no-open`
+    );
+    console.log(chalk.green("Bundle Analyser Run!"));
+  } catch (err) {
+    handleReportError("Error generating Bundle Analyzer report", err);
+  }
 };
 
+/**
+ * Generates a component usage report.
+ * @async
+ * @param {string} authToken
+ * @param {string} aemBasePath
+ * @param {string} aemContentPath
+ * @param {string} aemAppsPath
+ * @param {string} slingResourceTypeBase
+ * @returns {Promise<void>}
+ */
 const generateComponentUsageReportWrapper = async (
   authToken,
   aemBasePath,
@@ -73,6 +98,13 @@ const generateComponentUsageReportWrapper = async (
   }
 };
 
+/**
+ * Generates an ESLint report.
+ * @async
+ * @param {string[]} jsFilePathPattern
+ * @param {boolean} recommendedLintRules
+ * @returns {Promise<void>}
+ */
 const generateESLintReportWrapper = async (
   jsFilePathPattern,
   recommendedLintRules
@@ -94,6 +126,13 @@ const generateESLintReportWrapper = async (
   }
 };
 
+/**
+ * Generates a Stylelint report.
+ * @async
+ * @param {string[]} scssFilePathPattern
+ * @param {boolean} recommendedLintRules
+ * @returns {Promise<void>}
+ */
 const generateStyleLintReportWrapper = async (
   scssFilePathPattern,
   recommendedLintRules
@@ -115,6 +154,10 @@ const generateStyleLintReportWrapper = async (
   }
 };
 
+/**
+ * Generates an npm package report.
+ * @returns {void}
+ */
 const generateNpmPackageReportWrapper = () => {
   try {
     console.log(chalk.blue("Generating npm packages report..."));
@@ -124,6 +167,18 @@ const generateNpmPackageReportWrapper = () => {
   }
 };
 
+/**
+ * Generates all reports as configured.
+ * @async
+ * @param {boolean} npmReport
+ * @param {string[]} jsFilePathPattern
+ * @param {string[]} scssFilePathPattern
+ * @param {boolean} recommendedLintRules
+ * @param {boolean} bundleAnalyzer
+ * @param {string} webpackConfigFile
+ * @param {string} webpackBundleFolder
+ * @returns {Promise<void>}
+ */
 const generateAllReport = async (
   npmReport,
   jsFilePathPattern,
@@ -142,7 +197,7 @@ const generateAllReport = async (
     generateNpmPackageReportWrapper();
   }
   if (bundleAnalyzer) {
-    bundleAnalyzerReport(webpackConfigFile, webpackBundleFolder);
+    await bundleAnalyzerReport(webpackConfigFile, webpackBundleFolder);
   }
   console.log(chalk.bold.green("Report generation completed!"));
 };

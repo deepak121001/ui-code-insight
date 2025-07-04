@@ -1,7 +1,6 @@
 import { promises as fs } from "fs";
 import audit from "./main.js";
 
-const args = process.argv.slice(3);
 const configPath = process.argv[2];
 const defaultConfig = {
   jsFilePathPattern: [
@@ -18,7 +17,8 @@ const defaultConfig = {
   webpackConfigFile: "./webpack.prod.js",
   webpackBundleFolder: "dist",
 };
-export const codeInsightInit = async () => {
+
+export const codeInsightInit = async (options = {}) => {
   try {
     let data;
     // Check if configPath is available
@@ -28,7 +28,7 @@ export const codeInsightInit = async () => {
       console.log("Config file not available hence using default config");
       data = defaultConfig;
     }
-    const {
+    let {
       npmReport,
       jsFilePathPattern,
       scssFilePathPattern,
@@ -36,56 +36,34 @@ export const codeInsightInit = async () => {
       aemContentPath,
       aemAppsPath,
       slingResourceTypeBase,
-      recommendedLintRules,
+      recommendedLintRules = true,
       bundleAnalyzer,
       webpackConfigFile,
       webpackBundleFolder
     } = configPath ? JSON.parse(data) : data;
     await audit.createReportFolder();
 
-    if (args.includes("--js")) {
-      audit.eslintReport(jsFilePathPattern);
+    const { reports = [], projectType } = options;
+    if (projectType) {
+      console.log(`Project type selected: ${projectType}`);
+      // Adjust recommendedLintRules based on projectType
+      if (projectType === 'React') {
+        recommendedLintRules = true;
+      } else if (projectType === 'Node') {
+        recommendedLintRules = false;
+      }
     }
 
-    const aemToken = args.find((item) => item.includes("--aem-token"));
-    if (aemToken) {
-      const token = aemToken.split("=")[1];
-      audit.componentUsageReport(
-        token,
-        aemBasePath,
-        aemContentPath,
-        aemAppsPath,
-        slingResourceTypeBase
-      );
+    if (reports.includes('all') || reports.includes('eslint')) {
+      await audit.generateESLintReport(jsFilePathPattern, recommendedLintRules, projectType, reports);
     }
-
-    if (args.includes("--scss")) {
-      audit.scssReport(scssFilePathPattern);
+    if (reports.includes('all') || reports.includes('stylelint')) {
+      await audit.generateStyleLintReport(scssFilePathPattern, recommendedLintRules, projectType, reports);
     }
-
-    if (args.includes("--bundle-analyse")) {
-      audit.bundleAnalyzerReport(
-        webpackConfigFile,
-        webpackBundleFolder
-      );
+    if (reports.includes('all') || reports.includes('package')) {
+      await audit.generateNpmPackageReport(projectType, reports);
     }
-
-    if (args.includes("--npm")) {
-      audit.npmPackageReport();
-    }
-
-    if (args.length === 0) {
-      audit.generateAllReport(
-        npmReport,
-        jsFilePathPattern,
-        scssFilePathPattern,
-        recommendedLintRules,
-        bundleAnalyzer,
-        webpackConfigFile,
-        webpackBundleFolder
-
-      );
-    }
+    // You can add more report types here as needed
   } catch (error) {
     console.error("Error reading the file:", error);
   }

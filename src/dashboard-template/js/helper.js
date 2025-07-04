@@ -1,20 +1,41 @@
+/**
+ * Fetches report data from a JSON file. Returns an empty array/object if not found.
+ * @async
+ * @param {string} reportType - The type of report to fetch (e.g., 'eslint', 'stylelint', 'npm', 'component-usage').
+ * @returns {Promise<Object|Array>} The parsed JSON data or an empty array/object if not found.
+ */
 export const fetchData = async (reportType) => {
-  const response = await fetch(`./${reportType}-report.json`);
-  if (!response.ok) {
-    throw new Error(
-      `Error fetching ${reportType}-report.json: ${response.status}`
-    );
+  try {
+    const response = await fetch(`./${reportType}-report.json`);
+    if (!response.ok) {
+      showDashboardMessage(`No ${reportType} report found. Please generate the report first.`);
+      // Return empty array for known array reports, empty object otherwise
+      if (reportType === 'stylelint' || reportType === 'component-usage') return [];
+      return {};
+    }
+    return await response.json();
+  } catch (e) {
+    showDashboardMessage(`Error fetching ${reportType} report.`);
+    if (reportType === 'stylelint' || reportType === 'component-usage') return [];
+    return {};
   }
-  const data = await response.json();
-  return data;
 };
 
+/**
+ * Hides the main dashboard content area.
+ */
 export const hideChartCards = () => {
   const dashboardContent = document.getElementById("dashboardContent");
   if (dashboardContent) dashboardContent.style.display = "none";
 };
 
+/**
+ * Renders a table of package data.
+ * @param {Array} data - Array of package objects.
+ * @param {HTMLElement} table - The table element to render into.
+ */
 export const renderTable = (data, table) => {
+  if (!table) return;
   const rows = data
     .map(
       (item) => `
@@ -39,12 +60,17 @@ export const renderTable = (data, table) => {
   `
     )
     .join(" ");
-
-  if (table) {
-    table.innerHTML = rows;
-  }
+  table.innerHTML = rows;
 };
 
+/**
+ * Creates an accordion item for a file's lint results.
+ * @param {string} filePath
+ * @param {number} errorCount
+ * @param {number} warningCount
+ * @param {Array} messages
+ * @returns {HTMLElement} The accordion item element.
+ */
 export const createAccordionItem = (
   filePath,
   errorCount,
@@ -131,6 +157,10 @@ export const createAccordionItem = (
   return accordionItem;
 };
 
+/**
+ * Renders an accordion of lint results.
+ * @param {Array} data - Array of file lint result objects.
+ */
 export const renderAccordion = (data) => {
   const accordionContent = document.getElementById("accordionContent");
   const accordionContainer = document.getElementById("accordion");
@@ -138,6 +168,7 @@ export const renderAccordion = (data) => {
   if (accordionContent) {
     accordionContent.classList.remove("hidden");
   }
+  if (!accordionContainer) return;
   accordionContainer.innerHTML = "";
   data.forEach((item) => {
     const accordionItem = createAccordionItem(
@@ -150,6 +181,9 @@ export const renderAccordion = (data) => {
   });
 };
 
+/**
+ * Updates progress gauge elements based on their data-value attribute.
+ */
 export const updateProgress = () => {
   const wrappers = document.querySelectorAll(".lh-gauge__svg-wrapper");
 
@@ -180,9 +214,26 @@ export const updateProgress = () => {
   });
 };
 
+/**
+ * Initializes global dashboard event listeners.
+ */
 export const globalInit = () => {
   const dashboardMainLink = document.getElementById("mainPage");
-  dashboardMainLink.addEventListener("click", () => {
-    location.reload();
-  });
+  if (dashboardMainLink) {
+    dashboardMainLink.addEventListener("click", () => {
+      location.reload();
+    });
+  }
+};
+
+/**
+ * Show a friendly message in the dashboard.
+ * @param {string} message
+ */
+export const showDashboardMessage = (message) => {
+  const msgDiv = document.getElementById('dashboardMessage');
+  if (msgDiv) {
+    msgDiv.textContent = message;
+    msgDiv.classList.remove('hidden');
+  }
 };

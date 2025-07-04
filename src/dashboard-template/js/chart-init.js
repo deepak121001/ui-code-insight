@@ -62,46 +62,47 @@ export const chartInit = () => {
 
   const updateChartWithData = async (filename, element) => {
     const data = await fetchData(filename);
+    const arr = Array.isArray(data) ? data : [];
     // Calculate total error and warning counts
-    const totalErrors = data.reduce(
+    const totalErrors = arr.reduce(
       (acc, item) => (item.errorCount ? acc + item.errorCount : acc + 0),
       0
     );
-    const totalWarnings = data.reduce(
+    const totalWarnings = arr.reduce(
       (acc, item) => (item.warningCount ? acc + item.warningCount : acc + 0),
       0
     );
 
-    const totalItems = data.length;
+    const totalItems = arr.length;
 
-    const fileWithErrors = data.reduce((acc, item) => {
+    const fileWithErrors = arr.reduce((acc, item) => {
       if (item.errorCount) {
         acc += 1;
       }
       return acc;
     }, 0);
-    const percentageWithErrors = Math.floor(
+    const percentageWithErrors = totalItems > 0 ? Math.floor(
       (fileWithErrors / totalItems) * 100
-    );
+    ) : 0;
 
-    const fileWithOnlyWarnings = data.reduce((acc, item) => {
+    const fileWithOnlyWarnings = arr.reduce((acc, item) => {
       if (item.errorCount === 0 && item.warningCount) {
         acc += 1;
       }
       return acc;
     }, 0);
 
-    const percentageOnlyWarnings = Math.floor(
+    const percentageOnlyWarnings = totalItems > 0 ? Math.floor(
       (fileWithOnlyWarnings / totalItems) * 100
-    );
+    ) : 0;
 
-    const passFile = data.reduce((acc, item) => {
+    const passFile = arr.reduce((acc, item) => {
       if (!item.errorCount && !item.warningCount) {
         acc += 1;
       }
       return acc;
     }, 0);
-    const percentagePassFile = Math.floor((passFile / totalItems) * 100);
+    const percentagePassFile = totalItems > 0 ? Math.floor((passFile / totalItems) * 100) : 0;
 
     const chartContainer = document.getElementById(element);
     const mainParent = chartContainer?.parentNode?.parentNode?.parentNode;

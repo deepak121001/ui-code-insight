@@ -16,7 +16,11 @@
     "ecmaVersion": 2020,
     "sourceType": "module"
   },
-  "plugins": ["react", "@typescript-eslint"],
+  "plugins": [
+    "react",
+    "@typescript-eslint",
+    "no-unsanitized"
+  ],
   "settings": {
     "import/resolver": {
       "webpack": {
@@ -60,7 +64,12 @@
           "some": ["nesting", "id"]
         }
       }
-    ]
+    ],
+    "no-unsanitized/method": "error",
+    "no-unsanitized/property": "error",
+    "complexity": ["warn", 10],
+    "max-params": ["warn", 4],
+    "max-depth": ["warn", 3]
   },
   "globals": {
     "google": true

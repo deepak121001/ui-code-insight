@@ -4,603 +4,88 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UI Insights Dashboard</title>
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/1.8.1/flowbite.min.css"
-      rel="stylesheet"
-    />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/1.8.1/flowbite.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <link href="bundle.css" rel="stylesheet" type="text/css" />
   </head>
-
-  <body class="bg-gray-100">
-    <!--Top Nav-->
-    <nav
-      class="bg-white dark:bg-gray-900 fixed w-full z-20 top-0 left-0 border-b border-gray-200 dark:border-gray-600"
-    >
-      <div class="flex flex-wrap items-center justify-between mx-auto p-4">
-        <a href="#" class="flex items-center">
-          <svg
-            width="40px"
-            height="40px"
-            viewBox="0 0 512 512"
-            version="1.1"
-            xmlns="http://www.w3.org/2000/svg"
-            xmlns:xlink="http://www.w3.org/1999/xlink"
-          >
-            <title>analyze</title>
-            <g
-              id="Page-1"
-              stroke="none"
-              stroke-width="1"
-              fill="none"
-              fill-rule="evenodd"
-            >
-              <g
-                id="add"
-                fill="#000000"
-                transform="translate(42.666667, 64.000000)"
-              >
-                <path
-                  d="M266.666667,128 C331.468077,128 384,180.531923 384,245.333333 C384,270.026519 376.372036,292.938098 363.343919,311.840261 L423.228475,371.725253 L393.058586,401.895142 L333.173594,342.010585 C314.271431,355.038703 291.359852,362.666667 266.666667,362.666667 C201.865256,362.666667 149.333333,310.134744 149.333333,245.333333 C149.333333,180.531923 201.865256,128 266.666667,128 Z M266.666667,170.666667 C225.429405,170.666667 192,204.096072 192,245.333333 C192,286.570595 225.429405,320 266.666667,320 C307.903928,320 341.333333,286.570595 341.333333,245.333333 C341.333333,204.096072 307.903928,170.666667 266.666667,170.666667 Z M128.404239,234.665576 C128.136379,238.186376 128,241.743928 128,245.333333 C128,256.34762 129.284152,267.061976 131.710904,277.334851 L7.10542736e-15,277.333333 L7.10542736e-15,234.666667 L128.404239,234.665576 Z M85.3333333,1.42108547e-14 L85.3333333,213.333333 L21.3333333,213.333333 L21.3333333,1.42108547e-14 L85.3333333,1.42108547e-14 Z M170.666667,85.3333333 L170.663947,145.273483 C151.733734,163.440814 137.948238,186.928074 131.710904,213.331815 L106.666667,213.333333 L106.666667,85.3333333 L170.666667,85.3333333 Z M256,42.6666667 L255.999596,107.070854 C232.554315,108.854436 210.738728,116.46829 191.999452,128.465799 L192,42.6666667 L256,42.6666667 Z M341.333333,64 L341.333983,128.465865 C322.594868,116.468435 300.779487,108.854588 277.334424,107.070906 L277.333333,64 L341.333333,64 Z"
-                  id="Combined-Shape"
-                ></path>
-              </g>
-            </g>
-          </svg>
-          <span
-            class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white"
-            >UI Insights</span
-          >
-        </a>
-
-        <div class="flex items-center">
-          <span
-            class="mr-6 text-sm text-gray-500 dark:text-white hover:underline"
-          >
-            <!-- Date: 10-10-2023 -->
-          </span>
-        </div>
+  <body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow p-4 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <svg width="40" height="40" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g fill="#2563eb"><circle cx="256" cy="256" r="256"/></g>
+          <text x="50%" y="55%" text-anchor="middle" fill="white" font-size="24" font-family="Arial" dy=".3em">UI</text>
+        </svg>
+        <span class="text-2xl font-bold text-blue-700">UI Insights Dashboard</span>
       </div>
-    </nav>
-
-    <!--Top Nav End-->
-
-    <!--Sidebar Start-->
-    <button
-      data-drawer-target="default-sidebar"
-      data-drawer-toggle="default-sidebar"
-      aria-controls="default-sidebar"
-      type="button"
-      class="inline-flex items-center p-2 mt-2 ml-3 text-sm text-gray-500 rounded-lg sm:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600"
-    >
-      <span class="sr-only">Open sidebar</span>
-      <svg
-        class="w-6 h-6"
-        aria-hidden="true"
-        fill="currentColor"
-        viewBox="0 0 20 20"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          clip-rule="evenodd"
-          fill-rule="evenodd"
-          d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"
-        ></path>
-      </svg>
-    </button>
-    <aside
-      id="default-sidebar"
-      class="sidenav fixed top-0 left-0 z-40 w-64 h-screen transition-transform -translate-x-full sm:translate-x-0"
-      aria-label="Sidebar"
-    >
-      <div
-        class="main-contnet h-full px-3 py-4 overflow-y-auto bg-gray-50 dark:bg-gray-800"
-      >
-        <ul class="space-y-2 font-medium">
-          <li>
-            <a
-              id="mainPage"
-              href="#"
-              class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group"
-            >
-              <svg
-                class="w-6 h-6 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M6.95 8.653A7.338 7.338 0 0 0 5.147 13H7v1H5.149a7.324 7.324 0 0 0 1.81 4.346l1.29-1.29.707.708C7.22 19.5 7.633 19.079 6.963 19.777a8.373 8.373 0 1 1 11.398-12.26l-.71.71A7.353 7.353 0 0 0 13 6.147V8h-1V6.146a7.338 7.338 0 0 0-4.342 1.8L8.973 9.26l-.707.707zm13.16 1.358l-.76.76a7.303 7.303 0 0 1-1.301 7.565L16.75 17.04l-.707.707 1.993 2.031a8.339 8.339 0 0 0 2.073-9.766zM3 13.5a9.492 9.492 0 0 1 16.15-6.772l.711-.71a10.493 10.493 0 1 0-14.364 15.29l.694-.725A9.469 9.469 0 0 1 3 13.5zm17.947-4.326a9.442 9.442 0 0 1-2.138 11.41l.694.724a10.473 10.473 0 0 0 2.19-12.88zm1.578-4.406l.707.707-8.648 8.649a2.507 2.507 0 1 1-.707-.707zM14 15.5a1.5 1.5 0 1 0-1.5 1.5 1.502 1.502 0 0 0 1.5-1.5z"
-                />
-                <path fill="none" d="M0 0h24v24H0z" />
-              </svg>
-              <span class="ml-3">Dashboard</span>
-            </a>
-          </li>
-          <li>
-            <a
-              href="#"
-              id="jsAuditReport"
-              class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group"
-            >
-              <svg
-                class="w-6 h-6 text-gray-800 dark:text-white"
-                aria-hidden="true"
-                viewBox="0 0 15 15"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M0.5 7.5L0.0527864 7.27639C-0.0175955 7.41716 -0.0175955 7.58284 0.0527864 7.72361L0.5 7.5ZM3.5 1.5V1C3.31061 1 3.13748 1.107 3.05279 1.27639L3.5 1.5ZM11.5 1.5L11.9472 1.27639C11.8625 1.107 11.6894 1 11.5 1V1.5ZM14.5 7.5L14.9472 7.72361C15.0176 7.58284 15.0176 7.41716 14.9472 7.27639L14.5 7.5ZM11.5 13.5V14C11.6894 14 11.8625 13.893 11.9472 13.7236L11.5 13.5ZM3.5 13.5L3.05279 13.7236C3.13748 13.893 3.31061 14 3.5 14V13.5ZM7.5 4L7.77735 3.58397L7.5 3.39907L7.22265 3.58397L7.5 4ZM4.5 6L4.22265 5.58397L4 5.73241V6H4.5ZM4.5 9H4V9.26759L4.22265 9.41603L4.5 9ZM7.5 11L7.22265 11.416L7.5 11.6009L7.77735 11.416L7.5 11ZM10.5 9L10.7774 9.41603L11 9.26759V9H10.5ZM10.5 6H11V5.73241L10.7774 5.58397L10.5 6ZM0.947214 7.72361L3.94721 1.72361L3.05279 1.27639L0.0527864 7.27639L0.947214 7.72361ZM3.5 2H11.5V1H3.5V2ZM11.0528 1.72361L14.0528 7.72361L14.9472 7.27639L11.9472 1.27639L11.0528 1.72361ZM14.0528 7.27639L11.0528 13.2764L11.9472 13.7236L14.9472 7.72361L14.0528 7.27639ZM11.5 13H3.5V14H11.5V13ZM3.94721 13.2764L0.947214 7.27639L0.0527864 7.72361L3.05279 13.7236L3.94721 13.2764ZM7.22265 3.58397L4.22265 5.58397L4.77735 6.41603L7.77735 4.41603L7.22265 3.58397ZM4 6V9H5V6H4ZM4.22265 9.41603L7.22265 11.416L7.77735 10.584L4.77735 8.58397L4.22265 9.41603ZM7.77735 11.416L10.7774 9.41603L10.2226 8.58397L7.22265 10.584L7.77735 11.416ZM11 9V6H10V9H11ZM10.7774 5.58397L7.77735 3.58397L7.22265 4.41603L10.2226 6.41603L10.7774 5.58397Z"
-                  fill="#000000"
-                />
-              </svg>
-
-              <span class="flex-1 ml-3 whitespace-nowrap">Eslint</span>
-            </a>
-          </li>
-          <li>
-            <a
-              href="#"
-              id="scssAuditReport"
-              class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group"
-            >
-              <svg
-                class="w-6 h-6 text-gray-800 dark:text-white"
-                aria-hidden="true"
-                viewBox="0 -5.5 256 256"
-                version="1.1"
-                xmlns="http://www.w3.org/2000/svg"
-                xmlns:xlink="http://www.w3.org/1999/xlink"
-                preserveAspectRatio="xMidYMid"
-              >
-                <g>
-                  <path
-                    d="M129.7408,243.648 C157.7408,143.5392 156.928,143.0848 177.1648,71.7056 L182.0288,74.5216 C184.6784,76.0384 186.8416,74.7904 186.8416,71.744 L186.8416,37.696 C192.2176,18.8928 196.416,4.352 197.6576,0 L219.5776,0 L256,33.728 L232.0768,54.4 L250.1696,73.9648 L130.944,243.648 C130.368,244.608 129.5552,244.3904 129.7408,243.648 L129.7408,243.648 Z M142.7648,27.8656 C143.8528,27.8656 144.7232,28.4608 144.7232,29.2096 L144.7232,46.6496 C144.7232,47.3792 143.8464,47.9744 142.7648,47.9744 L113.3248,47.9744 C112.2368,47.9744 111.36,47.3792 111.36,46.6432 L111.36,29.1968 C111.36,28.4608 112.2368,27.8528 113.3184,27.8528 L142.7584,27.8528 L142.7648,27.8656 Z M179.1168,8.5504 L146.72,27.2512 C147.0912,27.8272 147.3216,28.4864 147.3216,29.2032 L147.3216,46.656 C147.3216,47.552 146.9632,48.3712 146.3872,49.024 L179.1104,67.9168 C181.3376,69.2096 183.168,68.1536 183.168,65.5808 L183.168,10.8928 C183.168,8.3136 181.3504,7.264 179.1168,8.5504 Z M108.7552,46.656 L108.7552,29.1968 C108.7552,28.48 108.9856,27.8208 109.3568,27.2512 L76.96,8.5376 C74.7328,7.2576 72.9024,8.3072 72.9024,10.88 L72.9024,65.568 C72.9024,68.1408 74.7328,69.1968 76.9664,67.904 L109.6832,49.0112 C109.1072,48.352 108.7616,47.5392 108.7616,46.6432 L108.7552,46.656 Z M125.056,243.648 L126.2592,243.648 C98.2656,143.5392 99.072,143.0848 78.8352,71.7056 L73.9712,74.5216 C71.328,76.0384 69.1584,74.7904 69.1584,71.744 L69.1584,37.696 C63.7824,18.8992 59.584,4.352 58.3424,0 L36.4288,0 L0,33.728 L23.9168,54.4 L5.824,73.9712 L125.056,243.648 Z M127.1104,84.4096 C131.995248,84.4096 135.9552,80.4496482 135.9552,75.5648 C135.9552,70.6799518 131.995248,66.72 127.1104,66.72 C122.225552,66.72 118.2656,70.6799518 118.2656,75.5648 C118.2656,80.4496482 122.225552,84.4096 127.1104,84.4096 Z M127.1104,136.9856 C131.995248,136.9856 135.9552,133.025648 135.9552,128.1408 C135.9552,123.255952 131.995248,119.296 127.1104,119.296 C122.225552,119.296 118.2656,123.255952 118.2656,128.1408 C118.2656,133.025648 122.225552,136.9856 127.1104,136.9856 Z M127.1104,189.5744 C131.995248,189.5744 135.9552,185.614448 135.9552,180.7296 C135.9552,175.844752 131.995248,171.8848 127.1104,171.8848 C122.225552,171.8848 118.2656,175.844752 118.2656,180.7296 C118.2656,185.614448 122.225552,189.5744 127.1104,189.5744 Z"
-                    fill="#000000"
-                  ></path>
-                </g>
-              </svg>
-              <span class="flex-1 ml-3 whitespace-nowrap">Stylelint</span>
-            </a>
-          </li>
-
-          <li>
-            <a
-              href="bundle-report.html"
-              target="_blank"
-              class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group"
-            >
-              <svg
-                fill="#000000"
-                class="w-6 h-6 text-gray-800 dark:text-white"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="m12 12.534v-2.663h-1.334v2.666zm12-5.334h-24v8h6.666v1.334h5.334v-1.333h12zm-17.334 1.334v5.337h-1.333v-4h-1.334v4h-2.666v-5.334zm6.667 0v5.337h-2.666v1.334h-2.666v-6.666zm9.333 0v5.337h-1.333v-4h-1.334v4h-1.334v-4h-1.333v4h-2.667v-5.334z"
-                />
-              </svg>
-
-              <span class="flex-1 ml-3 whitespace-nowrap">Bundle Analyser</span>
-            </a>
-          </li>
-          <li>
-            <a
-              href="#"
-              id="npmPackagesReport"
-              class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group"
-            >
-              <svg
-                fill="#000000"
-                class="w-6 h-6 text-gray-800 dark:text-white"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="m12 12.534v-2.663h-1.334v2.666zm12-5.334h-24v8h6.666v1.334h5.334v-1.333h12zm-17.334 1.334v5.337h-1.333v-4h-1.334v4h-2.666v-5.334zm6.667 0v5.337h-2.666v1.334h-2.666v-6.666zm9.333 0v5.337h-1.333v-4h-1.334v4h-1.334v-4h-1.333v4h-2.667v-5.334z"
-                />
-              </svg>
-
-              <span class="flex-1 ml-3 whitespace-nowrap">NPM Packages</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </aside>
-    <!--Sidebar End-->
-
-    <!--Content Area-->
-    <div class="p-4 sm:ml-64">
-      <div class="m-4 mt-0">
-        <div id="dashboardContent">
-          <!--Eslint StyleLint Chart-->
-          <section id="lintGraphWrap">
-            <div class="lg:grid lg:grid-cols-2 lg:gap-8">
-              <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-                <div class="p-4">
-                  <div class="content hidden">
-                    <div class="lg:grid lg:grid-cols-2 lg:gap-8">
-                      <div>
-                        <h1 class="text-2xl font-bold text-gray-800">
-                          Insightful JavaScript Analysis
-                        </h1>
-                        <p class="mt-2 text-gray-600">
-                          <span class="totalFileCount font-semibold">0</span>
-                          Files Examined with EsLint Audit
-                        </p>
-
-                        <div
-                          class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg mt-3"
-                        >
-                          <div class="grid grid-cols-3 gap-3 mb-2">
-                            <dl
-                              class="bg-red-50 dark:bg-gray-600 rounded-lg flex flex-col items-center justify-center h-[78px]"
-                            >
-                              <dt
-                                class="fileError w-8 h-8 rounded-full bg-red-100 dark:bg-gray-500 text-red-600 dark:text-red-300 text-sm font-medium flex items-center justify-center mb-1"
-                              >
-                                0
-                              </dt>
-                              <dd
-                                class="text-red-600 dark:text-red-300 text-sm font-medium"
-                              >
-                                Errors
-                              </dd>
-                            </dl>
-                            <dl
-                              class="bg-teal-50 dark:bg-gray-600 rounded-lg flex flex-col items-center justify-center h-[78px]"
-                            >
-                              <dt
-                                class="fileSuccess w-8 h-8 rounded-full bg-teal-100 dark:bg-gray-500 text-teal-600 dark:text-teal-300 text-sm font-medium flex items-center justify-center mb-1"
-                              >
-                                0
-                              </dt>
-                              <dd
-                                class="text-teal-600 dark:text-teal-300 text-sm font-medium"
-                              >
-                                Success
-                              </dd>
-                            </dl>
-                            <dl
-                              class="bg-yellow-50 dark:bg-gray-600 rounded-lg flex flex-col items-center justify-center h-[78px]"
-                            >
-                              <dt
-                                class="fileWarning w-8 h-8 rounded-full bg-yellow-100 dark:bg-gray-500 text-yellow-400 dark:text-yellow-300 text-sm font-medium flex items-center justify-center mb-1"
-                              >
-                                0
-                              </dt>
-                              <dd
-                                class="text-yellow-400 dark:text-yellow-300 text-sm font-medium"
-                              >
-                                Warnings
-                              </dd>
-                            </dl>
-                          </div>
-                          <button
-                            data-collapse-toggle="more-details1"
-                            type="button"
-                            class="hover:underline text-xs text-gray-500 dark:text-gray-400 font-medium inline-flex items-center"
-                            aria-expanded="false"
-                          >
-                            Show more details
-                            <svg
-                              class="w-2 h-2 ml-1"
-                              aria-hidden="true"
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 10 6"
-                            >
-                              <path
-                                stroke="currentColor"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="m1 1 4 4 4-4"
-                              ></path>
-                            </svg>
-                          </button>
-                          <div
-                            id="more-details1"
-                            class="border-gray-200 border-t dark:border-gray-600 pt-3 mt-3 space-y-2 hidden"
-                          >
-                            <dl class="flex items-center justify-between">
-                              <dt
-                                class="text-gray-500 dark:text-gray-400 text-sm font-normal"
-                              >
-                                JavaScript Error Count Across All Files:
-                              </dt>
-                              <dd
-                                class="error bg-red-100 text-red-800 text-xs font-medium inline-flex items-center px-2.5 py-1 rounded-md dark:bg-red-900 dark:text-red-300"
-                              >
-                                0
-                              </dd>
-                            </dl>
-                            <dl class="flex items-center justify-between">
-                              <dt
-                                class="text-gray-500 dark:text-gray-400 text-sm font-normal"
-                              >
-                                JavaScript Warning Count Across All Files:
-                              </dt>
-                              <dd
-                                class="warning bg-yellow-100 text-yellow-800 text-xs font-medium inline-flex items-center px-2.5 py-1 rounded-md dark:bg-yellow-900 dark:text-yellow-300"
-                              >
-                                0
-                              </dd>
-                            </dl>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="py-6" id="js-pie-chart"></div>
-                    </div>
-                  </div>
-                  <!--Loader-->
-                  <div role="status" class="p-4 animate-pulse loader">
-                    <div
-                      class="h-2.5 bg-gray-200 rounded-full dark:bg-gray-700 w-32 mb-2.5"
-                    ></div>
-                    <div
-                      class="w-48 h-2 mb-10 bg-gray-200 rounded-full dark:bg-gray-700"
-                    ></div>
-                    <div class="flex items-baseline mt-4 space-x-6">
-                      <div
-                        class="w-full bg-gray-200 rounded-t-lg h-72 dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full h-56 bg-gray-200 rounded-t-lg dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full bg-gray-200 rounded-t-lg h-72 dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full h-64 bg-gray-200 rounded-t-lg dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full bg-gray-200 rounded-t-lg h-80 dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full bg-gray-200 rounded-t-lg h-72 dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full bg-gray-200 rounded-t-lg h-80 dark:bg-gray-700"
-                      ></div>
-                    </div>
-                    <span class="sr-only">Loading...</span>
-                  </div>
-                </div>
-              </div>
-              <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-                <div class="p-4">
-                  <div class="content hidden">
-                    <div class="lg:grid lg:grid-cols-2 lg:gap-8">
-                      <div>
-                        <h1 class="text-2xl font-bold text-gray-800">
-                          Insightful SCSS Analysis
-                        </h1>
-                        <p class="mt-2 text-gray-600">
-                          <span class="totalFileCount font-semibold">0</span>
-                          Files Examined with StyleLint Audit
-                        </p>
-                        <div
-                          class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg mt-3"
-                        >
-                          <div class="grid grid-cols-3 gap-3 mb-2">
-                            <dl
-                              class="bg-red-50 dark:bg-gray-600 rounded-lg flex flex-col items-center justify-center h-[78px]"
-                            >
-                              <dt
-                                class="fileError w-8 h-8 rounded-full bg-red-100 dark:bg-gray-500 text-red-600 dark:text-red-300 text-sm font-medium flex items-center justify-center mb-1"
-                              >
-                                0
-                              </dt>
-                              <dd
-                                class="text-red-600 dark:text-red-300 text-sm font-medium"
-                              >
-                                Errors
-                              </dd>
-                            </dl>
-                            <dl
-                              class="bg-teal-50 dark:bg-gray-600 rounded-lg flex flex-col items-center justify-center h-[78px]"
-                            >
-                              <dt
-                                class="fileSuccess w-8 h-8 rounded-full bg-teal-100 dark:bg-gray-500 text-teal-600 dark:text-teal-300 text-sm font-medium flex items-center justify-center mb-1"
-                              >
-                                0
-                              </dt>
-                              <dd
-                                class="text-teal-600 dark:text-teal-300 text-sm font-medium"
-                              >
-                                Success
-                              </dd>
-                            </dl>
-                            <dl
-                              class="bg-yellow-50 dark:bg-gray-600 rounded-lg flex flex-col items-center justify-center h-[78px]"
-                            >
-                              <dt
-                                class="fileWarning w-8 h-8 rounded-full bg-yellow-100 dark:bg-gray-500 text-yellow-400 dark:text-yellow-300 text-sm font-medium flex items-center justify-center mb-1"
-                              >
-                                0
-                              </dt>
-                              <dd
-                                class="text-yellow-400 dark:text-yellow-300 text-sm font-medium"
-                              >
-                                Warnings
-                              </dd>
-                            </dl>
-                          </div>
-                          <button
-                            data-collapse-toggle="more-details"
-                            type="button"
-                            class="hover:underline text-xs text-gray-500 dark:text-gray-400 font-medium inline-flex items-center"
-                            aria-expanded="false"
-                          >
-                            Show more details
-                            <svg
-                              class="w-2 h-2 ml-1"
-                              aria-hidden="true"
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 10 6"
-                            >
-                              <path
-                                stroke="currentColor"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="m1 1 4 4 4-4"
-                              ></path>
-                            </svg>
-                          </button>
-                          <div
-                            id="more-details"
-                            class="border-gray-200 border-t dark:border-gray-600 pt-3 mt-3 space-y-2 hidden"
-                          >
-                            <dl class="flex items-center justify-between">
-                              <dt
-                                class="text-gray-500 dark:text-gray-400 text-sm font-normal"
-                              >
-                                Stylelint Error Count Across All Files:
-                              </dt>
-                              <dd
-                                class="error bg-red-100 text-red-800 text-xs font-medium inline-flex items-center px-2.5 py-1 rounded-md dark:bg-red-900 dark:text-red-300"
-                              >
-                                0
-                              </dd>
-                            </dl>
-                            <dl class="flex items-center justify-between">
-                              <dt
-                                class="text-gray-500 dark:text-gray-400 text-sm font-normal"
-                              >
-                                Stylelint warning Count Across All Files:
-                              </dt>
-                              <dd
-                                class="warning bg-yellow-100 text-yellow-800 text-xs font-medium inline-flex items-center px-2.5 py-1 rounded-md dark:bg-yellow-900 dark:text-yellow-300"
-                              >
-                                0
-                              </dd>
-                            </dl>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="py-6" id="scss-pie-chart"></div>
-                    </div>
-                  </div>
-                  <!--Loader-->
-                  <div role="status" class="p-4 animate-pulse loader">
-                    <div
-                      class="h-2.5 bg-gray-200 rounded-full dark:bg-gray-700 w-32 mb-2.5"
-                    ></div>
-                    <div
-                      class="w-48 h-2 mb-10 bg-gray-200 rounded-full dark:bg-gray-700"
-                    ></div>
-                    <div class="flex items-baseline mt-4 space-x-6">
-                      <div
-                        class="w-full bg-gray-200 rounded-t-lg h-72 dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full h-56 bg-gray-200 rounded-t-lg dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full bg-gray-200 rounded-t-lg h-72 dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full h-64 bg-gray-200 rounded-t-lg dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full bg-gray-200 rounded-t-lg h-80 dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full bg-gray-200 rounded-t-lg h-72 dark:bg-gray-700"
-                      ></div>
-                      <div
-                        class="w-full bg-gray-200 rounded-t-lg h-80 dark:bg-gray-700"
-                      ></div>
-                    </div>
-                    <span class="sr-only">Loading...</span>
-                  </div>
-                </div>
-              </div>
+      <div id="projectMeta" class="text-gray-500 text-sm"></div>
+    </header>
+    <div class="flex flex-col md:flex-row">
+      <!-- Sidebar -->
+      <aside class="w-full md:w-64 bg-white shadow-md p-4 space-y-4">
+        <nav>
+          <ul class="space-y-2" id="sidebarMenu">
+            <li><a href="#" id="mainPage" class="block px-4 py-2 rounded hover:bg-blue-50 font-medium">Dashboard</a></li>
+            <li><a href="#" id="jsAuditReport" class="block px-4 py-2 rounded hover:bg-blue-50">ESLint Report</a></li>
+            <li><a href="#" id="scssAuditReport" class="block px-4 py-2 rounded hover:bg-blue-50">Stylelint Report</a></li>
+            <li><a href="#" id="npmPackagesReport" class="block px-4 py-2 rounded hover:bg-blue-50">NPM Packages</a></li>
+          </ul>
+        </nav>
+      </aside>
+      <!-- Main Content -->
+      <main class="flex-1 p-6 space-y-8">
+        <!-- Overview Section (default) -->
+        <section id="overviewSection">
+          <h2 class="text-2xl font-semibold mb-4">Overview</h2>
+          <div id="overviewCharts" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-4 flex flex-col items-center">
+              <div id="overviewEslintChart" class="w-full h-64"></div>
+              <div class="mt-2 text-gray-700 font-medium">ESLint Summary</div>
+              <div id="overviewEslintTotal" class="mt-1 text-sm text-gray-500"></div>
             </div>
-            <div class="p-4 mt-4 bg-white shadow-lg rounded-lg overflow-hidden">
-              <h1 class="text-2xl font-bold text-gray-800 mb-4">
-                Component Usage Analysis
-              </h1>
-
-              <div id="component-usage-table" class=""></div>
+            <div class="bg-white rounded-lg shadow p-4 flex flex-col items-center">
+              <div id="overviewStylelintChart" class="w-full h-64"></div>
+              <div class="mt-2 text-gray-700 font-medium">Stylelint Summary</div>
+              <div id="overviewStylelintTotal" class="mt-1 text-sm text-gray-500"></div>
             </div>
-          </section>
-        </div>
-
-        <!--Accordion for files details -->
-        <section
-          id="accordionContent"
-          class="bg-white shadow-lg rounded-lg overflow-hidden p-4 hidden"
-        >
-          <div
-            id="accordion"
-            data-accordion="collapse"
-            data-active-classes="bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-            data-inactive-classes="text-gray-500 dark:text-gray-400"
-          ></div>
-        </section>
-
-        <section id="npmReport" class="hidden">
-          <div class="mt-8">
-            <h2 class="text-2xl font-bold mb-4">Dependencies</h2>
-            <div class="bg-white shadow-md rounded my-6">
-              <table class="min-w-max w-full table-auto">
-                <thead>
-                  <tr class="bg-gray-200 text-gray-600 text-sm leading-normal">
-                    <th class="py-3 px-6 text-left">Name</th>
-                    <th class="py-3 px-6 text-left">Version</th>
-                    <th class="py-3 px-6 text-left">License</th>
-            
-                    <th class="py-3 px-6 text-left">Description</th>
-                    <th class="py-3 px-6 text-left">Deprecation Status</th>
-                    <th class="py-3 px-6 text-left">Unpacked Size</th>
-                  </tr>
-                </thead>
-                <tbody
-                  class="text-gray-600 text-sm font-light"
-                  id="packagesInfo"
-                ></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="mt-8">
-            <h2 class="text-2xl font-bold mb-4">Dev dependencies</h2>
-            <div class="bg-white shadow-md rounded my-6">
-              <table class="min-w-max w-full table-auto">
-                <thead>
-                  <tr class="bg-gray-200 text-gray-600 text-sm leading-normal">
-                    <th class="py-3 px-6 text-left">Name</th>
-                    <th class="py-3 px-6 text-left">Version</th>
-                    <th class="py-3 px-6 text-left">License</th>
-                    <th class="py-3 px-6 text-left">Description</th>
-                    <th class="py-3 px-6 text-left">Deprecation Status</th>
-                    <th class="py-3 px-6 text-left">Unpacked Size</th>
-                  </tr>
-                </thead>
-                <tbody
-                  class="text-gray-600 text-sm font-light"
-                  id="devpackagesInfo"
-                ></tbody>
-              </table>
+            <div class="bg-white rounded-lg shadow p-4 flex flex-col items-center">
+              <div id="overviewNpmChart" class="w-full h-64"></div>
+              <div class="mt-2 text-gray-700 font-medium">NPM Packages</div>
+              <div id="overviewNpmTotal" class="mt-1 text-sm text-gray-500"></div>
             </div>
           </div>
         </section>
-      </div>
-
-      <!--Footer-->
-
-      <footer class="bg-white rounded-lg shadow m-4 dark:bg-gray-800">
-        <div class="w-full mx-auto max-w-screen-xl p-4 sm:text-center">
-          <span class="text-sm text-gray-500 dark:text-gray-400"
-            >Copyright © 2023 All rights reserved
-          </span>
-        </div>
-      </footer>
+        <!-- ESLint Section -->
+        <section id="eslintSection" class="hidden">
+          <h2 class="text-xl font-semibold mb-4 flex items-center space-x-2"><span>ESLint Report</span></h2>
+          <div class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between">
+            <input id="eslintSearch" type="text" placeholder="Search files..." class="mb-2 md:mb-0 px-3 py-2 border rounded w-full md:w-1/3" />
+            <div id="eslintPagination" class="mt-2 md:mt-0"></div>
+          </div>
+          <div id="eslintTableWrap" class="overflow-x-auto"></div>
+        </section>
+        <!-- Stylelint Section -->
+        <section id="stylelintSection" class="hidden">
+          <h2 class="text-xl font-semibold mb-4 flex items-center space-x-2"><span>Stylelint Report</span></h2>
+          <div class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between">
+            <input id="stylelintSearch" type="text" placeholder="Search files..." class="mb-2 md:mb-0 px-3 py-2 border rounded w-full md:w-1/3" />
+            <div id="stylelintPagination" class="mt-2 md:mt-0"></div>
+          </div>
+          <div id="stylelintTableWrap" class="overflow-x-auto"></div>
+        </section>
+        <!-- NPM Packages Section -->
+        <section id="npmSection" class="hidden">
+          <h2 class="text-xl font-semibold mb-4 flex items-center space-x-2"><span>NPM Packages</span></h2>
+          <div class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between">
+            <input id="npmSearch" type="text" placeholder="Search packages..." class="mb-2 md:mb-0 px-3 py-2 border rounded w-full md:w-1/3" />
+            <div id="npmPagination" class="mt-2 md:mt-0"></div>
+          </div>
+          <div id="npmTableWrap" class="overflow-x-auto"></div>
+        </section>
+        <!-- Loading/Error Message -->
+        <div id="dashboardMessage" class="text-center text-gray-500"></div>
+      </main>
     </div>
+    <script src="bundle.js"></script>
   </body>
-  <script src="bundle.js"></script>
 </html>
