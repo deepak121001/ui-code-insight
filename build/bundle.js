@@ -652,28 +652,61 @@
     const end = start + pageSize;
     const pageData = data.issues.slice(start, end);
 
-    // Create table
-    let html = '<table class="min-w-full bg-white rounded-lg overflow-hidden"><thead><tr>' +
+    // Create table with horizontal scroll
+    let html = '<div class="overflow-x-auto"><table class="min-w-full bg-white rounded-lg overflow-hidden"><thead><tr>' +
       '<th class="py-2 px-4 text-left">Type</th>' +
       '<th class="py-2 px-4 text-left">File</th>' +
       '<th class="py-2 px-4 text-left">Line</th>' +
       '<th class="py-2 px-4 text-left">Severity</th>' +
       '<th class="py-2 px-4 text-left">Message</th>' +
+      '<th class="py-2 px-4 text-left">Code</th>' +
       '</tr></thead><tbody>';
+
+    // Map type to label and color (move outside loop)
+    const vulnLabels = {
+      hardcoded_secret: { label: 'Hardcoded Secret', color: 'bg-pink-100 text-pink-800 border-pink-200' },
+      unsafe_eval: { label: 'Unsafe Eval', color: 'bg-red-100 text-red-800 border-red-200' },
+      xss_vulnerability: { label: 'XSS', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+      sql_injection: { label: 'SQL Injection', color: 'bg-purple-100 text-purple-800 border-purple-200' },
+      dependency_vulnerability: { label: 'Dependency Vulnerability', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+      no_vulnerabilities: { label: 'No Vulnerabilities', color: 'bg-green-100 text-green-800 border-green-200' },
+      color_contrast: { label: 'Color Contrast', color: 'bg-orange-100 text-orange-800 border-orange-200' },
+      missing_form_label: { label: 'Missing Form Label', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+      // Add more as needed
+    };
 
     pageData.forEach(issue => {
       const severityColor = issue.severity === 'high' ? 'text-red-600' : 
                            issue.severity === 'medium' ? 'text-yellow-600' : 'text-blue-600';
+      const vuln = vulnLabels[issue.type] || { label: issue.type, color: 'bg-gray-100 text-gray-800 border-gray-200' };
+
+      // Format the code snippet and vulnerability label
+      let codeDisplay = 'N/A';
+      if (issue.code) {
+        const isMultiline = issue.code.includes('\n') || issue.code.length > 80;
+        codeDisplay = `<span class="inline-block mb-1 px-2 py-0.5 rounded border text-xs font-semibold ${vuln.color}">${vuln.label}</span><br>`;
+        if (isMultiline) {
+          codeDisplay += `<pre class="bg-red-50 px-2 py-1 rounded text-xs font-mono text-red-700 border border-red-200 break-all overflow-x-auto max-w-md block">${issue.code}</pre>`;
+        } else {
+          codeDisplay += `<code class="bg-red-50 px-2 py-1 rounded text-sm font-mono text-red-700 border border-red-200 break-all overflow-x-auto max-w-md block">${issue.code}</code>`;
+        }
+        // Add context if available
+        if (issue.context) {
+          codeDisplay += `<details class="mt-2"><summary class="text-xs text-blue-600 cursor-pointer">Show context</summary><pre class="mt-1 text-xs bg-gray-50 p-2 rounded border overflow-x-auto break-all max-w-md">${issue.context}</pre></details>`;
+        }
+      }
+      
       html += `<tr class="border-b border-gray-200 hover:bg-gray-100">` +
-        `<td class="py-2 px-4">${issue.type || 'N/A'}</td>` +
-        `<td class="py-2 px-4">${issue.file || 'N/A'}</td>` +
+        `<td class="py-2 px-4 max-w-xs break-all">${vuln.label}</td>` +
+        `<td class="py-2 px-4 max-w-xs break-all">${issue.file || 'N/A'}</td>` +
         `<td class="py-2 px-4">${issue.line || 'N/A'}</td>` +
         `<td class="py-2 px-4"><span class="font-semibold ${severityColor}">${issue.severity || 'N/A'}</span></td>` +
-        `<td class="py-2 px-4">${issue.message || 'N/A'}</td>` +
+        `<td class="py-2 px-4 max-w-md break-words">${issue.message || 'N/A'}</td>` +
+        `<td class="py-2 px-4 max-w-md">${codeDisplay}</td>` +
         '</tr>';
     });
 
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     wrap.innerHTML = html;
 
     // Render pagination if needed
@@ -951,8 +984,8 @@
         const start = (window.npmPage - 1) * NPM_PAGE_SIZE;
         const end = start + NPM_PAGE_SIZE;
         const pageData = dataArr.slice(start, end);
-        // Table
-        let html = '<table class="min-w-full bg-white rounded-lg overflow-hidden"><thead><tr>' +
+        // Table with horizontal scroll
+        let html = '<div class="overflow-x-auto"><table class="min-w-full bg-white rounded-lg overflow-hidden"><thead><tr>' +
           '<th class="py-2 px-4 text-left">Name</th>' +
           '<th class="py-2 px-4 text-left">Version</th>' +
           '<th class="py-2 px-4 text-left">License</th>' +
@@ -970,7 +1003,7 @@
             `<td class="py-2 px-4">${item.unpackedSize}</td>` +
             '</tr>';
         });
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         wrap.innerHTML += html;
         renderNpmPagination();
         // Toggle events

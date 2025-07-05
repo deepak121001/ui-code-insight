@@ -45,6 +45,7 @@ async checkForSecrets() {
   const files = await globby([
     '**/*.{js,ts,jsx,tsx,json,env}',
     '!**/node_modules/**',
+    '!**/.storybook/**',
     '!**/storybook/**',
     '!**/report/**',
     '!build/**',
@@ -64,13 +65,24 @@ async checkForSecrets() {
 
         secretPatterns.forEach(pattern => {
           if (pattern.test(trimmedLine)) {
+            // Get context lines (2 lines before and after)
+            const contextStart = Math.max(0, index - 2);
+            const contextEnd = Math.min(lines.length - 1, index + 2);
+            const contextLines = lines.slice(contextStart, contextEnd + 1);
+            const contextCode = contextLines.map((line, i) => {
+              const lineNum = contextStart + i + 1;
+              const marker = lineNum === index + 1 ? '>>> ' : '    ';
+              return `${marker}${lineNum}: ${line}`;
+            }).join('\n');
+
             this.securityIssues.push({
               type: 'hardcoded_secret',
               file,
               line: index + 1,
               severity: 'high',
               message: 'Potential hardcoded secret detected',
-              code: trimmedLine
+              code: trimmedLine,
+              context: contextCode
             });
           }
         });
@@ -91,6 +103,9 @@ async checkUnsafeEval() {
   const files = await globby([
     '**/*.{js,ts,jsx,tsx}',
     '!**/node_modules/**',
+    '!**/.storybook/**',
+    '!**/storybook/**',
+    '!**/report/**',
     '!build/**',
     '!dist/**'
   ]);
@@ -112,13 +127,24 @@ async checkUnsafeEval() {
       lines.forEach((line, index) => {
         for (const pattern of unsafePatterns) {
           if (pattern.test(line)) {
+            // Get context lines (2 lines before and after)
+            const contextStart = Math.max(0, index - 2);
+            const contextEnd = Math.min(lines.length - 1, index + 2);
+            const contextLines = lines.slice(contextStart, contextEnd + 1);
+            const contextCode = contextLines.map((line, i) => {
+              const lineNum = contextStart + i + 1;
+              const marker = lineNum === index + 1 ? '>>> ' : '    ';
+              return `${marker}${lineNum}: ${line}`;
+            }).join('\n');
+
             this.securityIssues.push({
               type: 'unsafe_eval',
               file,
               line: index + 1,
               severity: 'high',
               message: 'Unsafe eval or dynamic code execution detected',
-              code: line.trim()
+              code: line.trim(),
+              context: contextCode
             });
             break; // Only report once per line
           }
@@ -149,6 +175,9 @@ async checkXSSVulnerabilities() {
   const files = await globby([
     '**/*.{js,ts,jsx,tsx}',
     '!**/node_modules/**',
+    '!**/.storybook/**',
+    '!**/storybook/**',
+    '!**/report/**',
     '!build/**',
     '!dist/**'
   ]);
@@ -167,13 +196,24 @@ async checkXSSVulnerabilities() {
 
         xssPatterns.forEach(({ pattern, message, severity }) => {
           if (pattern.test(trimmed)) {
+            // Get context lines (2 lines before and after)
+            const contextStart = Math.max(0, index - 2);
+            const contextEnd = Math.min(lines.length - 1, index + 2);
+            const contextLines = lines.slice(contextStart, contextEnd + 1);
+            const contextCode = contextLines.map((line, i) => {
+              const lineNum = contextStart + i + 1;
+              const marker = lineNum === index + 1 ? '>>> ' : '    ';
+              return `${marker}${lineNum}: ${line}`;
+            }).join('\n');
+
             this.securityIssues.push({
               type: 'xss_vulnerability',
               file,
               line: index + 1,
               severity,
               message,
-              code: trimmed
+              code: trimmed,
+              context: contextCode
             });
           }
         });
@@ -227,6 +267,9 @@ async checkSQLInjection() {
   const files = await globby([
     '**/*.{js,ts,jsx,tsx}',
     '!**/node_modules/**',
+    '!**/.storybook/**',
+    '!**/storybook/**',
+    '!**/report/**',
     '!build/**',
     '!dist/**'
   ]);
@@ -244,13 +287,24 @@ async checkSQLInjection() {
 
         for (const { pattern, message, severity } of sqlPatterns) {
           if (pattern.test(trimmed)) {
+            // Get context lines (2 lines before and after)
+            const contextStart = Math.max(0, index - 2);
+            const contextEnd = Math.min(lines.length - 1, index + 2);
+            const contextLines = lines.slice(contextStart, contextEnd + 1);
+            const contextCode = contextLines.map((line, i) => {
+              const lineNum = contextStart + i + 1;
+              const marker = lineNum === index + 1 ? '>>> ' : '    ';
+              return `${marker}${lineNum}: ${line}`;
+            }).join('\n');
+
             this.securityIssues.push({
               type: 'sql_injection',
               file,
               line: index + 1,
               severity,
               message,
-              code: trimmed
+              code: trimmed,
+              context: contextCode
             });
             break; // Only one issue per line
           }
