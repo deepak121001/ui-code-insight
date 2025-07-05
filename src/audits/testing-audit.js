@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { globby } from 'globby';
 import { writeFile } from 'fs/promises';
+import { jsTsGlobs } from './file-globs.js';
 
 /**
  * Testing audit module for detecting testing practices and coverage
@@ -20,15 +21,7 @@ export class TestingAudit {
   async checkTestFiles() {
     console.log(chalk.blue('🧪 Checking test files...'));
     
-    const testPatterns = [
-      '**/*.test.{js,ts,jsx,tsx}',
-      '**/*.spec.{js,ts,jsx,tsx}',
-      '**/__tests__/**/*.{js,ts,jsx,tsx}',
-      '**/tests/**/*.{js,ts,jsx,tsx}',
-      '**/test/**/*.{js,ts,jsx,tsx}'
-    ];
-
-    const testFiles = await globby(testPatterns, { ignore: ['**/node_modules/**', 'build/**', 'dist/**'] });
+    const testFiles = await globby(jsTsGlobs.testFiles);
     
     if (testFiles.length === 0) {
       this.testingIssues.push({
@@ -139,51 +132,7 @@ export class TestingAudit {
   async checkTestingPatterns() {
     console.log(chalk.blue('🧪 Checking testing patterns...'));
     
-    const testPatterns = [
-      {
-        pattern: /describe\s*\(/g,
-        name: 'describe blocks',
-        positive: true
-      },
-      {
-        pattern: /it\s*\(/g,
-        name: 'it/test blocks',
-        positive: true
-      },
-      {
-        pattern: /expect\s*\(/g,
-        name: 'expect assertions',
-        positive: true
-      },
-      {
-        pattern: /beforeEach\s*\(/g,
-        name: 'beforeEach hooks',
-        positive: true
-      },
-      {
-        pattern: /afterEach\s*\(/g,
-        name: 'afterEach hooks',
-        positive: true
-      },
-      {
-        pattern: /beforeAll\s*\(/g,
-        name: 'beforeAll hooks',
-        positive: true
-      },
-      {
-        pattern: /afterAll\s*\(/g,
-        name: 'afterAll hooks',
-        positive: true
-      }
-    ];
-
-    const testFiles = await globby([
-      '**/*.test.{js,ts,jsx,tsx}',
-      '**/*.spec.{js,ts,jsx,tsx}',
-      '**/__tests__/**/*.{js,ts,jsx,tsx}',
-      '**/tests/**/*.{js,ts,jsx,tsx}',
-      '**/test/**/*.{js,ts,jsx,tsx}'
-    ], { ignore: ['**/node_modules/**', 'build/**', 'dist/**'] });
+    const testFiles = await globby(jsTsGlobs.testFiles);
     
     for (const file of testFiles) {
       try {
@@ -191,7 +140,7 @@ export class TestingAudit {
         const lines = content.split('\n');
         
         lines.forEach((line, index) => {
-          testPatterns.forEach(({ pattern, name, positive }) => {
+          jsTsGlobs.testPatterns.forEach(({ pattern, name, positive }) => {
             if (pattern.test(line)) {
               if (positive) {
                 this.testingIssues.push({
@@ -219,51 +168,7 @@ export class TestingAudit {
   async checkMockingPatterns() {
     console.log(chalk.blue('🧪 Checking mocking patterns...'));
     
-    const mockPatterns = [
-      {
-        pattern: /jest\.mock\s*\(/g,
-        name: 'Jest mock',
-        positive: true
-      },
-      {
-        pattern: /jest\.fn\s*\(/g,
-        name: 'Jest function mock',
-        positive: true
-      },
-      {
-        pattern: /jest\.spyOn\s*\(/g,
-        name: 'Jest spy',
-        positive: true
-      },
-      {
-        pattern: /sinon\.stub\s*\(/g,
-        name: 'Sinon stub',
-        positive: true
-      },
-      {
-        pattern: /sinon\.spy\s*\(/g,
-        name: 'Sinon spy',
-        positive: true
-      },
-      {
-        pattern: /vi\.mock\s*\(/g,
-        name: 'Vitest mock',
-        positive: true
-      },
-      {
-        pattern: /vi\.fn\s*\(/g,
-        name: 'Vitest function mock',
-        positive: true
-      }
-    ];
-
-    const testFiles = await globby([
-      '**/*.test.{js,ts,jsx,tsx}',
-      '**/*.spec.{js,ts,jsx,tsx}',
-      '**/__tests__/**/*.{js,ts,jsx,tsx}',
-      '**/tests/**/*.{js,ts,jsx,tsx}',
-      '**/test/**/*.{js,ts,jsx,tsx}'
-    ], { ignore: ['**/node_modules/**', 'build/**', 'dist/**'] });
+    const testFiles = await globby(jsTsGlobs.testFiles);
     
     for (const file of testFiles) {
       try {
@@ -271,7 +176,7 @@ export class TestingAudit {
         const lines = content.split('\n');
         
         lines.forEach((line, index) => {
-          mockPatterns.forEach(({ pattern, name, positive }) => {
+          jsTsGlobs.mockPatterns.forEach(({ pattern, name, positive }) => {
             if (pattern.test(line)) {
               if (positive) {
                 this.testingIssues.push({

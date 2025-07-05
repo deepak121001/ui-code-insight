@@ -24,6 +24,11 @@ npx ui-code-insight
 - [Overriding Stylelint Config](#overriding-stylelint-config)
 - [Dependencies](#dependencies)
 - [Repository](#repository)
+- [Audit Process and Reports](#audit-process-and-reports)
+- [Health Score Calculation](#health-score-calculation)
+- [AI-Powered Suggestions (Future/Optional)](#ai-powered-suggestions-futureoptional)
+- [Report Generation](#report-generation)
+- [Removing Modern Practices Audit](#removing-modern-practices-audit)
 
 ## Features
 - **Interactive CLI**: Select project type and reports to generate with easy prompts.
@@ -118,7 +123,7 @@ npx ui-code-insight
 You will be prompted to select:
 - **Project type** (React, Node, Vanilla JS, TypeScript, TypeScript + React, Other)
 - **Dependency installation** (automatic detection and installation of missing dependencies)
-- **Reports to generate** (ESLint, Stylelint, Package Report, Security Audit, Performance Audit, Accessibility Audit, Modern Practices Audit, Testing Audit, Dependency Audit, Comprehensive Audit, All Traditional Reports)
+- **Reports to generate** (ESLint, Stylelint, Package Report, Security Audit, Performance Audit, Accessibility Audit, Testing Audit, Dependency Audit, Comprehensive Audit, All Traditional Reports)
 
 **Prompt navigation:**
 - Use **arrow keys** to move.
@@ -178,14 +183,6 @@ The tool now includes comprehensive audit categories that go beyond traditional 
 - **Keyboard navigation**: Checks for keyboard accessibility support
 - **ARIA usage**: Validates ARIA attribute implementation
 
-### 🔄 Modern Practices Audit
-- **ES6+ features**: Tracks usage of modern JavaScript features
-- **Deprecated patterns**: Identifies outdated code patterns
-- **TypeScript features**: Analyzes TypeScript usage and best practices
-- **React hooks**: Tracks modern React patterns
-- **Async/await usage**: Monitors modern async patterns
-- **Modern CSS**: Checks for modern CSS features like Flexbox and Grid
-
 ### 🧪 Testing Audit
 - **Test file detection**: Identifies test files and testing frameworks
 - **Test coverage**: Checks for coverage reports and scripts
@@ -236,3 +233,68 @@ Example `.stylelintrc.json`:
 ## Repository
 
 GitHub: [https://github.com/deepak121001/ui-code-insight.git](https://github.com/deepak121001/ui-code-insight.git)
+
+## Audit Process and Reports
+
+ui-code-insight performs a series of automated audits to help you improve code quality, security, performance, accessibility, testing, and dependency management. Each audit category is implemented as a separate module and can be run individually or as part of a comprehensive audit.
+
+### How the Audit Process Works
+1. **Select audits via CLI**: Choose which audits to run (ESLint, Stylelint, Security, Performance, Accessibility, Testing, Dependency, or Comprehensive Audit).
+2. **File scanning**: The tool scans your codebase, excluding folders like `node_modules`, `.storybook`, `storybook`, `report`, `build`, and `dist`.
+3. **Pattern matching and analysis**: Each audit uses a combination of static analysis, regex patterns, and best-practice checks to find issues.
+4. **Report generation**: Results are saved as JSON files in the `report/` directory (e.g., `security-audit-report.json`, `performance-audit-report.json`, `comprehensive-audit-report.json`).
+5. **Dashboard visualization**: Open the dashboard to view all audit results, search, filter, and get actionable recommendations.
+
+### Audit Categories
+- **Security Audit**: Detects hardcoded secrets, unsafe eval, XSS, SQL injection, and dependency vulnerabilities.
+- **Performance Audit**: Flags large bundles, inefficient operations, memory leaks, large dependencies, and unused code.
+- **Accessibility Audit**: Checks for missing alt text, heading structure, form labels, color contrast, keyboard navigation, and ARIA usage.
+- **Testing Audit**: Detects test files, coverage, best practices, mocking, E2E setup, and test config issues.
+- **Dependency Audit**: Finds outdated, duplicate, unused, missing, and problematic dependencies.
+
+### Comprehensive Audit
+Selecting "Comprehensive Audit" runs all categories and produces a single, detailed report with a summary, category breakdown, and actionable recommendations.
+
+## Health Score Calculation
+
+The dashboard displays a **Health Score** to give you a quick sense of your project's overall code health.
+
+- **Formula:**
+  ```
+  Health Score = 100 - totalIssues
+  ```
+  - `totalIssues` is the sum of all issues found across all audit categories.
+  - The score is never less than 0.
+
+- **Interpretation:**
+  - 100 = No issues (excellent)
+  - 80-99 = Few issues (good)
+  - 50-79 = Moderate issues (needs attention)
+  - 0-49 = Many issues (high risk)
+
+- **Customizing:** You can adjust the formula to weight high/medium/low severity issues differently if desired.
+
+## AI-Powered Suggestions (Future/Optional)
+
+ui-code-insight is designed to be extensible. In the future, you can integrate AI-powered code suggestions to help resolve issues:
+
+- **How it works:**
+  - For each issue, send the code snippet and description to an AI model (e.g., OpenAI GPT-4) via API.
+  - Display the AI's suggested fix or explanation in the dashboard.
+- **Implementation:**
+  - For security, use a backend proxy to call the AI API (do not expose API keys in frontend code).
+  - Optionally, allow users to provide their own API key or use a local model for privacy.
+- **UI:**
+  - Add an "AI Suggestion" button or expandable section for each issue in the dashboard.
+
+*Note: Direct browser integration with OpenAI or similar APIs is not recommended due to API key security. Use a backend proxy or let users provide their own key for demo purposes.*
+
+## Report Generation
+
+- All audit results are saved as JSON files in the `report/` directory.
+- The dashboard loads these reports and provides search, filtering, pagination, and context for each issue.
+- Each issue includes file, line, severity, message, code snippet, and (where available) code context.
+
+## Removing Modern Practices Audit
+
+The Modern Practices Audit has been removed from the tool and documentation to reflect the current codebase. All other audits remain available and up-to-date.

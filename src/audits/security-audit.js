@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { globby } from 'globby';
 import { writeFile } from 'fs/promises';
+import { jsTsGlobs, htmlGlobs } from './file-globs.js';
 
 /**
  * Security audit module for detecting common security vulnerabilities
@@ -42,15 +43,7 @@ async checkForSecrets() {
     /\b(PASSWORD|SECRET|TOKEN|KEY|ACCESS_KEY|PRIVATE_KEY)\s*=\s*[^'"`\n\r]+/gi
   ];
 
-  const files = await globby([
-    '**/*.{js,ts,jsx,tsx,json,env}',
-    '!**/node_modules/**',
-    '!**/.storybook/**',
-    '!**/storybook/**',
-    '!**/report/**',
-    '!build/**',
-    '!dist/**'
-  ]);
+  const files = await globby(jsTsGlobs);
 
   console.log(chalk.gray(`📁 Scanning ${files.length} files for secrets...`));
 
@@ -100,15 +93,7 @@ async checkForSecrets() {
 async checkUnsafeEval() {
   console.log(chalk.blue('🔒 Checking for unsafe eval usage...'));
 
-  const files = await globby([
-    '**/*.{js,ts,jsx,tsx}',
-    '!**/node_modules/**',
-    '!**/.storybook/**',
-    '!**/storybook/**',
-    '!**/report/**',
-    '!build/**',
-    '!dist/**'
-  ]);
+  const files = await globby(jsTsGlobs);
   console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for unsafe eval...`));
 
   const unsafePatterns = [
@@ -172,15 +157,7 @@ async checkXSSVulnerabilities() {
     { pattern: /\bnew\s+DOMParser\s*\(\)/i, message: 'DOMParser can be dangerous if input is not sanitized', severity: 'low' },
   ];
 
-  const files = await globby([
-    '**/*.{js,ts,jsx,tsx}',
-    '!**/node_modules/**',
-    '!**/.storybook/**',
-    '!**/storybook/**',
-    '!**/report/**',
-    '!build/**',
-    '!dist/**'
-  ]);
+  const files = await globby(jsTsGlobs);
 
   console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for XSS vulnerabilities...`));
 
@@ -264,15 +241,7 @@ async checkSQLInjection() {
     }
   ];
 
-  const files = await globby([
-    '**/*.{js,ts,jsx,tsx}',
-    '!**/node_modules/**',
-    '!**/.storybook/**',
-    '!**/storybook/**',
-    '!**/report/**',
-    '!build/**',
-    '!dist/**'
-  ]);
+  const files = await globby(jsTsGlobs);
 
   console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for SQL injection patterns...`));
 
@@ -381,6 +350,108 @@ async checkSQLInjection() {
   }
 
   /**
+   * Check for logging of sensitive data
+   */
+  async checkSensitiveDataLogging() {
+    console.log(chalk.blue('🔒 Checking for logging of sensitive data...'));
+    const sensitiveKeywords = [
+      'password', 'token', 'secret', 'key', 'auth', 'jwt', 'access', 'refresh'
+    ];
+    const logPatterns = [
+      /console\.(log|error|warn|info)\s*\(([^)]*)\)/gi,
+      /logger\.(log|error|warn|info)\s*\(([^)]*)\)/gi
+    ];
+    const files = await globby(jsTsGlobs);
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        lines.forEach((line, index) => {
+          logPatterns.forEach(pattern => {
+            const match = pattern.exec(line);
+            if (match) {
+              const args = match[2] || '';
+              if (sensitiveKeywords.some(word => args.toLowerCase().includes(word))) {
+                this.securityIssues.push({
+                  type: 'sensitive_data_logging',
+                  file,
+                  line: index + 1,
+                  severity: 'high',
+                  message: 'Sensitive data may be logged',
+                  code: line.trim()
+                });
+              }
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Warn on insecure HTTP requests
+   */
+  async checkInsecureHttpRequests() {
+    console.log(chalk.blue('🔒 Checking for insecure HTTP requests...'));
+    const httpPattern = /\b(fetch|axios|XMLHttpRequest|open|src|href)\s*\(?.*['\"]http:\/\//i;
+    const files = await globby(htmlGlobs);
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        lines.forEach((line, index) => {
+          if (httpPattern.test(line)) {
+            this.securityIssues.push({
+              type: 'insecure_http_request',
+              file,
+              line: index + 1,
+              severity: 'medium',
+              message: 'Insecure HTTP request detected (use HTTPS)',
+              code: line.trim()
+            });
+          }
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Check for insecure cookie usage
+   */
+  async checkInsecureCookieUsage() {
+    console.log(chalk.blue('🔒 Checking for insecure cookie usage...'));
+    const cookiePattern = /document\.cookie\s*=|setCookie\s*\(/i;
+    const files = await globby(htmlGlobs);
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        lines.forEach((line, index) => {
+          if (cookiePattern.test(line)) {
+            // Check if Secure/HttpOnly flags are present (simple heuristic)
+            if (!/secure/i.test(line) || !/httponly/i.test(line)) {
+              this.securityIssues.push({
+                type: 'insecure_cookie',
+                file,
+                line: index + 1,
+                severity: 'medium',
+                message: 'Cookie set without Secure/HttpOnly flags',
+                code: line.trim()
+              });
+            }
+          }
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
    * Run all security checks
    */
   async runSecurityAudit() {
@@ -391,6 +462,9 @@ async checkSQLInjection() {
     await this.checkXSSVulnerabilities();
     await this.checkSQLInjection();
     await this.checkDependencyVulnerabilities();
+    await this.checkSensitiveDataLogging();
+    await this.checkInsecureHttpRequests();
+    await this.checkInsecureCookieUsage();
     
     const results = {
       timestamp: new Date().toISOString(),

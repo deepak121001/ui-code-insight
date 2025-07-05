@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { globby } from 'globby';
 import { writeFile } from 'fs/promises';
+import { jsTsGlobs, assetGlobs } from './file-globs.js';
 
 /**
  * Performance audit module for detecting performance issues
@@ -96,7 +97,7 @@ export class PerformanceAudit {
       }
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -147,7 +148,7 @@ export class PerformanceAudit {
       }
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx}',  '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -242,6 +243,86 @@ export class PerformanceAudit {
   }
 
   /**
+   * Detect synchronous/blocking code in async contexts
+   */
+  async checkBlockingCodeInAsync() {
+    console.log(chalk.blue('⚡ Checking for blocking code in async contexts...'));
+    const files = await globby(jsTsGlobs);
+    const blockingPatterns = [
+      /while\s*\(true\)/i,
+      /for\s*\(.*;.*;.*\)/i,
+      /setTimeout\s*\(.*,[^)]{5,}\)/i, // setTimeout with long duration
+      /setInterval\s*\(.*,[^)]{5,}\)/i
+    ];
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        let inAsync = false;
+        lines.forEach((line, index) => {
+          if (/async\s+function|async\s*\(/.test(line)) inAsync = true;
+          if (inAsync) {
+            blockingPatterns.forEach(pattern => {
+              if (pattern.test(line)) {
+                this.performanceIssues.push({
+                  type: 'blocking_code_in_async',
+                  file,
+                  line: index + 1,
+                  severity: 'medium',
+                  message: 'Potential blocking code in async context',
+                  code: line.trim()
+                });
+              }
+            });
+          }
+          if (/}/.test(line)) inAsync = false;
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Warn about unoptimized images/assets
+   */
+  async checkUnoptimizedAssets() {
+    console.log(chalk.blue('⚡ Checking for unoptimized images/assets...'));
+    const assetDirs = ['public', 'assets', 'static', 'src/assets'];
+    const imageExtensions = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif'];
+    for (const dir of assetDirs) {
+      if (fs.existsSync(dir)) {
+        const files = await globby(assetGlobs);
+        for (const file of files) {
+          try {
+            const stats = fs.statSync(file);
+            if (stats.size > 500 * 1024) { // >500KB
+              this.performanceIssues.push({
+                type: 'unoptimized_asset',
+                file,
+                severity: 'medium',
+                message: `Large image asset detected (${(stats.size/1024).toFixed(0)} KB)`,
+                recommendation: 'Compress or optimize this image for web'
+              });
+            }
+            if (['.bmp', '.tiff'].some(ext => file.endsWith(ext))) {
+              this.performanceIssues.push({
+                type: 'unoptimized_asset',
+                file,
+                severity: 'medium',
+                message: 'Non-web-optimized image format detected',
+                recommendation: 'Convert to PNG, JPEG, or WebP'
+              });
+            }
+          } catch (error) {
+            console.warn(chalk.yellow(`Warning: Could not stat file ${file}`));
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Run all performance checks
    */
   async runPerformanceAudit() {
@@ -252,6 +333,8 @@ export class PerformanceAudit {
     await this.checkMemoryLeaks();
     await this.checkLargeDependencies();
     await this.checkUnusedCode();
+    await this.checkBlockingCodeInAsync();
+    await this.checkUnoptimizedAssets();
     
     const results = {
       timestamp: new Date().toISOString(),

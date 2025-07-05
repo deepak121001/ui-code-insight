@@ -3,6 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import { globby } from 'globby';
 import { writeFile } from 'fs/promises';
+import { jsTsGlobs, htmlGlobs } from './file-globs.js';
 
 /**
  * Accessibility audit module for detecting accessibility issues
@@ -24,7 +25,7 @@ export class AccessibilityAudit {
       /<Image[^>]*>/gi,
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -71,7 +72,7 @@ export class AccessibilityAudit {
       /<h6[^>]*>/gi,
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -118,7 +119,7 @@ export class AccessibilityAudit {
       /<select[^>]*>/gi,
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -168,7 +169,7 @@ export class AccessibilityAudit {
       /background-color:\s*rgb\([^)]+\)/gi,
     ];
 
-    const files = await globby(['**/*.{css,scss,less,js,ts,jsx,tsx}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -210,7 +211,7 @@ export class AccessibilityAudit {
       /addEventListener\s*\(\s*['"]click['"]/gi,
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -257,7 +258,7 @@ export class AccessibilityAudit {
       /aria-[a-zA-Z-]+/gi,
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -291,6 +292,81 @@ export class AccessibilityAudit {
   }
 
   /**
+   * Check for tab order and focus management
+   */
+  async checkTabOrderAndFocus() {
+    console.log(chalk.blue('♿ Checking tab order and focus management...'));
+    const files = await globby(jsTsGlobs);
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        lines.forEach((line, index) => {
+          // Check for interactive elements without tabindex
+          if ((/<(button|a|input|select|textarea|div|span)[^>]*>/i.test(line) || /onClick=|onKeyDown=|onFocus=/.test(line)) && !/tabindex=/i.test(line)) {
+            this.accessibilityIssues.push({
+              type: 'tab_order_focus',
+              file,
+              line: index + 1,
+              severity: 'medium',
+              message: 'Interactive element may be missing tabindex or focus management',
+              code: line.trim()
+            });
+          }
+          // Check for modals/dialogs without focus trap
+          if (/<(dialog|Modal|modal)[^>]*>/i.test(line) && !/focusTrap|trapFocus|tabindex/i.test(line)) {
+            this.accessibilityIssues.push({
+              type: 'focus_management',
+              file,
+              line: index + 1,
+              severity: 'medium',
+              message: 'Modal/dialog may be missing focus trap or focus management',
+              code: line.trim()
+            });
+          }
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Look for missing landmark roles and skip links
+   */
+  async checkLandmarksAndSkipLinks() {
+    console.log(chalk.blue('♿ Checking for landmark roles and skip links...'));
+    const files = await globby(jsTsGlobs);
+    let foundLandmark = false;
+    let foundSkipLink = false;
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        if (/<(main|nav|aside|header|footer)[^>]*>/i.test(content)) foundLandmark = true;
+        if (/<a[^>]+href=["']#main-content["'][^>]*>.*skip to main content.*<\/a>/i.test(content)) foundSkipLink = true;
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+    if (!foundLandmark) {
+      this.accessibilityIssues.push({
+        type: 'missing_landmark',
+        severity: 'medium',
+        message: 'No landmark roles (<main>, <nav>, <aside>, <header>, <footer>) found in project',
+        recommendation: 'Add semantic landmark elements for better accessibility'
+      });
+    }
+    if (!foundSkipLink) {
+      this.accessibilityIssues.push({
+        type: 'missing_skip_link',
+        severity: 'medium',
+        message: 'No skip link found (e.g., <a href="#main-content">Skip to main content</a>)',
+        recommendation: 'Add a skip link for keyboard users'
+      });
+    }
+  }
+
+  /**
    * Run all accessibility checks
    */
   async runAccessibilityAudit() {
@@ -302,6 +378,8 @@ export class AccessibilityAudit {
     await this.checkColorContrast();
     await this.checkKeyboardNavigation();
     await this.checkARIAUsage();
+    await this.checkTabOrderAndFocus();
+    await this.checkLandmarksAndSkipLinks();
     
     const results = {
       timestamp: new Date().toISOString(),

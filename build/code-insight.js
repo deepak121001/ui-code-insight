@@ -731,6 +731,43 @@ var audit = {
   generateNpmPackageReport: generateNpmPackageReportWrapper,
 };
 
+// Centralized globby file patterns for all audits
+
+const jsTsGlobs = [
+  '**/*.{js,ts,jsx,tsx}',
+  '!**/node_modules/**',
+  '!**/.storybook/**',
+  '!**/storybook/**',
+  '!**/report/**',
+  '!build/**',
+  '!dist/**',
+  '!coverage/**',
+  '!.git/**',
+  '!bin/**'
+];
+
+const htmlGlobs = [
+  '**/*.{html,js,ts,jsx,tsx}',
+  '!**/node_modules/**',
+  '!**/.storybook/**',
+  '!**/storybook/**',
+  '!**/report/**',
+  '!build/**',
+  '!dist/**',
+  '!coverage/**',
+  '!.git/**',
+  '!bin/**'
+];
+
+const assetGlobs = [
+  'public/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
+  'assets/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
+  'static/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
+  'src/assets/**/*.{png,jpg,jpeg,bmp,tiff,gif}'
+];
+
+// Add more as needed for CSS, JSON, etc.
+
 /**
  * Security audit module for detecting common security vulnerabilities
  */
@@ -768,15 +805,7 @@ async checkForSecrets() {
     /\b(PASSWORD|SECRET|TOKEN|KEY|ACCESS_KEY|PRIVATE_KEY)\s*=\s*[^'"`\n\r]+/gi
   ];
 
-  const files = await globby([
-    '**/*.{js,ts,jsx,tsx,json,env}',
-    '!**/node_modules/**',
-    '!**/.storybook/**',
-    '!**/storybook/**',
-    '!**/report/**',
-    '!build/**',
-    '!dist/**'
-  ]);
+  const files = await globby(jsTsGlobs);
 
   console.log(chalk.gray(`📁 Scanning ${files.length} files for secrets...`));
 
@@ -826,15 +855,7 @@ async checkForSecrets() {
 async checkUnsafeEval() {
   console.log(chalk.blue('🔒 Checking for unsafe eval usage...'));
 
-  const files = await globby([
-    '**/*.{js,ts,jsx,tsx}',
-    '!**/node_modules/**',
-    '!**/.storybook/**',
-    '!**/storybook/**',
-    '!**/report/**',
-    '!build/**',
-    '!dist/**'
-  ]);
+  const files = await globby(jsTsGlobs);
   console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for unsafe eval...`));
 
   const unsafePatterns = [
@@ -898,15 +919,7 @@ async checkXSSVulnerabilities() {
     { pattern: /\bnew\s+DOMParser\s*\(\)/i, message: 'DOMParser can be dangerous if input is not sanitized', severity: 'low' },
   ];
 
-  const files = await globby([
-    '**/*.{js,ts,jsx,tsx}',
-    '!**/node_modules/**',
-    '!**/.storybook/**',
-    '!**/storybook/**',
-    '!**/report/**',
-    '!build/**',
-    '!dist/**'
-  ]);
+  const files = await globby(jsTsGlobs);
 
   console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for XSS vulnerabilities...`));
 
@@ -990,15 +1003,7 @@ async checkSQLInjection() {
     }
   ];
 
-  const files = await globby([
-    '**/*.{js,ts,jsx,tsx}',
-    '!**/node_modules/**',
-    '!**/.storybook/**',
-    '!**/storybook/**',
-    '!**/report/**',
-    '!build/**',
-    '!dist/**'
-  ]);
+  const files = await globby(jsTsGlobs);
 
   console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for SQL injection patterns...`));
 
@@ -1107,6 +1112,108 @@ async checkSQLInjection() {
   }
 
   /**
+   * Check for logging of sensitive data
+   */
+  async checkSensitiveDataLogging() {
+    console.log(chalk.blue('🔒 Checking for logging of sensitive data...'));
+    const sensitiveKeywords = [
+      'password', 'token', 'secret', 'key', 'auth', 'jwt', 'access', 'refresh'
+    ];
+    const logPatterns = [
+      /console\.(log|error|warn|info)\s*\(([^)]*)\)/gi,
+      /logger\.(log|error|warn|info)\s*\(([^)]*)\)/gi
+    ];
+    const files = await globby(jsTsGlobs);
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        lines.forEach((line, index) => {
+          logPatterns.forEach(pattern => {
+            const match = pattern.exec(line);
+            if (match) {
+              const args = match[2] || '';
+              if (sensitiveKeywords.some(word => args.toLowerCase().includes(word))) {
+                this.securityIssues.push({
+                  type: 'sensitive_data_logging',
+                  file,
+                  line: index + 1,
+                  severity: 'high',
+                  message: 'Sensitive data may be logged',
+                  code: line.trim()
+                });
+              }
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Warn on insecure HTTP requests
+   */
+  async checkInsecureHttpRequests() {
+    console.log(chalk.blue('🔒 Checking for insecure HTTP requests...'));
+    const httpPattern = /\b(fetch|axios|XMLHttpRequest|open|src|href)\s*\(?.*['\"]http:\/\//i;
+    const files = await globby(htmlGlobs);
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        lines.forEach((line, index) => {
+          if (httpPattern.test(line)) {
+            this.securityIssues.push({
+              type: 'insecure_http_request',
+              file,
+              line: index + 1,
+              severity: 'medium',
+              message: 'Insecure HTTP request detected (use HTTPS)',
+              code: line.trim()
+            });
+          }
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Check for insecure cookie usage
+   */
+  async checkInsecureCookieUsage() {
+    console.log(chalk.blue('🔒 Checking for insecure cookie usage...'));
+    const cookiePattern = /document\.cookie\s*=|setCookie\s*\(/i;
+    const files = await globby(htmlGlobs);
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        lines.forEach((line, index) => {
+          if (cookiePattern.test(line)) {
+            // Check if Secure/HttpOnly flags are present (simple heuristic)
+            if (!/secure/i.test(line) || !/httponly/i.test(line)) {
+              this.securityIssues.push({
+                type: 'insecure_cookie',
+                file,
+                line: index + 1,
+                severity: 'medium',
+                message: 'Cookie set without Secure/HttpOnly flags',
+                code: line.trim()
+              });
+            }
+          }
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
    * Run all security checks
    */
   async runSecurityAudit() {
@@ -1117,6 +1224,9 @@ async checkSQLInjection() {
     await this.checkXSSVulnerabilities();
     await this.checkSQLInjection();
     await this.checkDependencyVulnerabilities();
+    await this.checkSensitiveDataLogging();
+    await this.checkInsecureHttpRequests();
+    await this.checkInsecureCookieUsage();
     
     const results = {
       timestamp: new Date().toISOString(),
@@ -1241,7 +1351,7 @@ class PerformanceAudit {
       }
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -1292,7 +1402,7 @@ class PerformanceAudit {
       }
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx}',  '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -1387,6 +1497,85 @@ class PerformanceAudit {
   }
 
   /**
+   * Detect synchronous/blocking code in async contexts
+   */
+  async checkBlockingCodeInAsync() {
+    console.log(chalk.blue('⚡ Checking for blocking code in async contexts...'));
+    const files = await globby(jsTsGlobs);
+    const blockingPatterns = [
+      /while\s*\(true\)/i,
+      /for\s*\(.*;.*;.*\)/i,
+      /setTimeout\s*\(.*,[^)]{5,}\)/i, // setTimeout with long duration
+      /setInterval\s*\(.*,[^)]{5,}\)/i
+    ];
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        let inAsync = false;
+        lines.forEach((line, index) => {
+          if (/async\s+function|async\s*\(/.test(line)) inAsync = true;
+          if (inAsync) {
+            blockingPatterns.forEach(pattern => {
+              if (pattern.test(line)) {
+                this.performanceIssues.push({
+                  type: 'blocking_code_in_async',
+                  file,
+                  line: index + 1,
+                  severity: 'medium',
+                  message: 'Potential blocking code in async context',
+                  code: line.trim()
+                });
+              }
+            });
+          }
+          if (/}/.test(line)) inAsync = false;
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Warn about unoptimized images/assets
+   */
+  async checkUnoptimizedAssets() {
+    console.log(chalk.blue('⚡ Checking for unoptimized images/assets...'));
+    const assetDirs = ['public', 'assets', 'static', 'src/assets'];
+    for (const dir of assetDirs) {
+      if (fs.existsSync(dir)) {
+        const files = await globby(assetGlobs);
+        for (const file of files) {
+          try {
+            const stats = fs.statSync(file);
+            if (stats.size > 500 * 1024) { // >500KB
+              this.performanceIssues.push({
+                type: 'unoptimized_asset',
+                file,
+                severity: 'medium',
+                message: `Large image asset detected (${(stats.size/1024).toFixed(0)} KB)`,
+                recommendation: 'Compress or optimize this image for web'
+              });
+            }
+            if (['.bmp', '.tiff'].some(ext => file.endsWith(ext))) {
+              this.performanceIssues.push({
+                type: 'unoptimized_asset',
+                file,
+                severity: 'medium',
+                message: 'Non-web-optimized image format detected',
+                recommendation: 'Convert to PNG, JPEG, or WebP'
+              });
+            }
+          } catch (error) {
+            console.warn(chalk.yellow(`Warning: Could not stat file ${file}`));
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Run all performance checks
    */
   async runPerformanceAudit() {
@@ -1397,6 +1586,8 @@ class PerformanceAudit {
     await this.checkMemoryLeaks();
     await this.checkLargeDependencies();
     await this.checkUnusedCode();
+    await this.checkBlockingCodeInAsync();
+    await this.checkUnoptimizedAssets();
     
     const results = {
       timestamp: new Date().toISOString(),
@@ -1448,7 +1639,7 @@ class AccessibilityAudit {
       /<Image[^>]*>/gi,
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -1495,7 +1686,7 @@ class AccessibilityAudit {
       /<h6[^>]*>/gi,
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -1542,7 +1733,7 @@ class AccessibilityAudit {
       /<select[^>]*>/gi,
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -1592,7 +1783,7 @@ class AccessibilityAudit {
       /background-color:\s*rgb\([^)]+\)/gi,
     ];
 
-    const files = await globby(['**/*.{css,scss,less,js,ts,jsx,tsx}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -1634,7 +1825,7 @@ class AccessibilityAudit {
       /addEventListener\s*\(\s*['"]click['"]/gi,
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -1681,7 +1872,7 @@ class AccessibilityAudit {
       /aria-[a-zA-Z-]+/gi,
     ];
 
-    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    const files = await globby(jsTsGlobs);
     
     for (const file of files) {
       try {
@@ -1715,6 +1906,81 @@ class AccessibilityAudit {
   }
 
   /**
+   * Check for tab order and focus management
+   */
+  async checkTabOrderAndFocus() {
+    console.log(chalk.blue('♿ Checking tab order and focus management...'));
+    const files = await globby(jsTsGlobs);
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        lines.forEach((line, index) => {
+          // Check for interactive elements without tabindex
+          if ((/<(button|a|input|select|textarea|div|span)[^>]*>/i.test(line) || /onClick=|onKeyDown=|onFocus=/.test(line)) && !/tabindex=/i.test(line)) {
+            this.accessibilityIssues.push({
+              type: 'tab_order_focus',
+              file,
+              line: index + 1,
+              severity: 'medium',
+              message: 'Interactive element may be missing tabindex or focus management',
+              code: line.trim()
+            });
+          }
+          // Check for modals/dialogs without focus trap
+          if (/<(dialog|Modal|modal)[^>]*>/i.test(line) && !/focusTrap|trapFocus|tabindex/i.test(line)) {
+            this.accessibilityIssues.push({
+              type: 'focus_management',
+              file,
+              line: index + 1,
+              severity: 'medium',
+              message: 'Modal/dialog may be missing focus trap or focus management',
+              code: line.trim()
+            });
+          }
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Look for missing landmark roles and skip links
+   */
+  async checkLandmarksAndSkipLinks() {
+    console.log(chalk.blue('♿ Checking for landmark roles and skip links...'));
+    const files = await globby(jsTsGlobs);
+    let foundLandmark = false;
+    let foundSkipLink = false;
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        if (/<(main|nav|aside|header|footer)[^>]*>/i.test(content)) foundLandmark = true;
+        if (/<a[^>]+href=["']#main-content["'][^>]*>.*skip to main content.*<\/a>/i.test(content)) foundSkipLink = true;
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+    if (!foundLandmark) {
+      this.accessibilityIssues.push({
+        type: 'missing_landmark',
+        severity: 'medium',
+        message: 'No landmark roles (<main>, <nav>, <aside>, <header>, <footer>) found in project',
+        recommendation: 'Add semantic landmark elements for better accessibility'
+      });
+    }
+    if (!foundSkipLink) {
+      this.accessibilityIssues.push({
+        type: 'missing_skip_link',
+        severity: 'medium',
+        message: 'No skip link found (e.g., <a href="#main-content">Skip to main content</a>)',
+        recommendation: 'Add a skip link for keyboard users'
+      });
+    }
+  }
+
+  /**
    * Run all accessibility checks
    */
   async runAccessibilityAudit() {
@@ -1726,6 +1992,8 @@ class AccessibilityAudit {
     await this.checkColorContrast();
     await this.checkKeyboardNavigation();
     await this.checkARIAUsage();
+    await this.checkTabOrderAndFocus();
+    await this.checkLandmarksAndSkipLinks();
     
     const results = {
       timestamp: new Date().toISOString(),
@@ -1772,15 +2040,7 @@ class TestingAudit {
   async checkTestFiles() {
     console.log(chalk.blue('🧪 Checking test files...'));
     
-    const testPatterns = [
-      '**/*.test.{js,ts,jsx,tsx}',
-      '**/*.spec.{js,ts,jsx,tsx}',
-      '**/__tests__/**/*.{js,ts,jsx,tsx}',
-      '**/tests/**/*.{js,ts,jsx,tsx}',
-      '**/test/**/*.{js,ts,jsx,tsx}'
-    ];
-
-    const testFiles = await globby(testPatterns, { ignore: ['**/node_modules/**', 'build/**', 'dist/**'] });
+    const testFiles = await globby(jsTsGlobs.testFiles);
     
     if (testFiles.length === 0) {
       this.testingIssues.push({
@@ -1891,51 +2151,7 @@ class TestingAudit {
   async checkTestingPatterns() {
     console.log(chalk.blue('🧪 Checking testing patterns...'));
     
-    const testPatterns = [
-      {
-        pattern: /describe\s*\(/g,
-        name: 'describe blocks',
-        positive: true
-      },
-      {
-        pattern: /it\s*\(/g,
-        name: 'it/test blocks',
-        positive: true
-      },
-      {
-        pattern: /expect\s*\(/g,
-        name: 'expect assertions',
-        positive: true
-      },
-      {
-        pattern: /beforeEach\s*\(/g,
-        name: 'beforeEach hooks',
-        positive: true
-      },
-      {
-        pattern: /afterEach\s*\(/g,
-        name: 'afterEach hooks',
-        positive: true
-      },
-      {
-        pattern: /beforeAll\s*\(/g,
-        name: 'beforeAll hooks',
-        positive: true
-      },
-      {
-        pattern: /afterAll\s*\(/g,
-        name: 'afterAll hooks',
-        positive: true
-      }
-    ];
-
-    const testFiles = await globby([
-      '**/*.test.{js,ts,jsx,tsx}',
-      '**/*.spec.{js,ts,jsx,tsx}',
-      '**/__tests__/**/*.{js,ts,jsx,tsx}',
-      '**/tests/**/*.{js,ts,jsx,tsx}',
-      '**/test/**/*.{js,ts,jsx,tsx}'
-    ], { ignore: ['**/node_modules/**', 'build/**', 'dist/**'] });
+    const testFiles = await globby(jsTsGlobs.testFiles);
     
     for (const file of testFiles) {
       try {
@@ -1943,7 +2159,7 @@ class TestingAudit {
         const lines = content.split('\n');
         
         lines.forEach((line, index) => {
-          testPatterns.forEach(({ pattern, name, positive }) => {
+          jsTsGlobs.testPatterns.forEach(({ pattern, name, positive }) => {
             if (pattern.test(line)) {
               if (positive) {
                 this.testingIssues.push({
@@ -1971,51 +2187,7 @@ class TestingAudit {
   async checkMockingPatterns() {
     console.log(chalk.blue('🧪 Checking mocking patterns...'));
     
-    const mockPatterns = [
-      {
-        pattern: /jest\.mock\s*\(/g,
-        name: 'Jest mock',
-        positive: true
-      },
-      {
-        pattern: /jest\.fn\s*\(/g,
-        name: 'Jest function mock',
-        positive: true
-      },
-      {
-        pattern: /jest\.spyOn\s*\(/g,
-        name: 'Jest spy',
-        positive: true
-      },
-      {
-        pattern: /sinon\.stub\s*\(/g,
-        name: 'Sinon stub',
-        positive: true
-      },
-      {
-        pattern: /sinon\.spy\s*\(/g,
-        name: 'Sinon spy',
-        positive: true
-      },
-      {
-        pattern: /vi\.mock\s*\(/g,
-        name: 'Vitest mock',
-        positive: true
-      },
-      {
-        pattern: /vi\.fn\s*\(/g,
-        name: 'Vitest function mock',
-        positive: true
-      }
-    ];
-
-    const testFiles = await globby([
-      '**/*.test.{js,ts,jsx,tsx}',
-      '**/*.spec.{js,ts,jsx,tsx}',
-      '**/__tests__/**/*.{js,ts,jsx,tsx}',
-      '**/tests/**/*.{js,ts,jsx,tsx}',
-      '**/test/**/*.{js,ts,jsx,tsx}'
-    ], { ignore: ['**/node_modules/**', 'build/**', 'dist/**'] });
+    const testFiles = await globby(jsTsGlobs.testFiles);
     
     for (const file of testFiles) {
       try {
@@ -2023,7 +2195,7 @@ class TestingAudit {
         const lines = content.split('\n');
         
         lines.forEach((line, index) => {
-          mockPatterns.forEach(({ pattern, name, positive }) => {
+          jsTsGlobs.mockPatterns.forEach(({ pattern, name, positive }) => {
             if (pattern.test(line)) {
               if (positive) {
                 this.testingIssues.push({
