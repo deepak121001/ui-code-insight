@@ -54,13 +54,6 @@
     "stylelint": "^15.11.0",
     "typescript": "5.3"
   },
-  "peerDependencies": {
-    "eslint": "^8.49.0",
-    "eslint-config-airbnb": "^19.0.4",
-    "stylelint": "^15.10.3",
-    "stylelint-config-prettier-scss": "^1.0.0",
-    "stylelint-config-standard-scss": "^11.0.0"
-  },
   "publishConfig": {
     "access": "public"
   },

@@ -195,6 +195,12 @@ export const generateESLintReport = async (
     overrideConfigFile: lintConfigFile,
   });
 
-  const files = await globby([...jsFilePathPattern]);
+  const files = await globby([...jsFilePathPattern, '!**/node_modules/**']);
+  console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${jsFilePathPattern.join(', ')}`));
+  console.log(chalk.gray(`Files being processed:`));
+  files.slice(0, 10).forEach(file => console.log(chalk.gray(`  - ${file}`)));
+  if (files.length > 10) {
+    console.log(chalk.gray(`  ... and ${files.length - 10} more files`));
+  }
   await lintAllFiles(files, folderPath, eslint, projectType, reports);
 };

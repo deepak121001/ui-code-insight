@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import audit from "./main.js";
+import { AuditOrchestrator } from "./audits/audit-orchestrator.js";
 
 const configPath = process.argv[2];
 const defaultConfig = {
@@ -59,6 +60,7 @@ export const codeInsightInit = async (options = {}) => {
       }
     }
 
+    // Traditional reports
     if (reports.includes('all') || reports.includes('eslint')) {
       await audit.generateESLintReport(jsFilePathPattern, recommendedLintRules, projectType, reports);
     }
@@ -68,7 +70,30 @@ export const codeInsightInit = async (options = {}) => {
     if (reports.includes('all') || reports.includes('package')) {
       await audit.generateNpmPackageReport(projectType, reports);
     }
-    // You can add more report types here as needed
+
+    // New comprehensive audits
+    const auditCategories = ['security', 'performance', 'accessibility', 'testing', 'dependency'];
+    
+    // Convert kebab-case to camelCase if needed (no modern-practices anymore)
+    const normalizedReports = reports;
+    const hasAuditReports = auditCategories.some(category => normalizedReports.includes(category));
+    
+    if (reports.includes('comprehensive') || hasAuditReports) {
+      const orchestrator = new AuditOrchestrator('./report');
+      
+      if (reports.includes('comprehensive')) {
+        // Run all audit categories
+        await orchestrator.runAllAudits();
+      } else {
+        // Run specific audit categories
+        for (const category of auditCategories) {
+          if (normalizedReports.includes(category)) {
+            console.log(`\nRunning ${category} audit...`);
+            await orchestrator.runSpecificAudit(category);
+          }
+        }
+      }
+    }
   } catch (error) {
     console.error("Error reading the file:", error);
   }

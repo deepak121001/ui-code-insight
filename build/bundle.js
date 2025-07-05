@@ -415,6 +415,13 @@
       { id: 'jsAuditReport', file: 'eslint-report.json' },
       { id: 'scssAuditReport', file: 'stylelint-report.json' },
       { id: 'npmPackagesReport', file: 'npm-report.json' },
+      // Comprehensive Audits
+      { id: 'securityAuditReport', file: 'security-audit-report.json' },
+      { id: 'performanceAuditReport', file: 'performance-audit-report.json' },
+      { id: 'accessibilityAuditReport', file: 'accessibility-audit-report.json' },
+      { id: 'testingAuditReport', file: 'testing-audit-report.json' },
+      { id: 'dependencyAuditReport', file: 'dependency-audit-report.json' },
+      { id: 'comprehensiveAuditReport', file: 'comprehensive-audit-report.json' },
     ];
     menuChecks.forEach(({ id, file }) => {
       fetch(`./${file}`, { method: 'HEAD' })
@@ -478,7 +485,13 @@
     { id: 'jsAuditReport', section: 'eslintSection', type: 'eslint', search: 'eslintSearch', pagination: 'eslintPagination', table: 'eslintTableWrap' },
     { id: 'scssAuditReport', section: 'stylelintSection', type: 'stylelint', search: 'stylelintSearch', pagination: 'stylelintPagination', table: 'stylelintTableWrap' },
     { id: 'npmPackagesReport', section: 'npmSection', type: 'npm', search: 'npmSearch', pagination: 'npmPagination', table: 'npmTableWrap' },
-    // Add component usage here if needed
+    // Comprehensive Audits
+    { id: 'securityAuditReport', section: 'securitySection', type: 'security-audit', search: 'securitySearch', pagination: 'securityPagination', table: 'securityTableWrap' },
+    { id: 'performanceAuditReport', section: 'performanceSection', type: 'performance-audit', search: 'performanceSearch', pagination: 'performancePagination', table: 'performanceTableWrap' },
+    { id: 'accessibilityAuditReport', section: 'accessibilitySection', type: 'accessibility-audit', search: 'accessibilitySearch', pagination: 'accessibilityPagination', table: 'accessibilityTableWrap' },
+    { id: 'testingAuditReport', section: 'testingSection', type: 'testing-audit', search: 'testingSearch', pagination: 'testingPagination', table: 'testingTableWrap' },
+    { id: 'dependencyAuditReport', section: 'dependencySection', type: 'dependency-audit', search: 'dependencySearch', pagination: 'dependencyPagination', table: 'dependencyTableWrap' },
+    { id: 'comprehensiveAuditReport', section: 'comprehensiveSection', type: 'comprehensive-audit', search: null, pagination: null, table: 'comprehensiveTableWrap' },
   ];
 
   // Utility to show/hide sections
@@ -505,8 +518,46 @@
     }
   }
 
+  // Render comprehensive audit overview
+  function renderComprehensiveOverview(comprehensiveData) {
+    if (!comprehensiveData || !comprehensiveData.categories) return;
+
+    const categories = comprehensiveData.categories;
+    
+    // Update individual audit totals
+    const securityTotal = document.getElementById('securityTotal');
+    const performanceTotal = document.getElementById('performanceTotal');
+    const accessibilityTotal = document.getElementById('accessibilityTotal');
+    const testingTotal = document.getElementById('testingTotal');
+    const dependencyTotal = document.getElementById('dependencyTotal');
+    const overallScore = document.getElementById('overallScore');
+
+    if (securityTotal && categories.security) {
+      securityTotal.textContent = categories.security.totalIssues || 0;
+    }
+    if (performanceTotal && categories.performance) {
+      performanceTotal.textContent = categories.performance.totalIssues || 0;
+    }
+    if (accessibilityTotal && categories.accessibility) {
+      accessibilityTotal.textContent = categories.accessibility.totalIssues || 0;
+    }
+    if (testingTotal && categories.testing) {
+      testingTotal.textContent = categories.testing.totalIssues || 0;
+    }
+    if (dependencyTotal && categories.dependency) {
+      dependencyTotal.textContent = categories.dependency.totalIssues || 0;
+    }
+
+    // Calculate overall health score (100 - total issues, minimum 0)
+    if (overallScore && comprehensiveData.summary) {
+      const totalIssues = comprehensiveData.summary.totalIssues || 0;
+      const healthScore = Math.max(0, 100 - totalIssues);
+      overallScore.textContent = healthScore;
+    }
+  }
+
   // Render overview charts
-  function renderOverviewCharts(eslintData, stylelintData, npmData) {
+  function renderOverviewCharts(eslintData, stylelintData, npmData, comprehensiveData) {
     // ESLint Pie
     const eslintTotalEl = document.getElementById('overviewEslintTotal');
     if (eslintData && Array.isArray(eslintData.results) && document.querySelector('#overviewEslintChart')) {
@@ -552,6 +603,9 @@
     } else if (npmTotalEl) {
       npmTotalEl.textContent = '';
     }
+
+    // Render comprehensive overview
+    renderComprehensiveOverview(comprehensiveData);
   }
 
   // Utility to check if a report file exists (by trying to fetch it with HEAD)
@@ -572,6 +626,89 @@
     if (section) section.classList.add('hidden');
   }
 
+  // Render audit table for comprehensive audits
+  window.renderAuditTable = function(data, tableId, paginationId, pageSize = 10, auditType = null) {
+    const wrap = document.getElementById(tableId);
+    if (!wrap) return;
+
+    // Store data globally for pagination
+    if (auditType) {
+      window.auditData[auditType] = data;
+      if (!window.auditPages[auditType]) {
+        window.auditPages[auditType] = 1;
+      }
+    }
+
+    wrap.innerHTML = '';
+    if (!data || !Array.isArray(data.issues) || data.issues.length === 0) {
+      wrap.innerHTML = '<div class="text-gray-500 p-4">No issues found.</div>';
+      if (paginationId) document.getElementById(paginationId).innerHTML = '';
+      return;
+    }
+
+    // Paginate the data
+    const currentPage = auditType ? window.auditPages[auditType] : 1;
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    const pageData = data.issues.slice(start, end);
+
+    // Create table
+    let html = '<table class="min-w-full bg-white rounded-lg overflow-hidden"><thead><tr>' +
+      '<th class="py-2 px-4 text-left">Type</th>' +
+      '<th class="py-2 px-4 text-left">File</th>' +
+      '<th class="py-2 px-4 text-left">Line</th>' +
+      '<th class="py-2 px-4 text-left">Severity</th>' +
+      '<th class="py-2 px-4 text-left">Message</th>' +
+      '</tr></thead><tbody>';
+
+    pageData.forEach(issue => {
+      const severityColor = issue.severity === 'high' ? 'text-red-600' : 
+                           issue.severity === 'medium' ? 'text-yellow-600' : 'text-blue-600';
+      html += `<tr class="border-b border-gray-200 hover:bg-gray-100">` +
+        `<td class="py-2 px-4">${issue.type || 'N/A'}</td>` +
+        `<td class="py-2 px-4">${issue.file || 'N/A'}</td>` +
+        `<td class="py-2 px-4">${issue.line || 'N/A'}</td>` +
+        `<td class="py-2 px-4"><span class="font-semibold ${severityColor}">${issue.severity || 'N/A'}</span></td>` +
+        `<td class="py-2 px-4">${issue.message || 'N/A'}</td>` +
+        '</tr>';
+    });
+
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+
+    // Render pagination if needed
+    if (paginationId && auditType) {
+      renderPagination(data.issues.length, pageSize, paginationId, auditType);
+    }
+  };
+
+  // Render pagination controls
+  // Global pagination state for comprehensive audits
+  window.auditPages = {};
+  window.auditData = {};
+
+  function renderPagination(totalItems, pageSize, paginationId, auditType) {
+    const pagDiv = document.getElementById(paginationId);
+    if (!pagDiv) return;
+
+    const totalPages = Math.ceil(totalItems / pageSize);
+    if (totalPages <= 1) {
+      pagDiv.innerHTML = '';
+      return;
+    }
+
+    let html = '<div class="flex items-center space-x-2">';
+    html += '<span class="text-sm text-gray-500">Page:</span>';
+    
+    for (let i = 1; i <= totalPages; i++) {
+      const isActive = window.auditPages[auditType] === i;
+      html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${isActive ? 'bg-blue-100' : ''}" onclick="window.auditPages['${auditType}'] = ${i}; window.renderAuditTable(window.auditData['${auditType}'], '${auditType}TableWrap', '${paginationId}', ${pageSize}, '${auditType}');">${i}</button>`;
+    }
+    
+    html += '</div>';
+    pagDiv.innerHTML = html;
+  }
+
   // Main dashboard logic
   window.addEventListener('DOMContentLoaded', async () => {
     // Check which reports exist and hide missing ones
@@ -587,6 +724,7 @@
     const eslintData = reportExistence['eslint'] ? await fetchData('eslint') : null;
     const stylelintData = reportExistence['stylelint'] ? await fetchData('stylelint') : null;
     const npmData = reportExistence['npm'] ? await fetchData('npm') : null;
+    const comprehensiveData = reportExistence['comprehensive-audit'] ? await fetchData('comprehensive-audit') : null;
 
     // Project meta
     let meta = null;
@@ -596,7 +734,7 @@
     renderProjectMeta(meta);
 
     // Render overview charts
-    renderOverviewCharts(eslintData, stylelintData, npmData);
+    renderOverviewCharts(eslintData, stylelintData, npmData, comprehensiveData);
 
     // Sidebar navigation
     document.getElementById('mainPage').addEventListener('click', e => {
@@ -609,12 +747,12 @@
     if (reportExistence['eslint']) {
       // ESLint Table State
       let eslintFiltered = [];
-      let eslintPage = 1;
+      window.eslintPage = 1;
       const ESLINT_PAGE_SIZE = 10;
       let eslintSearchTerm = '';
 
       // Render ESLint Table (Accordion)
-      function renderEslintTable() {
+      window.renderEslintTable = function() {
         const wrap = document.getElementById('eslintTableWrap');
         if (!wrap) return;
         wrap.innerHTML = '';
@@ -624,7 +762,7 @@
           return;
         }
         // Paginate
-        const start = (eslintPage - 1) * ESLINT_PAGE_SIZE;
+        const start = (window.eslintPage - 1) * ESLINT_PAGE_SIZE;
         const end = start + ESLINT_PAGE_SIZE;
         const pageData = eslintFiltered.slice(start, end);
         // Accordion container
@@ -638,10 +776,10 @@
         });
         wrap.appendChild(accordion);
         renderEslintPagination();
-      }
+      };
 
       // Render Pagination Controls
-      function renderEslintPagination() {
+      window.renderEslintPagination = function() {
         const pagDiv = document.getElementById('eslintPagination');
         if (!pagDiv) return;
         if (!eslintFiltered || eslintFiltered.length <= ESLINT_PAGE_SIZE) {
@@ -649,24 +787,14 @@
           return;
         }
         const totalPages = Math.ceil(eslintFiltered.length / ESLINT_PAGE_SIZE);
-        let html = '<div class="flex space-x-1">';
-        html += `<button class="px-2 py-1 rounded ${eslintPage === 1 ? 'bg-gray-200' : 'bg-blue-100'}" ${eslintPage === 1 ? 'disabled' : ''} id="eslintPrev">Prev</button>`;
+        let html = '<div class="flex items-center space-x-2">';
+        html += '<span class="text-sm text-gray-500">Page:</span>';
         for (let i = 1; i <= totalPages; i++) {
-          html += `<button class="px-2 py-1 rounded ${eslintPage === i ? 'bg-blue-500 text-white' : 'bg-blue-100'}" data-page="${i}">${i}</button>`;
+          html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${i === window.eslintPage ? 'bg-blue-100' : ''}" onclick="window.eslintPage = ${i}; window.renderEslintTable();">${i}</button>`;
         }
-        html += `<button class="px-2 py-1 rounded ${eslintPage === totalPages ? 'bg-gray-200' : 'bg-blue-100'}" ${eslintPage === totalPages ? 'disabled' : ''} id="eslintNext">Next</button>`;
         html += '</div>';
         pagDiv.innerHTML = html;
-        // Pagination events
-        document.getElementById('eslintPrev')?.addEventListener('click', () => { if (eslintPage > 1) { eslintPage--; renderEslintTable(); } });
-        document.getElementById('eslintNext')?.addEventListener('click', () => { if (eslintPage < totalPages) { eslintPage++; renderEslintTable(); } });
-        pagDiv.querySelectorAll('button[data-page]').forEach(btn => {
-          btn.addEventListener('click', e => {
-            eslintPage = parseInt(e.target.getAttribute('data-page'));
-            renderEslintTable();
-          });
-        });
-      }
+      };
 
       // Search logic
       function filterEslintData() {
@@ -680,7 +808,7 @@
           const term = eslintSearchTerm.toLowerCase();
           eslintFiltered = eslintData.results.filter(item => item.filePath && item.filePath.toLowerCase().includes(term));
         }
-        eslintPage = 1;
+        window.eslintPage = 1;
       }
 
       // Expose createAccordionItem globally if not already
@@ -707,14 +835,15 @@
         });
       }
     }
+
     if (reportExistence['stylelint']) {
       // Stylelint Table State
       let stylelintFiltered = [];
-      let stylelintPage = 1;
+      window.stylelintPage = 1;
       const STYLELINT_PAGE_SIZE = 10;
       let stylelintSearchTerm = '';
 
-      function renderStylelintTable() {
+      window.renderStylelintTable = function() {
         const wrap = document.getElementById('stylelintTableWrap');
         if (!wrap) return;
         wrap.innerHTML = '';
@@ -724,7 +853,7 @@
           return;
         }
         // Paginate
-        const start = (stylelintPage - 1) * STYLELINT_PAGE_SIZE;
+        const start = (window.stylelintPage - 1) * STYLELINT_PAGE_SIZE;
         const end = start + STYLELINT_PAGE_SIZE;
         const pageData = stylelintFiltered.slice(start, end);
         // Accordion container
@@ -738,9 +867,9 @@
         });
         wrap.appendChild(accordion);
         renderStylelintPagination();
-      }
+      };
 
-      function renderStylelintPagination() {
+      window.renderStylelintPagination = function() {
         const pagDiv = document.getElementById('stylelintPagination');
         if (!pagDiv) return;
         if (!stylelintFiltered || stylelintFiltered.length <= STYLELINT_PAGE_SIZE) {
@@ -748,23 +877,14 @@
           return;
         }
         const totalPages = Math.ceil(stylelintFiltered.length / STYLELINT_PAGE_SIZE);
-        let html = '<div class="flex space-x-1">';
-        html += `<button class="px-2 py-1 rounded ${stylelintPage === 1 ? 'bg-gray-200' : 'bg-blue-100'}" ${stylelintPage === 1 ? 'disabled' : ''} id="stylelintPrev">Prev</button>`;
+        let html = '<div class="flex items-center space-x-2">';
+        html += '<span class="text-sm text-gray-500">Page:</span>';
         for (let i = 1; i <= totalPages; i++) {
-          html += `<button class="px-2 py-1 rounded ${stylelintPage === i ? 'bg-blue-500 text-white' : 'bg-blue-100'}" data-page="${i}">${i}</button>`;
+          html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${i === window.stylelintPage ? 'bg-blue-100' : ''}" onclick="window.stylelintPage = ${i}; window.renderStylelintTable();">${i}</button>`;
         }
-        html += `<button class="px-2 py-1 rounded ${stylelintPage === totalPages ? 'bg-gray-200' : 'bg-blue-100'}" ${stylelintPage === totalPages ? 'disabled' : ''} id="stylelintNext">Next</button>`;
         html += '</div>';
         pagDiv.innerHTML = html;
-        document.getElementById('stylelintPrev')?.addEventListener('click', () => { if (stylelintPage > 1) { stylelintPage--; renderStylelintTable(); } });
-        document.getElementById('stylelintNext')?.addEventListener('click', () => { if (stylelintPage < totalPages) { stylelintPage++; renderStylelintTable(); } });
-        pagDiv.querySelectorAll('button[data-page]').forEach(btn => {
-          btn.addEventListener('click', e => {
-            stylelintPage = parseInt(e.target.getAttribute('data-page'));
-            renderStylelintTable();
-          });
-        });
-      }
+      };
 
       function filterStylelintData() {
         if (!Array.isArray(stylelintData)) {
@@ -777,7 +897,7 @@
           const term = stylelintSearchTerm.toLowerCase();
           stylelintFiltered = stylelintData.filter(item => item.filePath && item.filePath.toLowerCase().includes(term));
         }
-        stylelintPage = 1;
+        window.stylelintPage = 1;
       }
 
       // Expose createAccordionItem globally if not already
@@ -802,15 +922,16 @@
         });
       }
     }
+
     if (reportExistence['npm']) {
       // NPM Table State
       let npmFiltered = [];
-      let npmPage = 1;
+      window.npmPage = 1;
       const NPM_PAGE_SIZE = 10;
       let npmSearchTerm = '';
       let npmType = 'dependencies'; // or 'devDependencies'
 
-      function renderNpmTable() {
+      window.renderNpmTable = function() {
         const wrap = document.getElementById('npmTableWrap');
         if (!wrap) return;
         wrap.innerHTML = '';
@@ -827,7 +948,7 @@
           return;
         }
         // Paginate
-        const start = (npmPage - 1) * NPM_PAGE_SIZE;
+        const start = (window.npmPage - 1) * NPM_PAGE_SIZE;
         const end = start + NPM_PAGE_SIZE;
         const pageData = dataArr.slice(start, end);
         // Table
@@ -867,9 +988,9 @@
             renderNpmTable();
           }
         };
-      }
+      };
 
-      function renderNpmPagination() {
+      window.renderNpmPagination = function() {
         const pagDiv = document.getElementById('npmPagination');
         if (!pagDiv) return;
         const dataArr = Array.isArray(npmData[npmType]) ? npmFiltered : [];
@@ -878,23 +999,14 @@
           return;
         }
         const totalPages = Math.ceil(dataArr.length / NPM_PAGE_SIZE);
-        let html = '<div class="flex space-x-1">';
-        html += `<button class="px-2 py-1 rounded ${npmPage === 1 ? 'bg-gray-200' : 'bg-blue-100'}" ${npmPage === 1 ? 'disabled' : ''} id="npmPrev">Prev</button>`;
+        let html = '<div class="flex items-center space-x-2">';
+        html += '<span class="text-sm text-gray-500">Page:</span>';
         for (let i = 1; i <= totalPages; i++) {
-          html += `<button class="px-2 py-1 rounded ${npmPage === i ? 'bg-blue-500 text-white' : 'bg-blue-100'}" data-page="${i}">${i}</button>`;
+          html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${i === window.npmPage ? 'bg-blue-100' : ''}" onclick="window.npmPage = ${i}; window.renderNpmTable();">${i}</button>`;
         }
-        html += `<button class="px-2 py-1 rounded ${npmPage === totalPages ? 'bg-gray-200' : 'bg-blue-100'}" ${npmPage === totalPages ? 'disabled' : ''} id="npmNext">Next</button>`;
         html += '</div>';
         pagDiv.innerHTML = html;
-        document.getElementById('npmPrev')?.addEventListener('click', () => { if (npmPage > 1) { npmPage--; renderNpmTable(); } });
-        document.getElementById('npmNext')?.addEventListener('click', () => { if (npmPage < totalPages) { npmPage++; renderNpmTable(); } });
-        pagDiv.querySelectorAll('button[data-page]').forEach(btn => {
-          btn.addEventListener('click', e => {
-            npmPage = parseInt(e.target.getAttribute('data-page'));
-            renderNpmTable();
-          });
-        });
-      }
+      };
 
       function filterNpmData() {
         if (!npmData || !Array.isArray(npmData[npmType])) {
@@ -907,7 +1019,7 @@
           const term = npmSearchTerm.toLowerCase();
           npmFiltered = npmData[npmType].filter(item => item.name && item.name.toLowerCase().includes(term));
         }
-        npmPage = 1;
+        window.npmPage = 1;
       }
 
       document.getElementById('npmPackagesReport').addEventListener('click', e => {
@@ -927,6 +1039,124 @@
         });
       }
     }
+
+    // Add comprehensive audit event listeners
+    const auditTypes = ['security', 'performance', 'accessibility', 'testing', 'dependency'];
+    
+    auditTypes.forEach(type => {
+      if (reportExistence[`${type}-audit`]) {
+        const reportId = `${type}AuditReport`;
+        const sectionId = `${type}Section`;
+        
+        document.getElementById(reportId).addEventListener('click', async (e) => {
+          e.preventDefault();
+          setActiveSidebar(reportId);
+          showSection(sectionId);
+          
+          try {
+            const data = await fetchData(`${type}-audit`);
+            renderAuditTable(data, `${type}TableWrap`, `${type}Pagination`, 10, type);
+          } catch (error) {
+            console.error(`Error loading ${type} audit:`, error);
+            document.getElementById(`${type}TableWrap`).innerHTML = '<div class="text-red-500 p-4">Error loading audit data.</div>';
+          }
+        });
+
+        // Add search functionality
+        const searchInput = document.getElementById(`${type}Search`);
+        if (searchInput) {
+          searchInput.addEventListener('input', async (e) => {
+            try {
+              const data = await fetchData(`${type}-audit`);
+              const searchTerm = e.target.value.toLowerCase();
+              
+              if (searchTerm) {
+                const filteredData = {
+                  ...data,
+                  issues: data.issues.filter(issue => 
+                    issue.message?.toLowerCase().includes(searchTerm) ||
+                    issue.file?.toLowerCase().includes(searchTerm) ||
+                    issue.type?.toLowerCase().includes(searchTerm)
+                  )
+                };
+                renderAuditTable(filteredData, `${type}TableWrap`, `${type}Pagination`, 10, type);
+              } else {
+                renderAuditTable(data, `${type}TableWrap`, `${type}Pagination`, 10, type);
+              }
+            } catch (error) {
+              console.error(`Error filtering ${type} audit:`, error);
+            }
+          });
+        }
+      }
+    });
+
+    // Comprehensive audit report
+    if (reportExistence['comprehensive-audit']) {
+      document.getElementById('comprehensiveAuditReport').addEventListener('click', async (e) => {
+        e.preventDefault();
+        setActiveSidebar('comprehensiveAuditReport');
+        showSection('comprehensiveSection');
+        
+        try {
+          const data = await fetchData('comprehensive-audit');
+          const wrap = document.getElementById('comprehensiveTableWrap');
+          
+          if (!data || !data.categories) {
+            wrap.innerHTML = '<div class="text-gray-500 p-4">No comprehensive audit data found.</div>';
+            return;
+          }
+
+          let html = '<div class="space-y-6">';
+          
+          // Summary section
+          if (data.summary) {
+            html += '<div class="bg-white rounded-lg shadow p-6">';
+            html += '<h3 class="text-lg font-semibold mb-4">📊 Audit Summary</h3>';
+            html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4">';
+            html += `<div class="text-center"><div class="text-2xl font-bold text-red-600">${data.summary.highSeverity || 0}</div><div class="text-sm text-gray-500">High Severity</div></div>`;
+            html += `<div class="text-center"><div class="text-2xl font-bold text-yellow-600">${data.summary.mediumSeverity || 0}</div><div class="text-sm text-gray-500">Medium Severity</div></div>`;
+            html += `<div class="text-center"><div class="text-2xl font-bold text-blue-600">${data.summary.lowSeverity || 0}</div><div class="text-sm text-gray-500">Low Severity</div></div>`;
+            html += `<div class="text-center"><div class="text-2xl font-bold text-green-600">${data.summary.totalIssues || 0}</div><div class="text-sm text-gray-500">Total Issues</div></div>`;
+            html += '</div></div>';
+          }
+
+          // Categories breakdown
+          html += '<div class="bg-white rounded-lg shadow p-6">';
+          html += '<h3 class="text-lg font-semibold mb-4">📋 Category Breakdown</h3>';
+          
+          Object.entries(data.categories).forEach(([category, categoryData]) => {
+            if (categoryData && categoryData.totalIssues !== undefined) {
+              const icon = category === 'security' ? '🔒' : 
+                          category === 'performance' ? '⚡' : 
+                          category === 'accessibility' ? '♿' : 
+                          category === 'testing' ? '🧪' : 
+                          category === 'dependency' ? '📦' : '📋';
+              
+              html += `<div class="border-b border-gray-200 py-3 last:border-b-0">`;
+              html += `<div class="flex items-center justify-between">`;
+              html += `<div class="flex items-center space-x-2">`;
+              html += `<span class="text-lg">${icon}</span>`;
+              html += `<span class="font-medium capitalize">${category}</span>`;
+              html += `</div>`;
+              html += `<div class="text-right">`;
+              html += `<div class="text-lg font-bold">${categoryData.totalIssues}</div>`;
+              html += `<div class="text-sm text-gray-500">issues</div>`;
+              html += `</div>`;
+              html += `</div>`;
+              html += `</div>`;
+            }
+          });
+          
+          html += '</div></div>';
+          wrap.innerHTML = html;
+        } catch (error) {
+          console.error('Error loading comprehensive audit:', error);
+          document.getElementById('comprehensiveTableWrap').innerHTML = '<div class="text-red-500 p-4">Error loading comprehensive audit data.</div>';
+        }
+      });
+    }
+
     // Show overview by default
     setActiveSidebar('mainPage');
     showSection('overviewSection');

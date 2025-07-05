@@ -218,7 +218,13 @@ const generateESLintReport = async (
     overrideConfigFile: lintConfigFile,
   });
 
-  const files = await globby([...jsFilePathPattern]);
+  const files = await globby([...jsFilePathPattern, '!**/node_modules/**']);
+  console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${jsFilePathPattern.join(', ')}`));
+  console.log(chalk.gray(`Files being processed:`));
+  files.slice(0, 10).forEach(file => console.log(chalk.gray(`  - ${file}`)));
+  if (files.length > 10) {
+    console.log(chalk.gray(`  ... and ${files.length - 10} more files`));
+  }
   await lintAllFiles$1(files, folderPath, eslint, projectType, reports);
 };
 
@@ -725,6 +731,1982 @@ var audit = {
   generateNpmPackageReport: generateNpmPackageReportWrapper,
 };
 
+/**
+ * Security audit module for detecting common security vulnerabilities
+ */
+class SecurityAudit {
+  constructor(folderPath) {
+    this.folderPath = folderPath;
+    this.securityIssues = [];
+  }
+
+/**
+ * Check for hardcoded secrets
+ */
+async checkForSecrets() {
+  console.log(chalk.blue('🔒 Checking for hardcoded secrets...'));
+
+  const secretPatterns = [
+    /password\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /api[_-]?key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /secret\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /auth[_-]?token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /authorization\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /bearer\s+['"`][^'"`\s]+['"`]/gi,
+    /access[_-]?token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /refresh[_-]?token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /private[_-]?key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /aws_access_key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /aws_secret_key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /client[_-]?id\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /client[_-]?secret\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /firebase\s*api[_-]?key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /connection\s*string\s*[:=]\s*['"`][^'"`]+['"`]/gi,
+    /-----BEGIN\s+(RSA|DSA|EC|PGP|OPENSSH|PRIVATE)\s+PRIVATE\s+KEY-----[\s\S]+?-----END\s+(?:RSA|DSA|EC|PGP|OPENSSH|PRIVATE)\s+PRIVATE\s+KEY-----/g,
+    /\b[a-zA-Z0-9_-]*?(api|access|secret|auth|token|key)[a-zA-Z0-9_-]*?\s*[:=]\s*['"`][\w\-]{16,}['"`]/gi,
+    /\b(PASSWORD|SECRET|TOKEN|KEY|ACCESS_KEY|PRIVATE_KEY)\s*=\s*[^'"`\n\r]+/gi
+  ];
+
+  const files = await globby([
+    '**/*.{js,ts,jsx,tsx,json,env}',
+    '!**/node_modules/**',
+    '!**/report/**',
+    '!build/**',
+    '!dist/**'
+  ]);
+
+  console.log(chalk.gray(`📁 Scanning ${files.length} files for secrets...`));
+
+  for (const file of files) {
+    try {
+      const content = fs.readFileSync(file, 'utf8');
+      const lines = content.split('\n');
+
+      lines.forEach((line, index) => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine || trimmedLine.startsWith('//')) return;
+
+        secretPatterns.forEach(pattern => {
+          if (pattern.test(trimmedLine)) {
+            this.securityIssues.push({
+              type: 'hardcoded_secret',
+              file,
+              line: index + 1,
+              severity: 'high',
+              message: 'Potential hardcoded secret detected',
+              code: trimmedLine
+            });
+          }
+        });
+      });
+    } catch (error) {
+      console.warn(chalk.yellow(`⚠️ Warning: Could not read file ${file}`));
+    }
+  }
+}
+
+
+/**
+ * Check for unsafe eval usage
+ */
+async checkUnsafeEval() {
+  console.log(chalk.blue('🔒 Checking for unsafe eval usage...'));
+
+  const files = await globby([
+    '**/*.{js,ts,jsx,tsx}',
+    '!**/node_modules/**',
+    '!build/**',
+    '!dist/**'
+  ]);
+  console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for unsafe eval...`));
+
+  const unsafePatterns = [
+    /\beval\s*\(/,                      // eval(...)
+    /\bnew\s+Function\s*\(/,           // new Function(...)
+    /\bFunction\s*\(/,                 // Function(...)
+    /\bsetTimeout\s*\(\s*['"`]/,       // setTimeout("...")
+    /\bsetInterval\s*\(\s*['"`]/       // setInterval("...")
+  ];
+
+  for (const file of files) {
+    try {
+      const content = fs.readFileSync(file, 'utf8');
+      const lines = content.split('\n');
+
+      lines.forEach((line, index) => {
+        for (const pattern of unsafePatterns) {
+          if (pattern.test(line)) {
+            this.securityIssues.push({
+              type: 'unsafe_eval',
+              file,
+              line: index + 1,
+              severity: 'high',
+              message: 'Unsafe eval or dynamic code execution detected',
+              code: line.trim()
+            });
+            break; // Only report once per line
+          }
+        }
+      });
+    } catch (error) {
+      console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+    }
+  }
+}
+
+
+/**
+ * Check for potential XSS vulnerabilities
+ */
+async checkXSSVulnerabilities() {
+  console.log(chalk.blue('🔒 Checking for XSS vulnerabilities...'));
+
+  const xssPatterns = [
+    { pattern: /\binnerHTML\s*=/i, message: 'Use of innerHTML can lead to XSS', severity: 'high' },
+    { pattern: /\bouterHTML\s*=/i, message: 'Use of outerHTML can lead to XSS', severity: 'high' },
+    { pattern: /\bdocument\.write\s*\(/i, message: 'Use of document.write is dangerous and can lead to XSS', severity: 'high' },
+    { pattern: /\.insertAdjacentHTML\s*\(/i, message: 'insertAdjacentHTML can be XSS-prone', severity: 'medium' },
+    { pattern: /\b dangerouslySetInnerHTML\s*=/i, message: 'React dangerouslySetInnerHTML used', severity: 'medium' },
+    { pattern: /\bnew\s+DOMParser\s*\(\)/i, message: 'DOMParser can be dangerous if input is not sanitized', severity: 'low' },
+  ];
+
+  const files = await globby([
+    '**/*.{js,ts,jsx,tsx}',
+    '!**/node_modules/**',
+    '!build/**',
+    '!dist/**'
+  ]);
+
+  console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for XSS vulnerabilities...`));
+
+  for (const file of files) {
+    try {
+      const content = fs.readFileSync(file, 'utf8');
+      const lines = content.split('\n');
+
+      lines.forEach((line, index) => {
+        // Skip commented or empty lines
+        const trimmed = line.trim();
+        if (trimmed.startsWith('//') || trimmed === '') return;
+
+        xssPatterns.forEach(({ pattern, message, severity }) => {
+          if (pattern.test(trimmed)) {
+            this.securityIssues.push({
+              type: 'xss_vulnerability',
+              file,
+              line: index + 1,
+              severity,
+              message,
+              code: trimmed
+            });
+          }
+        });
+      });
+    } catch (error) {
+      console.warn(chalk.yellow(`⚠️ Warning: Could not read file ${file}`));
+    }
+  }
+}
+
+
+/**
+ * Check for potential SQL injection patterns
+ */
+async checkSQLInjection() {
+  console.log(chalk.blue('🔒 Checking for SQL injection patterns...'));
+
+  const sqlPatterns = [
+    {
+      pattern: /\b(query|execute)\s*\(\s*[`'"][^`'"']*\$\{[^}]+\}[^`'"']*[`'"]\s*\)/gi,
+      message: 'SQL query contains template string interpolation — possible injection risk',
+      severity: 'high'
+    },
+    {
+      pattern: /\bsql\s*[:=]\s*[`'"][^`'"']*\$\{[^}]+\}[^`'"']*[`'"]/gi,
+      message: 'Interpolated SQL assignment — risk of SQL injection',
+      severity: 'high'
+    },
+    {
+      pattern: /\bSELECT\s+.*\s+FROM\s+/i,
+      message: 'Direct SQL query detected, check for unsafe input handling',
+      severity: 'medium'
+    },
+    {
+      pattern: /\bINSERT\s+INTO\s+/i,
+      message: 'Direct SQL INSERT detected — validate inputs',
+      severity: 'medium'
+    },
+    {
+      pattern: /\bUPDATE\s+\w+\s+SET\s+/i,
+      message: 'Direct SQL UPDATE detected — check parameter usage',
+      severity: 'medium'
+    },
+    {
+      pattern: /\bDELETE\s+FROM\s+/i,
+      message: 'Direct SQL DELETE detected — confirm query safety',
+      severity: 'medium'
+    }
+  ];
+
+  const files = await globby([
+    '**/*.{js,ts,jsx,tsx}',
+    '!**/node_modules/**',
+    '!build/**',
+    '!dist/**'
+  ]);
+
+  console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for SQL injection patterns...`));
+
+  for (const file of files) {
+    try {
+      const content = fs.readFileSync(file, 'utf8');
+      const lines = content.split('\n');
+
+      lines.forEach((line, index) => {
+        const trimmed = line.trim();
+        if (trimmed === '' || trimmed.startsWith('//')) return;
+
+        for (const { pattern, message, severity } of sqlPatterns) {
+          if (pattern.test(trimmed)) {
+            this.securityIssues.push({
+              type: 'sql_injection',
+              file,
+              line: index + 1,
+              severity,
+              message,
+              code: trimmed
+            });
+            break; // Only one issue per line
+          }
+        }
+      });
+    } catch (error) {
+      console.warn(chalk.yellow(`⚠️ Warning: Could not read file ${file}`));
+    }
+  }
+}
+
+
+  /**
+   * Check for outdated dependencies with known vulnerabilities
+   */
+  async checkDependencyVulnerabilities() {
+    console.log(chalk.blue('🔒 Checking for dependency vulnerabilities...'));
+    
+    try {
+      // Run npm audit to check for vulnerabilities
+      const auditResult = execSync('npm audit --json', { 
+        encoding: 'utf8', 
+        cwd: process.cwd(),
+        stdio: 'pipe'
+      });
+      const auditData = JSON.parse(auditResult);
+      
+      if (auditData.vulnerabilities && Object.keys(auditData.vulnerabilities).length > 0) {
+        Object.keys(auditData.vulnerabilities).forEach(packageName => {
+          const vuln = auditData.vulnerabilities[packageName];
+          this.securityIssues.push({
+            type: 'dependency_vulnerability',
+            package: packageName,
+            severity: vuln.severity || 'medium',
+            message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
+            recommendation: vuln.recommendation || 'Update package version'
+          });
+        });
+      } else {
+        // No vulnerabilities found - this is good!
+        this.securityIssues.push({
+          type: 'no_vulnerabilities',
+          severity: 'info',
+          message: 'No known vulnerabilities found in dependencies',
+          positive: true
+        });
+      }
+    } catch (error) {
+      // npm audit returns non-zero exit code when vulnerabilities are found
+      if (error.status === 1) {
+        try {
+          const output = error.stdout.toString();
+          const auditData = JSON.parse(output);
+          
+          if (auditData.vulnerabilities) {
+            Object.keys(auditData.vulnerabilities).forEach(packageName => {
+              const vuln = auditData.vulnerabilities[packageName];
+              this.securityIssues.push({
+                type: 'dependency_vulnerability',
+                package: packageName,
+                severity: vuln.severity || 'medium',
+                message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
+                recommendation: vuln.recommendation || 'Update package version'
+              });
+            });
+          }
+        } catch (parseError) {
+          console.warn(chalk.yellow('Warning: Could not parse npm audit results'));
+        }
+      } else {
+        console.warn(chalk.yellow('Warning: Could not run npm audit - this may be due to network issues or npm configuration'));
+      }
+    }
+  }
+
+  /**
+   * Run all security checks
+   */
+  async runSecurityAudit() {
+    console.log(chalk.blue('🔒 Starting Security Audit...'));
+    
+    await this.checkForSecrets();
+    await this.checkUnsafeEval();
+    await this.checkXSSVulnerabilities();
+    await this.checkSQLInjection();
+    await this.checkDependencyVulnerabilities();
+    
+    const results = {
+      timestamp: new Date().toISOString(),
+      totalIssues: this.securityIssues.length,
+      highSeverity: this.securityIssues.filter(issue => issue.severity === 'high').length,
+      mediumSeverity: this.securityIssues.filter(issue => issue.severity === 'medium').length,
+      lowSeverity: this.securityIssues.filter(issue => issue.severity === 'low').length,
+      infoIssues: this.securityIssues.filter(issue => issue.severity === 'info').length,
+      issues: this.securityIssues
+    };
+
+    // Generate JSON report
+    try {
+      const reportPath = path.join(this.folderPath, 'security-audit-report.json');
+      await writeFile(reportPath, JSON.stringify(results, null, 2));
+      console.log(chalk.green(`✅ Security audit report saved to: ${reportPath}`));
+    } catch (error) {
+      console.error(chalk.red('Error saving security audit report:', error.message));
+    }
+
+    // Display summary
+    console.log(chalk.blue('\n🔒 SECURITY AUDIT SUMMARY'));
+    console.log(chalk.blue('='.repeat(40)));
+    console.log(chalk.white(`Total Issues: ${results.totalIssues}`));
+    console.log(chalk.red(`High Severity: ${results.highSeverity}`));
+    console.log(chalk.yellow(`Medium Severity: ${results.mediumSeverity}`));
+    console.log(chalk.blue(`Low Severity: ${results.lowSeverity}`));
+    console.log(chalk.green(`Info/Positive: ${results.infoIssues}`));
+
+    return results;
+  }
+}
+
+/**
+ * Performance audit module for detecting performance issues
+ */
+class PerformanceAudit {
+  constructor(folderPath) {
+    this.folderPath = folderPath;
+    this.performanceIssues = [];
+  }
+
+  /**
+   * Check for large bundle sizes
+   */
+  async checkBundleSize() {
+    console.log(chalk.blue('⚡ Checking bundle sizes...'));
+    
+    try {
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const scripts = packageJson.scripts || {};
+      
+      // Check if build script exists and run it to analyze bundle
+      if (scripts.build) {
+        try {
+          execSync('npm run build', { stdio: 'pipe' });
+          
+          // Look for build output directories
+          const buildDirs = ['dist', 'build', 'out'];
+          for (const dir of buildDirs) {
+            if (fs.existsSync(dir)) {
+              const files = await globby([`${dir}/**/*.{js,css}`]);
+              let totalSize = 0;
+              
+              for (const file of files) {
+                const stats = fs.statSync(file);
+                totalSize += stats.size;
+              }
+              
+              const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+              
+              if (totalSize > 1024 * 1024) { // 1MB threshold
+                this.performanceIssues.push({
+                  type: 'large_bundle',
+                  severity: 'medium',
+                  message: `Bundle size is ${sizeInMB}MB, consider code splitting`,
+                  recommendation: 'Implement code splitting and lazy loading'
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.warn(chalk.yellow('Warning: Could not run build script'));
+        }
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not read package.json'));
+    }
+  }
+
+  /**
+   * Check for inefficient loops and operations
+   */
+  async checkInefficientOperations() {
+    console.log(chalk.blue('⚡ Checking for inefficient operations...'));
+    
+    const inefficientPatterns = [
+      {
+        pattern: /for\s*\(\s*let\s+\w+\s*=\s*0;\s*\w+\s*<\s*array\.length;\s*\w+\+\+\)/g,
+        message: 'Consider using forEach or for...of instead of traditional for loop',
+        severity: 'low'
+      },
+      {
+        pattern: /\.map\(.*\)\.filter\(.*\)/g,
+        message: 'Consider combining map and filter operations',
+        severity: 'low'
+      },
+      {
+        pattern: /\.filter\(.*\)\.map\(.*\)/g,
+        message: 'Consider combining filter and map operations',
+        severity: 'low'
+      },
+      {
+        pattern: /JSON\.parse\(JSON\.stringify\(/g,
+        message: 'Deep cloning with JSON.parse/stringify is inefficient',
+        severity: 'medium'
+      },
+      {
+        pattern: /\.innerHTML\s*=\s*['"`][^'"`]*['"`]/g,
+        message: 'Consider using textContent for text-only content',
+        severity: 'low'
+      }
+    ];
+
+    const files = await globby(['**/*.{js,ts,jsx,tsx}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**']);
+    
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          inefficientPatterns.forEach(({ pattern, message, severity }) => {
+            if (pattern.test(line)) {
+              this.performanceIssues.push({
+                type: 'inefficient_operation',
+                file,
+                line: index + 1,
+                severity,
+                message,
+                code: line.trim()
+              });
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Check for memory leaks
+   */
+  async checkMemoryLeaks() {
+    console.log(chalk.blue('⚡ Checking for potential memory leaks...'));
+    
+    const memoryLeakPatterns = [
+      {
+        pattern: /addEventListener\([^)]+\)(?!\s*removeEventListener)/g,
+        message: 'Event listener added without removal - potential memory leak',
+        severity: 'medium'
+      },
+      {
+        pattern: /setInterval\([^)]+\)(?!\s*clearInterval)/g,
+        message: 'setInterval used without clearInterval - potential memory leak',
+        severity: 'high'
+      },
+      {
+        pattern: /setTimeout\([^)]+\)(?!\s*clearTimeout)/g,
+        message: 'setTimeout used without clearTimeout - potential memory leak',
+        severity: 'medium'
+      }
+    ];
+
+    const files = await globby(['**/*.{js,ts,jsx,tsx}',  '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**']);
+    
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          memoryLeakPatterns.forEach(({ pattern, message, severity }) => {
+            if (pattern.test(line)) {
+              this.performanceIssues.push({
+                type: 'memory_leak',
+                file,
+                line: index + 1,
+                severity,
+                message,
+                code: line.trim()
+              });
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Check for large dependencies
+   */
+  async checkLargeDependencies() {
+    console.log(chalk.blue('⚡ Checking for large dependencies...'));
+    
+    try {
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+      
+      // Common large packages to flag
+      const largePackages = [
+        'lodash', 'moment', 'date-fns', 'ramda', 'immutable',
+        'bootstrap', 'material-ui', 'antd', 'semantic-ui'
+      ];
+      
+      largePackages.forEach(pkg => {
+        if (allDeps[pkg]) {
+          this.performanceIssues.push({
+            type: 'large_dependency',
+            package: pkg,
+            severity: 'low',
+            message: `Large dependency detected: ${pkg}`,
+            recommendation: 'Consider using lighter alternatives or tree-shaking'
+          });
+        }
+      });
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not read package.json'));
+    }
+  }
+
+  /**
+   * Check for unused imports and dead code
+   */
+  async checkUnusedCode() {
+    console.log(chalk.blue('⚡ Checking for unused code...'));
+    
+    try {
+      // Use ESLint to check for unused variables and imports
+      const eslintResult = execSync('npx eslint . --ext .js,.ts,.jsx,.tsx --format json', { 
+        encoding: 'utf8', 
+        cwd: process.cwd(),
+        stdio: 'pipe'
+      });
+      
+      const eslintData = JSON.parse(eslintResult);
+      
+      eslintData.forEach(file => {
+        file.messages.forEach(message => {
+          if (message.ruleId === 'no-unused-vars' || message.ruleId === '@typescript-eslint/no-unused-vars') {
+            this.performanceIssues.push({
+              type: 'unused_code',
+              file: file.filePath,
+              line: message.line,
+              severity: 'low',
+              message: 'Unused variable or import detected',
+              code: message.message
+            });
+          }
+        });
+      });
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not run ESLint for unused code check'));
+    }
+  }
+
+  /**
+   * Run all performance checks
+   */
+  async runPerformanceAudit() {
+    console.log(chalk.blue('⚡ Starting Performance Audit...'));
+    
+    //await this.checkBundleSize();
+    await this.checkInefficientOperations();
+    await this.checkMemoryLeaks();
+    await this.checkLargeDependencies();
+    await this.checkUnusedCode();
+    
+    const results = {
+      timestamp: new Date().toISOString(),
+      totalIssues: this.performanceIssues.length,
+      highSeverity: this.performanceIssues.filter(issue => issue.severity === 'high').length,
+      mediumSeverity: this.performanceIssues.filter(issue => issue.severity === 'medium').length,
+      lowSeverity: this.performanceIssues.filter(issue => issue.severity === 'low').length,
+      issues: this.performanceIssues
+    };
+
+    // Generate JSON report
+    try {
+      const reportPath = path.join(this.folderPath, 'performance-audit-report.json');
+      await writeFile(reportPath, JSON.stringify(results, null, 2));
+      console.log(chalk.green(`✅ Performance audit report saved to: ${reportPath}`));
+    } catch (error) {
+      console.error(chalk.red('Error saving performance audit report:', error.message));
+    }
+
+    // Display summary
+    console.log(chalk.blue('\n⚡ PERFORMANCE AUDIT SUMMARY'));
+    console.log(chalk.blue('='.repeat(40)));
+    console.log(chalk.white(`Total Issues: ${results.totalIssues}`));
+    console.log(chalk.red(`High Severity: ${results.highSeverity}`));
+    console.log(chalk.yellow(`Medium Severity: ${results.mediumSeverity}`));
+    console.log(chalk.blue(`Low Severity: ${results.lowSeverity}`));
+
+    return results;
+  }
+}
+
+/**
+ * Accessibility audit module for detecting accessibility issues
+ */
+class AccessibilityAudit {
+  constructor(folderPath) {
+    this.folderPath = folderPath;
+    this.accessibilityIssues = [];
+  }
+
+  /**
+   * Check for missing alt attributes on images
+   */
+  async checkImageAccessibility() {
+    console.log(chalk.blue('♿ Checking image accessibility...'));
+    
+    const imagePatterns = [
+      /<img[^>]*>/gi,
+      /<Image[^>]*>/gi,
+    ];
+
+    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          imagePatterns.forEach(pattern => {
+            const matches = line.match(pattern);
+            if (matches) {
+              matches.forEach(match => {
+                if (!match.includes('alt=') || match.includes('alt=""')) {
+                  this.accessibilityIssues.push({
+                    type: 'missing_alt',
+                    file,
+                    line: index + 1,
+                    severity: 'high',
+                    message: 'Image missing alt attribute or has empty alt',
+                    code: line.trim()
+                  });
+                }
+              });
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Check for proper heading structure
+   */
+  async checkHeadingStructure() {
+    console.log(chalk.blue('♿ Checking heading structure...'));
+    
+    const headingPatterns = [
+      /<h1[^>]*>/gi,
+      /<h2[^>]*>/gi,
+      /<h3[^>]*>/gi,
+      /<h4[^>]*>/gi,
+      /<h5[^>]*>/gi,
+      /<h6[^>]*>/gi,
+    ];
+
+    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          headingPatterns.forEach((pattern, level) => {
+            if (pattern.test(line)) {
+              // Check for skipped heading levels
+              if (level > 0) {
+                const prevHeadingPattern = new RegExp(`<h${level}[^>]*>`, 'gi');
+                const hasPreviousHeading = content.substring(0, content.indexOf(line)).match(prevHeadingPattern);
+                
+                if (!hasPreviousHeading) {
+                  this.accessibilityIssues.push({
+                    type: 'skipped_heading',
+                    file,
+                    line: index + 1,
+                    severity: 'medium',
+                    message: `Heading level ${level + 1} used without previous level ${level}`,
+                    code: line.trim()
+                  });
+                }
+              }
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Check for proper form labels
+   */
+  async checkFormLabels() {
+    console.log(chalk.blue('♿ Checking form accessibility...'));
+    
+    const formPatterns = [
+      /<input[^>]*>/gi,
+      /<textarea[^>]*>/gi,
+      /<select[^>]*>/gi,
+    ];
+
+    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          formPatterns.forEach(pattern => {
+            const matches = line.match(pattern);
+            if (matches) {
+              matches.forEach(match => {
+                // Check if input has proper labeling
+                const hasLabel = match.includes('aria-label=') || 
+                               match.includes('aria-labelledby=') || 
+                               match.includes('id=');
+                
+                if (!hasLabel && !match.includes('type="hidden"')) {
+                  this.accessibilityIssues.push({
+                    type: 'missing_form_label',
+                    file,
+                    line: index + 1,
+                    severity: 'high',
+                    message: 'Form control missing proper labeling',
+                    code: line.trim()
+                  });
+                }
+              });
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Check for color contrast issues
+   */
+  async checkColorContrast() {
+    console.log(chalk.blue('♿ Checking color contrast...'));
+    
+    const colorPatterns = [
+      /color:\s*#[0-9a-fA-F]{3,6}/gi,
+      /background-color:\s*#[0-9a-fA-F]{3,6}/gi,
+      /color:\s*rgb\([^)]+\)/gi,
+      /background-color:\s*rgb\([^)]+\)/gi,
+    ];
+
+    const files = await globby(['**/*.{css,scss,less,js,ts,jsx,tsx}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          colorPatterns.forEach(pattern => {
+            if (pattern.test(line)) {
+              // This is a basic check - in a real implementation, you'd want to
+              // actually calculate contrast ratios
+              this.accessibilityIssues.push({
+                type: 'color_contrast',
+                file,
+                line: index + 1,
+                severity: 'medium',
+                message: 'Color usage detected - verify contrast ratios meet WCAG guidelines',
+                code: line.trim(),
+                recommendation: 'Use tools like axe-core or Lighthouse to check actual contrast ratios'
+              });
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Check for keyboard navigation support
+   */
+  async checkKeyboardNavigation() {
+    console.log(chalk.blue('♿ Checking keyboard navigation...'));
+    
+    const keyboardPatterns = [
+      /onClick\s*=/gi,
+      /onclick\s*=/gi,
+      /addEventListener\s*\(\s*['"]click['"]/gi,
+    ];
+
+    const files = await globby(['**/*.{js,ts,jsx,tsx}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          keyboardPatterns.forEach(pattern => {
+            if (pattern.test(line)) {
+              // Check if there's also keyboard event handling
+              const hasKeyboardSupport = line.includes('onKeyDown') || 
+                                       line.includes('onKeyUp') || 
+                                       line.includes('onKeyPress') ||
+                                       line.includes('addEventListener') && 
+                                       (line.includes('keydown') || line.includes('keyup') || line.includes('keypress'));
+              
+              if (!hasKeyboardSupport) {
+                this.accessibilityIssues.push({
+                  type: 'keyboard_navigation',
+                  file,
+                  line: index + 1,
+                  severity: 'medium',
+                  message: 'Click handler without keyboard support',
+                  code: line.trim(),
+                  recommendation: 'Add keyboard event handlers or use semantic HTML elements'
+                });
+              }
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Check for ARIA attributes
+   */
+  async checkARIAUsage() {
+    console.log(chalk.blue('♿ Checking ARIA usage...'));
+    
+    const ariaPatterns = [
+      /aria-[a-zA-Z-]+/gi,
+    ];
+
+    const files = await globby(['**/*.{js,ts,jsx,tsx,html}', '!**/node_modules/**', '!**/report/**', '!build/**', '!dist/**', '!coverage/**', '!.git/**', '!bin/**']);
+    
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          ariaPatterns.forEach(pattern => {
+            const matches = line.match(pattern);
+            if (matches) {
+              matches.forEach(match => {
+                // Check for common ARIA mistakes
+                if (match.includes('aria-label=""') || match.includes('aria-labelledby=""')) {
+                  this.accessibilityIssues.push({
+                    type: 'empty_aria',
+                    file,
+                    line: index + 1,
+                    severity: 'medium',
+                    message: 'Empty ARIA attribute detected',
+                    code: line.trim()
+                  });
+                }
+              });
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Run all accessibility checks
+   */
+  async runAccessibilityAudit() {
+    console.log(chalk.blue('♿ Starting Accessibility Audit...'));
+    
+    await this.checkImageAccessibility();
+    await this.checkHeadingStructure();
+    await this.checkFormLabels();
+    await this.checkColorContrast();
+    await this.checkKeyboardNavigation();
+    await this.checkARIAUsage();
+    
+    const results = {
+      timestamp: new Date().toISOString(),
+      totalIssues: this.accessibilityIssues.length,
+      highSeverity: this.accessibilityIssues.filter(issue => issue.severity === 'high').length,
+      mediumSeverity: this.accessibilityIssues.filter(issue => issue.severity === 'medium').length,
+      lowSeverity: this.accessibilityIssues.filter(issue => issue.severity === 'low').length,
+      issues: this.accessibilityIssues
+    };
+
+    // Generate JSON report
+    try {
+      const reportPath = path.join(this.folderPath, 'accessibility-audit-report.json');
+      await writeFile(reportPath, JSON.stringify(results, null, 2));
+      console.log(chalk.green(`✅ Accessibility audit report saved to: ${reportPath}`));
+    } catch (error) {
+      console.error(chalk.red('Error saving accessibility audit report:', error.message));
+    }
+
+    // Display summary
+    console.log(chalk.blue('\n♿ ACCESSIBILITY AUDIT SUMMARY'));
+    console.log(chalk.blue('='.repeat(40)));
+    console.log(chalk.white(`Total Issues: ${results.totalIssues}`));
+    console.log(chalk.red(`High Severity: ${results.highSeverity}`));
+    console.log(chalk.yellow(`Medium Severity: ${results.mediumSeverity}`));
+    console.log(chalk.blue(`Low Severity: ${results.lowSeverity}`));
+
+    return results;
+  }
+}
+
+/**
+ * Testing audit module for detecting testing practices and coverage
+ */
+class TestingAudit {
+  constructor(folderPath) {
+    this.folderPath = folderPath;
+    this.testingIssues = [];
+  }
+
+  /**
+   * Check for test files and testing framework usage
+   */
+  async checkTestFiles() {
+    console.log(chalk.blue('🧪 Checking test files...'));
+    
+    const testPatterns = [
+      '**/*.test.{js,ts,jsx,tsx}',
+      '**/*.spec.{js,ts,jsx,tsx}',
+      '**/__tests__/**/*.{js,ts,jsx,tsx}',
+      '**/tests/**/*.{js,ts,jsx,tsx}',
+      '**/test/**/*.{js,ts,jsx,tsx}'
+    ];
+
+    const testFiles = await globby(testPatterns, { ignore: ['**/node_modules/**', 'build/**', 'dist/**'] });
+    
+    if (testFiles.length === 0) {
+      this.testingIssues.push({
+        type: 'no_test_files',
+        severity: 'high',
+        message: 'No test files found',
+        recommendation: 'Create test files with .test.js or .spec.js extensions'
+      });
+    } else {
+      this.testingIssues.push({
+        type: 'test_files_found',
+        severity: 'info',
+        message: `Found ${testFiles.length} test files`,
+        positive: true
+      });
+    }
+
+    // Check for testing frameworks
+    try {
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+      
+      const testingFrameworks = [
+        'jest', 'mocha', 'vitest', 'ava', 'tape', 'jasmine',
+        '@testing-library/react', '@testing-library/jest-dom',
+        'cypress', 'playwright', 'puppeteer'
+      ];
+      
+      const foundFrameworks = testingFrameworks.filter(framework => allDeps[framework]);
+      
+      if (foundFrameworks.length === 0) {
+        this.testingIssues.push({
+          type: 'no_testing_framework',
+          severity: 'high',
+          message: 'No testing framework detected',
+          recommendation: 'Install a testing framework like Jest, Mocha, or Vitest'
+        });
+      } else {
+        this.testingIssues.push({
+          type: 'testing_framework_found',
+          severity: 'info',
+          message: `Testing frameworks detected: ${foundFrameworks.join(', ')}`,
+          positive: true
+        });
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not read package.json'));
+    }
+  }
+
+  /**
+   * Check for test coverage
+   */
+  async checkTestCoverage() {
+    console.log(chalk.blue('🧪 Checking test coverage...'));
+    
+    try {
+      // Try to run test coverage if available
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const scripts = packageJson.scripts || {};
+      
+      const coverageScripts = Object.keys(scripts).filter(script => 
+        script.includes('test') && (script.includes('coverage') || script.includes('cov'))
+      );
+      
+      if (coverageScripts.length > 0) {
+        try {
+          const coverageScript = coverageScripts[0];
+          execSync(`npm run ${coverageScript}`, { stdio: 'pipe' });
+          
+          // Look for coverage reports
+          const coverageDirs = ['coverage', '.nyc_output'];
+          for (const dir of coverageDirs) {
+            if (fs.existsSync(dir)) {
+              this.testingIssues.push({
+                type: 'coverage_report_generated',
+                severity: 'info',
+                message: 'Test coverage report generated',
+                positive: true
+              });
+              break;
+            }
+          }
+        } catch (error) {
+          this.testingIssues.push({
+            type: 'coverage_failed',
+            severity: 'medium',
+            message: 'Test coverage generation failed',
+            recommendation: 'Check test configuration and ensure tests pass'
+          });
+        }
+      } else {
+        this.testingIssues.push({
+          type: 'no_coverage_script',
+          severity: 'medium',
+          message: 'No test coverage script found',
+          recommendation: 'Add a coverage script to package.json (e.g., "test:coverage": "jest --coverage")'
+        });
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not check test coverage'));
+    }
+  }
+
+  /**
+   * Check for common testing patterns
+   */
+  async checkTestingPatterns() {
+    console.log(chalk.blue('🧪 Checking testing patterns...'));
+    
+    const testPatterns = [
+      {
+        pattern: /describe\s*\(/g,
+        name: 'describe blocks',
+        positive: true
+      },
+      {
+        pattern: /it\s*\(/g,
+        name: 'it/test blocks',
+        positive: true
+      },
+      {
+        pattern: /expect\s*\(/g,
+        name: 'expect assertions',
+        positive: true
+      },
+      {
+        pattern: /beforeEach\s*\(/g,
+        name: 'beforeEach hooks',
+        positive: true
+      },
+      {
+        pattern: /afterEach\s*\(/g,
+        name: 'afterEach hooks',
+        positive: true
+      },
+      {
+        pattern: /beforeAll\s*\(/g,
+        name: 'beforeAll hooks',
+        positive: true
+      },
+      {
+        pattern: /afterAll\s*\(/g,
+        name: 'afterAll hooks',
+        positive: true
+      }
+    ];
+
+    const testFiles = await globby([
+      '**/*.test.{js,ts,jsx,tsx}',
+      '**/*.spec.{js,ts,jsx,tsx}',
+      '**/__tests__/**/*.{js,ts,jsx,tsx}',
+      '**/tests/**/*.{js,ts,jsx,tsx}',
+      '**/test/**/*.{js,ts,jsx,tsx}'
+    ], { ignore: ['**/node_modules/**', 'build/**', 'dist/**'] });
+    
+    for (const file of testFiles) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          testPatterns.forEach(({ pattern, name, positive }) => {
+            if (pattern.test(line)) {
+              if (positive) {
+                this.testingIssues.push({
+                  type: 'testing_pattern_found',
+                  file,
+                  line: index + 1,
+                  severity: 'info',
+                  message: `Testing ${name} detected`,
+                  code: line.trim(),
+                  positive: true
+                });
+              }
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Check for mocking and stubbing patterns
+   */
+  async checkMockingPatterns() {
+    console.log(chalk.blue('🧪 Checking mocking patterns...'));
+    
+    const mockPatterns = [
+      {
+        pattern: /jest\.mock\s*\(/g,
+        name: 'Jest mock',
+        positive: true
+      },
+      {
+        pattern: /jest\.fn\s*\(/g,
+        name: 'Jest function mock',
+        positive: true
+      },
+      {
+        pattern: /jest\.spyOn\s*\(/g,
+        name: 'Jest spy',
+        positive: true
+      },
+      {
+        pattern: /sinon\.stub\s*\(/g,
+        name: 'Sinon stub',
+        positive: true
+      },
+      {
+        pattern: /sinon\.spy\s*\(/g,
+        name: 'Sinon spy',
+        positive: true
+      },
+      {
+        pattern: /vi\.mock\s*\(/g,
+        name: 'Vitest mock',
+        positive: true
+      },
+      {
+        pattern: /vi\.fn\s*\(/g,
+        name: 'Vitest function mock',
+        positive: true
+      }
+    ];
+
+    const testFiles = await globby([
+      '**/*.test.{js,ts,jsx,tsx}',
+      '**/*.spec.{js,ts,jsx,tsx}',
+      '**/__tests__/**/*.{js,ts,jsx,tsx}',
+      '**/tests/**/*.{js,ts,jsx,tsx}',
+      '**/test/**/*.{js,ts,jsx,tsx}'
+    ], { ignore: ['**/node_modules/**', 'build/**', 'dist/**'] });
+    
+    for (const file of testFiles) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          mockPatterns.forEach(({ pattern, name, positive }) => {
+            if (pattern.test(line)) {
+              if (positive) {
+                this.testingIssues.push({
+                  type: 'mocking_pattern_found',
+                  file,
+                  line: index + 1,
+                  severity: 'info',
+                  message: `${name} detected`,
+                  code: line.trim(),
+                  positive: true
+                });
+              }
+            }
+          });
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
+      }
+    }
+  }
+
+  /**
+   * Check for E2E testing setup
+   */
+  async checkE2ETesting() {
+    console.log(chalk.blue('🧪 Checking E2E testing setup...'));
+    
+    try {
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+      
+      const e2eFrameworks = ['cypress', 'playwright', 'puppeteer', 'selenium-webdriver'];
+      const foundE2EFrameworks = e2eFrameworks.filter(framework => allDeps[framework]);
+      
+      if (foundE2EFrameworks.length === 0) {
+        this.testingIssues.push({
+          type: 'no_e2e_framework',
+          severity: 'medium',
+          message: 'No E2E testing framework detected',
+          recommendation: 'Consider adding Cypress, Playwright, or Puppeteer for E2E testing'
+        });
+      } else {
+        this.testingIssues.push({
+          type: 'e2e_framework_found',
+          severity: 'info',
+          message: `E2E testing framework detected: ${foundE2EFrameworks.join(', ')}`,
+          positive: true
+        });
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not check E2E testing setup'));
+    }
+  }
+
+  /**
+   * Check for test configuration files
+   */
+  async checkTestConfiguration() {
+    console.log(chalk.blue('🧪 Checking test configuration...'));
+    
+    const configFiles = [
+      'jest.config.js', 'jest.config.ts', 'jest.config.json',
+      'cypress.config.js', 'cypress.config.ts',
+      'playwright.config.js', 'playwright.config.ts',
+      'vitest.config.js', 'vitest.config.ts',
+      '.mocharc.js', '.mocharc.json'
+    ];
+    
+    const foundConfigs = configFiles.filter(file => fs.existsSync(file));
+    
+    if (foundConfigs.length === 0) {
+      this.testingIssues.push({
+        type: 'no_test_config',
+        severity: 'medium',
+        message: 'No test configuration file found',
+        recommendation: 'Create a configuration file for your testing framework'
+      });
+    } else {
+      this.testingIssues.push({
+        type: 'test_config_found',
+        severity: 'info',
+        message: `Test configuration files found: ${foundConfigs.join(', ')}`,
+        positive: true
+      });
+    }
+  }
+
+  /**
+   * Run all testing checks
+   */
+  async runTestingAudit() {
+    console.log(chalk.blue('🧪 Starting Testing Audit...'));
+    
+    await this.checkTestFiles();
+    await this.checkTestCoverage();
+    await this.checkTestingPatterns();
+    await this.checkMockingPatterns();
+    await this.checkE2ETesting();
+    await this.checkTestConfiguration();
+    
+    const results = {
+      timestamp: new Date().toISOString(),
+      totalIssues: this.testingIssues.length,
+      positivePractices: this.testingIssues.filter(issue => issue.positive).length,
+      highSeverity: this.testingIssues.filter(issue => issue.severity === 'high').length,
+      mediumSeverity: this.testingIssues.filter(issue => issue.severity === 'medium').length,
+      lowSeverity: this.testingIssues.filter(issue => issue.severity === 'low').length,
+      issues: this.testingIssues
+    };
+
+    // Generate JSON report
+    try {
+      const reportPath = path.join(this.folderPath, 'testing-audit-report.json');
+      await writeFile(reportPath, JSON.stringify(results, null, 2));
+      console.log(chalk.green(`✅ Testing audit report saved to: ${reportPath}`));
+    } catch (error) {
+      console.error(chalk.red('Error saving testing audit report:', error.message));
+    }
+
+    // Display summary
+    console.log(chalk.blue('\n🧪 TESTING AUDIT SUMMARY'));
+    console.log(chalk.blue('='.repeat(40)));
+    console.log(chalk.white(`Total Issues: ${results.totalIssues}`));
+    console.log(chalk.green(`Positive Practices: ${results.positivePractices}`));
+    console.log(chalk.red(`High Severity: ${results.highSeverity}`));
+    console.log(chalk.yellow(`Medium Severity: ${results.mediumSeverity}`));
+    console.log(chalk.blue(`Low Severity: ${results.lowSeverity}`));
+
+    return results;
+  }
+}
+
+/**
+ * Dependency audit module for detecting dependency issues
+ */
+class DependencyAudit {
+  constructor(folderPath) {
+    this.folderPath = folderPath;
+    this.dependencyIssues = [];
+  }
+
+  /**
+   * Check for outdated dependencies
+   */
+  async checkOutdatedDependencies() {
+    console.log(chalk.blue('📦 Checking for outdated dependencies...'));
+    
+    try {
+      const outdatedResult = execSync('npm outdated --json', { 
+        encoding: 'utf8', 
+        cwd: process.cwd(),
+        stdio: 'pipe'
+      });
+      
+      const outdatedData = JSON.parse(outdatedResult);
+      
+      Object.keys(outdatedData).forEach(packageName => {
+        const packageInfo = outdatedData[packageName];
+        this.dependencyIssues.push({
+          type: 'outdated_dependency',
+          package: packageName,
+          current: packageInfo.current,
+          wanted: packageInfo.wanted,
+          latest: packageInfo.latest,
+          severity: packageInfo.latest !== packageInfo.wanted ? 'medium' : 'low',
+          message: `${packageName} is outdated (current: ${packageInfo.current}, latest: ${packageInfo.latest})`,
+          recommendation: `Update ${packageName} to version ${packageInfo.latest}`
+        });
+      });
+    } catch (error) {
+      // npm outdated returns non-zero exit code when there are outdated packages
+      if (error.status === 1) {
+        try {
+          const output = error.stdout.toString();
+          const lines = output.split('\n');
+          
+          // Parse the table output
+          lines.forEach(line => {
+            const match = line.match(/^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/);
+            if (match) {
+              const [, packageName, current, wanted, latest] = match;
+              if (packageName !== 'Package' && current !== 'Current') {
+                this.dependencyIssues.push({
+                  type: 'outdated_dependency',
+                  package: packageName,
+                  current,
+                  wanted,
+                  latest,
+                  severity: latest !== wanted ? 'medium' : 'low',
+                  message: `${packageName} is outdated (current: ${current}, latest: ${latest})`,
+                  recommendation: `Update ${packageName} to version ${latest}`
+                });
+              }
+            }
+          });
+        } catch (parseError) {
+          console.warn(chalk.yellow('Warning: Could not parse outdated dependencies'));
+        }
+      } else {
+        console.warn(chalk.yellow('Warning: Could not check for outdated dependencies'));
+      }
+    }
+  }
+
+  /**
+   * Check for duplicate dependencies
+   */
+  async checkDuplicateDependencies() {
+    console.log(chalk.blue('📦 Checking for duplicate dependencies...'));
+    
+    try {
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+      
+      const packageNames = Object.keys(allDeps);
+      const duplicates = packageNames.filter((name, index) => packageNames.indexOf(name) !== index);
+      
+      if (duplicates.length > 0) {
+        duplicates.forEach(duplicate => {
+          this.dependencyIssues.push({
+            type: 'duplicate_dependency',
+            package: duplicate,
+            severity: 'medium',
+            message: `Duplicate dependency found: ${duplicate}`,
+            recommendation: 'Remove duplicate entry from package.json'
+          });
+        });
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not check for duplicate dependencies'));
+    }
+  }
+
+  /**
+   * Check for unused dependencies
+   */
+  async checkUnusedDependencies() {
+    console.log(chalk.blue('📦 Checking for unused dependencies...'));
+    
+    try {
+      // Use depcheck to find unused dependencies
+      const depcheckResult = execSync('npx depcheck --json', { 
+        encoding: 'utf8', 
+        cwd: process.cwd(),
+        stdio: 'pipe'
+      });
+      
+      const depcheckData = JSON.parse(depcheckResult);
+      
+      if (depcheckData.dependencies && depcheckData.dependencies.length > 0) {
+        depcheckData.dependencies.forEach(dep => {
+          this.dependencyIssues.push({
+            type: 'unused_dependency',
+            package: dep,
+            severity: 'low',
+            message: `Unused dependency: ${dep}`,
+            recommendation: `Remove ${dep} from package.json if not needed`
+          });
+        });
+      }
+      
+      if (depcheckData.devDependencies && depcheckData.devDependencies.length > 0) {
+        depcheckData.devDependencies.forEach(dep => {
+          this.dependencyIssues.push({
+            type: 'unused_dev_dependency',
+            package: dep,
+            severity: 'low',
+            message: `Unused dev dependency: ${dep}`,
+            recommendation: `Remove ${dep} from devDependencies if not needed`
+          });
+        });
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not check for unused dependencies (depcheck not available)'));
+    }
+  }
+
+  /**
+   * Check for missing dependencies
+   */
+  async checkMissingDependencies() {
+    console.log(chalk.blue('📦 Checking for missing dependencies...'));
+    
+    try {
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+      
+      // Check if node_modules exists
+      if (!fs.existsSync('node_modules')) {
+        this.dependencyIssues.push({
+          type: 'missing_node_modules',
+          severity: 'high',
+          message: 'node_modules directory not found',
+          recommendation: 'Run npm install to install dependencies'
+        });
+        return;
+      }
+      
+      // Check for missing packages in node_modules
+      Object.keys(allDeps).forEach(packageName => {
+        const packagePath = path.join('node_modules', packageName);
+        if (!fs.existsSync(packagePath)) {
+          this.dependencyIssues.push({
+            type: 'missing_package',
+            package: packageName,
+            severity: 'high',
+            message: `Package ${packageName} is missing from node_modules`,
+            recommendation: `Run npm install to install ${packageName}`
+          });
+        }
+      });
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not check for missing dependencies'));
+    }
+  }
+
+  /**
+   * Check for peer dependency issues
+   */
+  async checkPeerDependencies() {
+    console.log(chalk.blue('📦 Checking peer dependencies...'));
+    
+    try {
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      
+      if (packageJson.peerDependencies) {
+        Object.keys(packageJson.peerDependencies).forEach(peerDep => {
+          const requiredVersion = packageJson.peerDependencies[peerDep];
+          
+          // Check if peer dependency is installed
+          const packagePath = path.join('node_modules', peerDep);
+          if (!fs.existsSync(packagePath)) {
+            this.dependencyIssues.push({
+              type: 'missing_peer_dependency',
+              package: peerDep,
+              requiredVersion,
+              severity: 'high',
+              message: `Peer dependency ${peerDep}@${requiredVersion} is not installed`,
+              recommendation: `Install ${peerDep}@${requiredVersion}`
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not check peer dependencies'));
+    }
+  }
+
+  /**
+   * Check for dependency size issues
+   */
+  async checkDependencySizes() {
+    console.log(chalk.blue('📦 Checking dependency sizes...'));
+    
+    try {
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+      
+      // Known large packages
+      const largePackages = [
+        'lodash', 'moment', 'date-fns', 'ramda', 'immutable',
+        'bootstrap', 'material-ui', 'antd', 'semantic-ui',
+        'jquery', 'angular', 'vue', 'react-dom'
+      ];
+      
+      largePackages.forEach(pkg => {
+        if (allDeps[pkg]) {
+          this.dependencyIssues.push({
+            type: 'large_dependency',
+            package: pkg,
+            severity: 'low',
+            message: `Large dependency detected: ${pkg}`,
+            recommendation: 'Consider using lighter alternatives or tree-shaking'
+          });
+        }
+      });
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not check dependency sizes'));
+    }
+  }
+
+  /**
+   * Check for license compliance
+   */
+  async checkLicenseCompliance() {
+    console.log(chalk.blue('📦 Checking license compliance...'));
+    
+    try {
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      
+      if (!packageJson.license) {
+        this.dependencyIssues.push({
+          type: 'missing_license',
+          severity: 'medium',
+          message: 'No license specified in package.json',
+          recommendation: 'Add a license field to package.json'
+        });
+      }
+      
+      // Check for problematic licenses in dependencies
+      try {
+        const licenseResult = execSync('npx license-checker --json', { 
+          encoding: 'utf8', 
+          cwd: process.cwd(),
+          stdio: 'pipe'
+        });
+        
+        const licenseData = JSON.parse(licenseResult);
+        
+        const problematicLicenses = ['GPL', 'AGPL', 'LGPL'];
+        
+        Object.keys(licenseData).forEach(packageName => {
+          const packageInfo = licenseData[packageName];
+          if (packageInfo.licenses) {
+            problematicLicenses.forEach(license => {
+              if (packageInfo.licenses.includes(license)) {
+                this.dependencyIssues.push({
+                  type: 'problematic_license',
+                  package: packageName,
+                  license: packageInfo.licenses,
+                  severity: 'medium',
+                  message: `Package ${packageName} uses ${packageInfo.licenses} license`,
+                  recommendation: 'Review license compatibility with your project'
+                });
+              }
+            });
+          }
+        });
+      } catch (licenseError) {
+        console.warn(chalk.yellow('Warning: Could not check dependency licenses (license-checker not available)'));
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not check license compliance'));
+    }
+  }
+
+  /**
+   * Run all dependency checks
+   */
+  async runDependencyAudit() {
+    console.log(chalk.blue('📦 Starting Dependency Audit...'));
+    
+    await this.checkOutdatedDependencies();
+    await this.checkDuplicateDependencies();
+    await this.checkUnusedDependencies();
+    await this.checkMissingDependencies();
+    await this.checkPeerDependencies();
+    await this.checkDependencySizes();
+    await this.checkLicenseCompliance();
+    
+    const results = {
+      timestamp: new Date().toISOString(),
+      totalIssues: this.dependencyIssues.length,
+      highSeverity: this.dependencyIssues.filter(issue => issue.severity === 'high').length,
+      mediumSeverity: this.dependencyIssues.filter(issue => issue.severity === 'medium').length,
+      lowSeverity: this.dependencyIssues.filter(issue => issue.severity === 'low').length,
+      issues: this.dependencyIssues
+    };
+
+    // Generate JSON report
+    try {
+      const reportPath = path.join(this.folderPath, 'dependency-audit-report.json');
+      await writeFile(reportPath, JSON.stringify(results, null, 2));
+      console.log(chalk.green(`✅ Dependency audit report saved to: ${reportPath}`));
+    } catch (error) {
+      console.error(chalk.red('Error saving dependency audit report:', error.message));
+    }
+
+    // Display summary
+    console.log(chalk.blue('\n📦 DEPENDENCY AUDIT SUMMARY'));
+    console.log(chalk.blue('='.repeat(40)));
+    console.log(chalk.white(`Total Issues: ${results.totalIssues}`));
+    console.log(chalk.red(`High Severity: ${results.highSeverity}`));
+    console.log(chalk.yellow(`Medium Severity: ${results.mediumSeverity}`));
+    console.log(chalk.blue(`Low Severity: ${results.lowSeverity}`));
+
+    return results;
+  }
+}
+
+/**
+ * Main audit orchestrator that runs all audit categories
+ */
+class AuditOrchestrator {
+  constructor(folderPath) {
+    this.folderPath = folderPath;
+    this.auditResults = {};
+  }
+
+  /**
+   * Run all audits
+   */
+  async runAllAudits() {
+    console.log(chalk.blue('🚀 Starting Comprehensive Code Audit...\n'));
+    
+    const startTime = Date.now();
+    
+    try {
+      // Run all audit categories with error handling
+      const auditPromises = [
+        this.runSecurityAudit().catch(error => {
+          console.warn(chalk.yellow('⚠️  Security audit failed:', error.message));
+          return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
+        }),
+        this.runPerformanceAudit().catch(error => {
+          console.warn(chalk.yellow('⚠️  Performance audit failed:', error.message));
+          return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
+        }),
+        this.runAccessibilityAudit().catch(error => {
+          console.warn(chalk.yellow('⚠️  Accessibility audit failed:', error.message));
+          return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
+        }),
+        this.runTestingAudit().catch(error => {
+          console.warn(chalk.yellow('⚠️  Testing audit failed:', error.message));
+          return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
+        }),
+        this.runDependencyAudit().catch(error => {
+          console.warn(chalk.yellow('⚠️  Dependency audit failed:', error.message));
+          return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
+        })
+      ];
+
+      const [
+        securityResults,
+        performanceResults,
+        accessibilityResults,
+        testingResults,
+        dependencyResults
+      ] = await Promise.all(auditPromises);
+
+      // Compile results
+      this.auditResults = {
+        timestamp: new Date().toISOString(),
+        duration: Date.now() - startTime,
+        summary: {
+          totalIssues: 0,
+          highSeverity: 0,
+          mediumSeverity: 0,
+          lowSeverity: 0,
+          positivePractices: 0
+        },
+        categories: {
+          security: securityResults,
+          performance: performanceResults,
+          accessibility: accessibilityResults,
+          testing: testingResults,
+          dependency: dependencyResults
+        }
+      };
+
+      // Calculate summary
+      Object.values(this.auditResults.categories).forEach(category => {
+        this.auditResults.summary.totalIssues += category.totalIssues || 0;
+        this.auditResults.summary.highSeverity += category.highSeverity || 0;
+        this.auditResults.summary.mediumSeverity += category.mediumSeverity || 0;
+        this.auditResults.summary.lowSeverity += category.lowSeverity || 0;
+      });
+
+      // Generate report
+      await this.generateAuditReport();
+      
+      // Display summary
+      this.displaySummary();
+      
+      return this.auditResults;
+      
+    } catch (error) {
+      console.error(chalk.red('Error running audits:', error.message));
+      throw error;
+    }
+  }
+
+  /**
+   * Run security audit
+   */
+  async runSecurityAudit() {
+    console.log(chalk.blue('🔒 Running Security Audit...'));
+    const securityAudit = new SecurityAudit(this.folderPath);
+    return await securityAudit.runSecurityAudit();
+  }
+
+  /**
+   * Run performance audit
+   */
+  async runPerformanceAudit() {
+    console.log(chalk.blue('⚡ Running Performance Audit...'));
+    const performanceAudit = new PerformanceAudit(this.folderPath);
+    return await performanceAudit.runPerformanceAudit();
+  }
+
+  /**
+   * Run accessibility audit
+   */
+  async runAccessibilityAudit() {
+    console.log(chalk.blue('♿ Running Accessibility Audit...'));
+    const accessibilityAudit = new AccessibilityAudit(this.folderPath);
+    return await accessibilityAudit.runAccessibilityAudit();
+  }
+
+  /**
+   * Run testing audit
+   */
+  async runTestingAudit() {
+    console.log(chalk.blue('🧪 Running Testing Audit...'));
+    const testingAudit = new TestingAudit(this.folderPath);
+    return await testingAudit.runTestingAudit();
+  }
+
+  /**
+   * Run dependency audit
+   */
+  async runDependencyAudit() {
+    console.log(chalk.blue('📦 Running Dependency Audit...'));
+    const dependencyAudit = new DependencyAudit(this.folderPath);
+    return await dependencyAudit.runDependencyAudit();
+  }
+
+  /**
+   * Generate comprehensive audit report
+   */
+  async generateAuditReport() {
+    console.log(chalk.blue('\n📊 Generating Audit Report...'));
+    
+    const reportPath = path.join(this.folderPath, 'comprehensive-audit-report.json');
+    
+    try {
+      await writeFile(reportPath, JSON.stringify(this.auditResults, null, 2));
+      console.log(chalk.green(`✅ Comprehensive audit report saved to: ${reportPath}`));
+    } catch (error) {
+      console.error(chalk.red('Error saving audit report:', error.message));
+    }
+  }
+
+  /**
+   * Display audit summary
+   */
+  displaySummary() {
+    console.log(chalk.blue('\n📋 AUDIT SUMMARY'));
+    console.log(chalk.blue('='.repeat(50)));
+    
+    const { summary, categories } = this.auditResults;
+    
+    // Overall summary
+    console.log(chalk.white(`\n🔍 Total Issues Found: ${summary.totalIssues}`));
+    console.log(chalk.red(`🚨 High Severity: ${summary.highSeverity}`));
+    console.log(chalk.yellow(`⚠️  Medium Severity: ${summary.mediumSeverity}`));
+    console.log(chalk.blue(`ℹ️  Low Severity: ${summary.lowSeverity}`));
+    
+    // Category breakdown
+    console.log(chalk.white('\n📊 Category Breakdown:'));
+    console.log(chalk.blue('-'.repeat(30)));
+    
+    Object.entries(categories).forEach(([category, results]) => {
+      const icon = this.getCategoryIcon(category);
+      const total = results.totalIssues || 0;
+      const high = results.highSeverity || 0;
+      const medium = results.mediumSeverity || 0;
+      const low = results.lowSeverity || 0;
+      
+      console.log(chalk.white(`${icon} ${category.charAt(0).toUpperCase() + category.slice(1)}:`));
+      console.log(chalk.white(`   Total: ${total} | High: ${high} | Medium: ${medium} | Low: ${low}`));
+    });
+    
+    // Recommendations
+    this.displayRecommendations();
+  }
+
+  /**
+   * Get icon for audit category
+   */
+  getCategoryIcon(category) {
+    const icons = {
+      security: '🔒',
+      performance: '⚡',
+      accessibility: '♿',
+      testing: '🧪',
+      dependency: '📦'
+    };
+    return icons[category] || '📋';
+  }
+
+  /**
+   * Display recommendations based on audit results
+   */
+  displayRecommendations() {
+    console.log(chalk.white('\n💡 RECOMMENDATIONS'));
+    console.log(chalk.blue('-'.repeat(30)));
+    
+    const { categories } = this.auditResults;
+    
+    // Security recommendations
+    if (categories.security.highSeverity > 0) {
+      console.log(chalk.red('🔒 Security: Address high-severity security issues immediately'));
+    }
+    
+    // Performance recommendations
+    if (categories.performance.highSeverity > 0) {
+      console.log(chalk.yellow('⚡ Performance: Fix memory leaks and optimize bundle size'));
+    }
+    
+    // Accessibility recommendations
+    if (categories.accessibility.highSeverity > 0) {
+      console.log(chalk.blue('♿ Accessibility: Fix missing alt attributes and form labels'));
+    }
+    
+    // Testing recommendations
+    if (categories.testing.highSeverity > 0) {
+      console.log(chalk.magenta('🧪 Testing: Add test files and testing framework'));
+    }
+    
+    // Dependency recommendations
+    if (categories.dependency.highSeverity > 0) {
+      console.log(chalk.cyan('📦 Dependencies: Install missing dependencies and update outdated packages'));
+    }
+    
+    console.log(chalk.white('\n📄 Detailed report saved to: comprehensive-audit-report.json'));
+  }
+
+  /**
+   * Run specific audit category
+   */
+  async runSpecificAudit(category) {
+    const auditMethods = {
+      security: () => this.runSecurityAudit(),
+      performance: () => this.runPerformanceAudit(),
+      accessibility: () => this.runAccessibilityAudit(),
+      testing: () => this.runTestingAudit(),
+      dependency: () => this.runDependencyAudit()
+    };
+
+    if (auditMethods[category]) {
+      return await auditMethods[category]();
+    } else {
+      throw new Error(`Unknown audit category: ${category}`);
+    }
+  }
+}
+
 const configPath = process.argv[2];
 const defaultConfig = {
   jsFilePathPattern: [
@@ -783,6 +2765,7 @@ const codeInsightInit = async (options = {}) => {
       }
     }
 
+    // Traditional reports
     if (reports.includes('all') || reports.includes('eslint')) {
       await audit.generateESLintReport(jsFilePathPattern, recommendedLintRules, projectType, reports);
     }
@@ -792,7 +2775,30 @@ const codeInsightInit = async (options = {}) => {
     if (reports.includes('all') || reports.includes('package')) {
       await audit.generateNpmPackageReport(projectType, reports);
     }
-    // You can add more report types here as needed
+
+    // New comprehensive audits
+    const auditCategories = ['security', 'performance', 'accessibility', 'testing', 'dependency'];
+    
+    // Convert kebab-case to camelCase if needed (no modern-practices anymore)
+    const normalizedReports = reports;
+    const hasAuditReports = auditCategories.some(category => normalizedReports.includes(category));
+    
+    if (reports.includes('comprehensive') || hasAuditReports) {
+      const orchestrator = new AuditOrchestrator('./report');
+      
+      if (reports.includes('comprehensive')) {
+        // Run all audit categories
+        await orchestrator.runAllAudits();
+      } else {
+        // Run specific audit categories
+        for (const category of auditCategories) {
+          if (normalizedReports.includes(category)) {
+            console.log(`\nRunning ${category} audit...`);
+            await orchestrator.runSpecificAudit(category);
+          }
+        }
+      }
+    }
   } catch (error) {
     console.error("Error reading the file:", error);
   }
