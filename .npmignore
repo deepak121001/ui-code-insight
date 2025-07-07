@@ -1,0 +1,22 @@
+# Exclude generated reports and test files
+report/
+test/
+coverage/
+
+# Exclude config and local environment files
+.vscode/
+.github/
+*.log
+*.env
+
+# Exclude source maps, SCSS, and configs not needed by consumers
+*.scss
+*.map
+rollup.config.js
+
+# Exclude node_modules (never published, but safe)
+node_modules/
+
+# Exclude markdown docs except README
+*.md
+!README.md
