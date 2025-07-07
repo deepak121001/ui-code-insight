@@ -49,7 +49,6 @@ function renderComprehensiveOverview(comprehensiveData) {
   const accessibilityTotal = document.getElementById('accessibilityTotal');
   const testingTotal = document.getElementById('testingTotal');
   const dependencyTotal = document.getElementById('dependencyTotal');
-  const overallScore = document.getElementById('overallScore');
 
   if (securityTotal && categories.security) {
     securityTotal.textContent = categories.security.totalIssues || 0;
@@ -65,13 +64,6 @@ function renderComprehensiveOverview(comprehensiveData) {
   }
   if (dependencyTotal && categories.dependency) {
     dependencyTotal.textContent = categories.dependency.totalIssues || 0;
-  }
-
-  // Calculate overall health score (100 - total issues, minimum 0)
-  if (overallScore && comprehensiveData.summary) {
-    const totalIssues = comprehensiveData.summary.totalIssues || 0;
-    const healthScore = Math.max(0, 100 - totalIssues);
-    overallScore.textContent = healthScore;
   }
 }
 
@@ -113,14 +105,34 @@ function renderOverviewCharts(eslintData, stylelintData, npmData, comprehensiveD
   } else if (stylelintTotalEl) {
     stylelintTotalEl.textContent = '';
   }
-  // NPM Total (no chart)
-  const npmTotalEl = document.getElementById('overviewNpmTotal');
+  // NPM Packages Overview Card (Stylelint-style)
+  const npmTotalPackagesEl = document.getElementById('npmTotalPackages');
+  const npmPackagesChartEl = document.getElementById('npmPackagesChart');
+
   if (npmData && (Array.isArray(npmData.dependencies) || Array.isArray(npmData.devDependencies))) {
-    const depCount = Array.isArray(npmData.dependencies) ? npmData.dependencies.length : 0;
-    const devDepCount = Array.isArray(npmData.devDependencies) ? npmData.devDependencies.length : 0;
-    if (npmTotalEl) npmTotalEl.textContent = `Total packages: ${depCount + devDepCount}`;
-  } else if (npmTotalEl) {
-    npmTotalEl.textContent = '';
+    const deps = Array.isArray(npmData.dependencies) ? npmData.dependencies : [];
+    const devDeps = Array.isArray(npmData.devDependencies) ? npmData.devDependencies : [];
+    const all = deps.concat(devDeps);
+    const total = all.length;
+    const outdated = all.filter(pkg => pkg.deprecated && pkg.deprecated !== 'Not deprecated').length;
+    if (npmTotalPackagesEl) npmTotalPackagesEl.textContent = `Total packages: ${total}`;
+    // Pie chart: Up-to-date vs Outdated
+    if (npmPackagesChartEl) {
+      npmPackagesChartEl.innerHTML = '';
+      const upToDate = total - outdated;
+      const options = {
+        chart: { type: 'pie', height: 250 },
+        labels: ['Up-to-date', 'Outdated'],
+        series: [upToDate, outdated],
+        colors: ['#34d399', '#fbbf24'],
+        legend: { show: true },
+        dataLabels: { enabled: true, formatter: val => `${val.toFixed(1)}%` },
+      };
+      new ApexCharts(npmPackagesChartEl, options).render();
+    }
+  } else {
+    if (npmTotalPackagesEl) npmTotalPackagesEl.textContent = '';
+    if (npmPackagesChartEl) npmPackagesChartEl.innerHTML = '';
   }
 
   // Render comprehensive overview
