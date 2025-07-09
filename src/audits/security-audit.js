@@ -1,499 +1,343 @@
-import fs from 'fs';
+import fs from "fs";
+import fsp from "fs/promises";
 import path from 'path';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { globby } from 'globby';
-import { writeFile } from 'fs/promises';
-import { jsTsGlobs, htmlGlobs } from './file-globs.js';
+import { getConfigPattern } from '../config-loader.js';
+import { ESLint } from "eslint";
+import { fileURLToPath } from 'url';
 
-/**
- * Security audit module for detecting common security vulnerabilities
- */
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const CONFIG_FOLDER = "config";
+const ESLINTRC_JSON = ".eslintrc.json";
+const ESLINTRC_JS = ".eslintrc.js";
+const ESLINTRC_YML = ".eslintrc.yml";
+const ESLINTRC = ".eslintrc";
+const ESLINTRC_REACT = "eslintrc.react.json";
+const ESLINTRC_NODE = "eslintrc.node.json";
+const ESLINTRC_VANILLA = "eslintrc.vanilla.json";
+const ESLINTRC_TS = "eslintrc.typescript.json";
+const ESLINTRC_TSREACT = "eslintrc.tsreact.json";
+
+const getLintConfigFile = (recommendedLintRules = false, projectType = '') => {
+  let configFileName = ESLINTRC_JSON;
+
+  if (projectType && typeof projectType === 'string') {
+    const type = projectType.toLowerCase();
+    if (type === 'react') configFileName = ESLINTRC_REACT;
+    else if (type === 'node') configFileName = ESLINTRC_NODE;
+    else if (type === 'vanilla') configFileName = ESLINTRC_VANILLA;
+    else if (type === 'typescript') configFileName = ESLINTRC_TS;
+    else if (type === 'typescript + react' || type === 'tsreact') configFileName = ESLINTRC_TSREACT;
+  }
+
+  const configFilePath = path.join(__dirname, CONFIG_FOLDER, configFileName);
+  if (fs.existsSync(configFilePath)) {
+    return configFilePath;
+  }
+
+  // fallback to default logic
+  const recommendedLintRulesConfigFile = path.join(__dirname, CONFIG_FOLDER, ESLINTRC_JSON);
+  const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
+  const eslintLintFilePathFromModule = path.join(moduleDir, ESLINTRC_JSON);
+
+  if (recommendedLintRules) {
+    return recommendedLintRulesConfigFile;
+  }
+
+  const configFiles = [
+    ESLINTRC,
+    ESLINTRC_JS,
+    ESLINTRC_YML,
+    ESLINTRC_JSON,
+    eslintLintFilePathFromModule,
+  ];
+
+  return configFiles.find((file) => fs.existsSync(file));
+};
+
+// Helper to get code and context lines
+async function getCodeContext(filePath, line, contextRadius = 2) {
+  try {
+    const content = await fsp.readFile(filePath, "utf8");
+    const lines = content.split('\n');
+    const idx = line - 1;
+    const start = Math.max(0, idx - contextRadius);
+    const end = Math.min(lines.length - 1, idx + contextRadius);
+    const code = (lines[idx] || '').slice(0, 200) + ((lines[idx] || '').length > 200 ? '... (truncated)' : '');
+    const context = lines.slice(start, end + 1)
+      .map((l, i) => {
+        const n = start + i + 1;
+        let lineText = l.length > 200 ? l.slice(0, 200) + '... (truncated)' : l;
+        const marker = n === line ? '>>>' : '   ';
+        return `${marker} ${n}: ${lineText}`;
+      }).join('\n');
+    return { code, context };
+  } catch {
+    return { code: '', context: '' };
+  }
+}
+
 export class SecurityAudit {
   constructor(folderPath) {
     this.folderPath = folderPath;
     this.securityIssues = [];
   }
 
-/**
- * Check for hardcoded secrets
- */
-async checkForSecrets() {
-  console.log(chalk.blue('🔒 Checking for hardcoded secrets...'));
-
-  const secretPatterns = [
-    /password\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /api[_-]?key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /secret\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /auth[_-]?token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /authorization\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /bearer\s+['"`][^'"`\s]+['"`]/gi,
-    /access[_-]?token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /refresh[_-]?token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /private[_-]?key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /aws_access_key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /aws_secret_key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /client[_-]?id\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /client[_-]?secret\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /firebase\s*api[_-]?key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /connection\s*string\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /-----BEGIN\s+(RSA|DSA|EC|PGP|OPENSSH|PRIVATE)\s+PRIVATE\s+KEY-----[\s\S]+?-----END\s+(?:RSA|DSA|EC|PGP|OPENSSH|PRIVATE)\s+PRIVATE\s+KEY-----/g,
-    /\b[a-zA-Z0-9_-]*?(api|access|secret|auth|token|key)[a-zA-Z0-9_-]*?\s*[:=]\s*['"`][\w\-]{16,}['"`]/gi,
-    /\b(PASSWORD|SECRET|TOKEN|KEY|ACCESS_KEY|PRIVATE_KEY)\s*=\s*[^'"`\n\r]+/gi
-  ];
-
-  const files = await globby(jsTsGlobs);
-
-  console.log(chalk.gray(`📁 Scanning ${files.length} files for secrets...`));
-
-  for (const file of files) {
-    try {
-      const content = fs.readFileSync(file, 'utf8');
-      const lines = content.split('\n');
-
-      lines.forEach((line, index) => {
-        const trimmedLine = line.trim();
-        if (!trimmedLine || trimmedLine.startsWith('//')) return;
-
-        secretPatterns.forEach(pattern => {
-          if (pattern.test(trimmedLine)) {
-            // Get context lines (2 lines before and after)
-            const contextStart = Math.max(0, index - 2);
-            const contextEnd = Math.min(lines.length - 1, index + 2);
-            const contextLines = lines.slice(contextStart, contextEnd + 1);
-            const contextCode = contextLines.map((line, i) => {
-              const lineNum = contextStart + i + 1;
-              const marker = lineNum === index + 1 ? '>>> ' : '    ';
-              return `${marker}${lineNum}: ${line}`;
-            }).join('\n');
-
-            this.securityIssues.push({
-              type: 'hardcoded_secret',
-              file,
-              line: index + 1,
-              severity: 'high',
-              message: 'Potential hardcoded secret detected',
-              code: trimmedLine,
-              context: contextCode
-            });
-          }
-        });
-      });
-    } catch (error) {
-      console.warn(chalk.yellow(`⚠️ Warning: Could not read file ${file}`));
-    }
+  printContext(lines, index) {
+    const contextStart = Math.max(0, index - 2);
+    const contextEnd = Math.min(lines.length - 1, index + 2);
+    return lines.slice(contextStart, contextEnd + 1)
+      .map((line, i) => {
+        const lineNum = contextStart + i + 1;
+        const marker = lineNum === index + 1 ? chalk.red('>>>') : '   ';
+        return `${marker} ${lineNum}: ${line}`;
+      }).join('\n');
   }
-}
-
-
-/**
- * Check for unsafe eval usage
- */
-async checkUnsafeEval() {
-  console.log(chalk.blue('🔒 Checking for unsafe eval usage...'));
-
-  const files = await globby(jsTsGlobs);
-  console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for unsafe eval...`));
-
-  const unsafePatterns = [
-    /\beval\s*\(/,                      // eval(...)
-    /\bnew\s+Function\s*\(/,           // new Function(...)
-    /\bFunction\s*\(/,                 // Function(...)
-    /\bsetTimeout\s*\(\s*['"`]/,       // setTimeout("...")
-    /\bsetInterval\s*\(\s*['"`]/       // setInterval("...")
-  ];
-
-  for (const file of files) {
-    try {
-      const content = fs.readFileSync(file, 'utf8');
-      const lines = content.split('\n');
-
-      lines.forEach((line, index) => {
-        for (const pattern of unsafePatterns) {
-          if (pattern.test(line)) {
-            // Get context lines (2 lines before and after)
-            const contextStart = Math.max(0, index - 2);
-            const contextEnd = Math.min(lines.length - 1, index + 2);
-            const contextLines = lines.slice(contextStart, contextEnd + 1);
-            const contextCode = contextLines.map((line, i) => {
-              const lineNum = contextStart + i + 1;
-              const marker = lineNum === index + 1 ? '>>> ' : '    ';
-              return `${marker}${lineNum}: ${line}`;
-            }).join('\n');
-
-            this.securityIssues.push({
-              type: 'unsafe_eval',
-              file,
-              line: index + 1,
-              severity: 'high',
-              message: 'Unsafe eval or dynamic code execution detected',
-              code: line.trim(),
-              context: contextCode
-            });
-            break; // Only report once per line
-          }
-        }
-      });
-    } catch (error) {
-      console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
-    }
-  }
-}
-
-
-/**
- * Check for potential XSS vulnerabilities
- */
-async checkXSSVulnerabilities() {
-  console.log(chalk.blue('🔒 Checking for XSS vulnerabilities...'));
-
-  const xssPatterns = [
-    { pattern: /\binnerHTML\s*=/i, message: 'Use of innerHTML can lead to XSS', severity: 'high' },
-    { pattern: /\bouterHTML\s*=/i, message: 'Use of outerHTML can lead to XSS', severity: 'high' },
-    { pattern: /\bdocument\.write\s*\(/i, message: 'Use of document.write is dangerous and can lead to XSS', severity: 'high' },
-    { pattern: /\.insertAdjacentHTML\s*\(/i, message: 'insertAdjacentHTML can be XSS-prone', severity: 'medium' },
-    { pattern: /\b dangerouslySetInnerHTML\s*=/i, message: 'React dangerouslySetInnerHTML used', severity: 'medium' },
-    { pattern: /\bnew\s+DOMParser\s*\(\)/i, message: 'DOMParser can be dangerous if input is not sanitized', severity: 'low' },
-  ];
-
-  const files = await globby(jsTsGlobs);
-
-  console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for XSS vulnerabilities...`));
-
-  for (const file of files) {
-    try {
-      const content = fs.readFileSync(file, 'utf8');
-      const lines = content.split('\n');
-
-      lines.forEach((line, index) => {
-        // Skip commented or empty lines
-        const trimmed = line.trim();
-        if (trimmed.startsWith('//') || trimmed === '') return;
-
-        xssPatterns.forEach(({ pattern, message, severity }) => {
-          if (pattern.test(trimmed)) {
-            // Get context lines (2 lines before and after)
-            const contextStart = Math.max(0, index - 2);
-            const contextEnd = Math.min(lines.length - 1, index + 2);
-            const contextLines = lines.slice(contextStart, contextEnd + 1);
-            const contextCode = contextLines.map((line, i) => {
-              const lineNum = contextStart + i + 1;
-              const marker = lineNum === index + 1 ? '>>> ' : '    ';
-              return `${marker}${lineNum}: ${line}`;
-            }).join('\n');
-
-            this.securityIssues.push({
-              type: 'xss_vulnerability',
-              file,
-              line: index + 1,
-              severity,
-              message,
-              code: trimmed,
-              context: contextCode
-            });
-          }
-        });
-      });
-    } catch (error) {
-      console.warn(chalk.yellow(`⚠️ Warning: Could not read file ${file}`));
-    }
-  }
-}
-
-
-/**
- * Check for potential SQL injection patterns
- */
-async checkSQLInjection() {
-  console.log(chalk.blue('🔒 Checking for SQL injection patterns...'));
-
-  const sqlPatterns = [
-    {
-      pattern: /\b(query|execute)\s*\(\s*[`'"][^`'"']*\$\{[^}]+\}[^`'"']*[`'"]\s*\)/gi,
-      message: 'SQL query contains template string interpolation — possible injection risk',
-      severity: 'high'
-    },
-    {
-      pattern: /\bsql\s*[:=]\s*[`'"][^`'"']*\$\{[^}]+\}[^`'"']*[`'"]/gi,
-      message: 'Interpolated SQL assignment — risk of SQL injection',
-      severity: 'high'
-    },
-    {
-      pattern: /\bSELECT\s+.*\s+FROM\s+/i,
-      message: 'Direct SQL query detected, check for unsafe input handling',
-      severity: 'medium'
-    },
-    {
-      pattern: /\bINSERT\s+INTO\s+/i,
-      message: 'Direct SQL INSERT detected — validate inputs',
-      severity: 'medium'
-    },
-    {
-      pattern: /\bUPDATE\s+\w+\s+SET\s+/i,
-      message: 'Direct SQL UPDATE detected — check parameter usage',
-      severity: 'medium'
-    },
-    {
-      pattern: /\bDELETE\s+FROM\s+/i,
-      message: 'Direct SQL DELETE detected — confirm query safety',
-      severity: 'medium'
-    }
-  ];
-
-  const files = await globby(jsTsGlobs);
-
-  console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for SQL injection patterns...`));
-
-  for (const file of files) {
-    try {
-      const content = fs.readFileSync(file, 'utf8');
-      const lines = content.split('\n');
-
-      lines.forEach((line, index) => {
-        const trimmed = line.trim();
-        if (trimmed === '' || trimmed.startsWith('//')) return;
-
-        for (const { pattern, message, severity } of sqlPatterns) {
-          if (pattern.test(trimmed)) {
-            // Get context lines (2 lines before and after)
-            const contextStart = Math.max(0, index - 2);
-            const contextEnd = Math.min(lines.length - 1, index + 2);
-            const contextLines = lines.slice(contextStart, contextEnd + 1);
-            const contextCode = contextLines.map((line, i) => {
-              const lineNum = contextStart + i + 1;
-              const marker = lineNum === index + 1 ? '>>> ' : '    ';
-              return `${marker}${lineNum}: ${line}`;
-            }).join('\n');
-
-            this.securityIssues.push({
-              type: 'sql_injection',
-              file,
-              line: index + 1,
-              severity,
-              message,
-              code: trimmed,
-              context: contextCode
-            });
-            break; // Only one issue per line
-          }
-        }
-      });
-    } catch (error) {
-      console.warn(chalk.yellow(`⚠️ Warning: Could not read file ${file}`));
-    }
-  }
-}
-
 
   /**
-   * Check for outdated dependencies with known vulnerabilities
+   * Check for hardcoded secrets
    */
-  async checkDependencyVulnerabilities() {
-    console.log(chalk.blue('🔒 Checking for dependency vulnerabilities...'));
-    
+  async checkForSecrets() {
+    console.log(chalk.blue('🔒 Checking for hardcoded secrets...'));
+  
+    const secretPatterns = [
+      /\b(const|let|var)\s+\w*(password|api[_-]?key|secret|token|auth|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?id|client[_-]?secret|firebase[_-]?key|connection\s*string)\w*\s*=\s*['"][^'"`]+['"]/i,
+      /['"]?(password|api[_-]?key|secret|token|auth|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?id|client[_-]?secret)['"]?\s*:\s*['"][^'"`]+['"]/i,
+      /\b(PASSWORD|SECRET|TOKEN|KEY|ACCESS_KEY|PRIVATE_KEY)\s*=\s*[^'"`\n\r]+/i,
+      /-----BEGIN\s+\w+PRIVATE KEY-----[\s\S]+?-----END\s+\w+PRIVATE KEY-----/g,
+      /\b(const|let|var)\s+\w*(api|access|secret|auth|token|key)\w*\s*=\s*['"][\w\-]{16,}['"]/i,
+    ];
+  
     try {
-      // Run npm audit to check for vulnerabilities
-      const auditResult = execSync('npm audit --json', { 
-        encoding: 'utf8', 
-        cwd: process.cwd(),
-        stdio: 'pipe'
+      const files = await globby(getConfigPattern('jsFilePathPattern'), {
+        absolute: true, // ✅ Ensures absolute paths are returned
       });
-      const auditData = JSON.parse(auditResult);
-      
-      if (auditData.vulnerabilities && Object.keys(auditData.vulnerabilities).length > 0) {
-        Object.keys(auditData.vulnerabilities).forEach(packageName => {
-          const vuln = auditData.vulnerabilities[packageName];
-          this.securityIssues.push({
-            type: 'dependency_vulnerability',
-            package: packageName,
-            severity: vuln.severity || 'medium',
-            message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
-            recommendation: vuln.recommendation || 'Update package version'
-          });
-        });
-      } else {
-        // No vulnerabilities found - this is good!
-        this.securityIssues.push({
-          type: 'no_vulnerabilities',
-          severity: 'info',
-          message: 'No known vulnerabilities found in dependencies',
-          positive: true
-        });
-      }
-    } catch (error) {
-      // npm audit returns non-zero exit code when vulnerabilities are found
-      if (error.status === 1) {
+  
+      console.log(chalk.gray(`📁 Scanning ${files.length} files for secrets...`));
+  
+      for (const file of files) {
         try {
-          const output = error.stdout.toString();
-          const auditData = JSON.parse(output);
-          
-          if (auditData.vulnerabilities) {
-            Object.keys(auditData.vulnerabilities).forEach(packageName => {
-              const vuln = auditData.vulnerabilities[packageName];
-              this.securityIssues.push({
-                type: 'dependency_vulnerability',
-                package: packageName,
-                severity: vuln.severity || 'medium',
-                message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
-                recommendation: vuln.recommendation || 'Update package version'
-              });
-            });
-          }
-        } catch (parseError) {
-          console.warn(chalk.yellow('Warning: Could not parse npm audit results'));
-        }
-      } else {
-        console.warn(chalk.yellow('Warning: Could not run npm audit - this may be due to network issues or npm configuration'));
-      }
-    }
-  }
-
-  /**
-   * Check for logging of sensitive data
-   */
-  async checkSensitiveDataLogging() {
-    console.log(chalk.blue('🔒 Checking for logging of sensitive data...'));
-    const sensitiveKeywords = [
-      'password', 'token', 'secret', 'key', 'auth', 'jwt', 'access', 'refresh'
-    ];
-    const logPatterns = [
-      /console\.(log|error|warn|info)\s*\(([^)]*)\)/gi,
-      /logger\.(log|error|warn|info)\s*\(([^)]*)\)/gi
-    ];
-    const files = await globby(jsTsGlobs);
-    for (const file of files) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        lines.forEach((line, index) => {
-          logPatterns.forEach(pattern => {
-            const match = pattern.exec(line);
-            if (match) {
-              const args = match[2] || '';
-              if (sensitiveKeywords.some(word => args.toLowerCase().includes(word))) {
+          const content = await fsp.readFile(file, 'utf8');
+          const lines = content.split('\n');
+  
+          lines.forEach((line, index) => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('//')) return;
+  
+            for (const pattern of secretPatterns) {
+              if (
+                pattern.test(trimmed) &&
+                /=\s*['"][^'"`]+['"]/.test(trimmed) &&
+                !/(===|!==|==|!=)/.test(trimmed) &&
+                !/\w+\s*\(/.test(trimmed) &&
+                !/`.*`/.test(trimmed)
+              ) {
                 this.securityIssues.push({
-                  type: 'sensitive_data_logging',
+                  type: 'hardcoded_secret',
                   file,
                   line: index + 1,
                   severity: 'high',
-                  message: 'Sensitive data may be logged',
-                  code: line.trim()
+                  message: 'Potential hardcoded secret detected',
+                  code: trimmed,
+                  context: this.printContext(lines, index),
                 });
+                break;
               }
             }
           });
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+        } catch (err) {
+          console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+        }
       }
+    } catch (err) {
+      console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
   }
-
+  
   /**
-   * Warn on insecure HTTP requests
+   * Common function to scan files with given patterns
    */
-  async checkInsecureHttpRequests() {
-    console.log(chalk.blue('🔒 Checking for insecure HTTP requests...'));
-    const httpPattern = /\b(fetch|axios|XMLHttpRequest|open|src|href)\s*\(?.*['\"]http:\/\//i;
-    const files = await globby(htmlGlobs);
+  async patternScan(files, patterns, type) {
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fs.readFile(file, 'utf8');
         const lines = content.split('\n');
-        lines.forEach((line, index) => {
-          if (httpPattern.test(line)) {
-            this.securityIssues.push({
-              type: 'insecure_http_request',
-              file,
-              line: index + 1,
-              severity: 'medium',
-              message: 'Insecure HTTP request detected (use HTTPS)',
-              code: line.trim()
-            });
-          }
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
-      }
-    }
-  }
 
-  /**
-   * Check for insecure cookie usage
-   */
-  async checkInsecureCookieUsage() {
-    console.log(chalk.blue('🔒 Checking for insecure cookie usage...'));
-    const cookiePattern = /document\.cookie\s*=|setCookie\s*\(/i;
-    const files = await globby(htmlGlobs);
-    for (const file of files) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
         lines.forEach((line, index) => {
-          if (cookiePattern.test(line)) {
-            // Check if Secure/HttpOnly flags are present (simple heuristic)
-            if (!/secure/i.test(line) || !/httponly/i.test(line)) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('//')) return;
+
+          patterns.forEach(({ pattern, message, severity }) => {
+            if (pattern.test(trimmed)) {
               this.securityIssues.push({
-                type: 'insecure_cookie',
+                type,
                 file,
                 line: index + 1,
-                severity: 'medium',
-                message: 'Cookie set without Secure/HttpOnly flags',
-                code: line.trim()
+                severity,
+                message,
+                code: trimmed,
+                context: this.printContext(lines, index)
               });
             }
-          }
+          });
         });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      } catch {
+        console.warn(chalk.yellow(`⚠️ Could not read file ${file}`));
       }
     }
   }
 
-  /**
-   * Run all security checks
+/**
+   * Check for outdated dependencies with known vulnerabilities
    */
+async checkDependencyVulnerabilities() {
+  console.log(chalk.blue('🔒 Checking for dependency vulnerabilities...'));
+  
+  try {
+    // Run npm audit to check for vulnerabilities
+    const auditResult = execSync('npm audit --json', { 
+      encoding: 'utf8', 
+      cwd: process.cwd(),
+      stdio: 'pipe'
+    });
+    const auditData = JSON.parse(auditResult);
+    
+    if (auditData.vulnerabilities && Object.keys(auditData.vulnerabilities).length > 0) {
+      Object.keys(auditData.vulnerabilities).forEach(packageName => {
+        const vuln = auditData.vulnerabilities[packageName];
+        this.securityIssues.push({
+          type: 'dependency_vulnerability',
+          package: packageName,
+          severity: vuln.severity || 'medium',
+          message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
+          recommendation: vuln.recommendation || 'Update package version'
+        });
+      });
+    } else {
+      // No vulnerabilities found - this is good!
+      this.securityIssues.push({
+        type: 'no_vulnerabilities',
+        severity: 'info',
+        message: 'No known vulnerabilities found in dependencies',
+        positive: true
+      });
+    }
+  } catch (error) {
+    // npm audit returns non-zero exit code when vulnerabilities are found
+    if (error.status === 1) {
+      try {
+        const output = error.stdout.toString();
+        const auditData = JSON.parse(output);
+        
+        if (auditData.vulnerabilities) {
+          Object.keys(auditData.vulnerabilities).forEach(packageName => {
+            const vuln = auditData.vulnerabilities[packageName];
+            this.securityIssues.push({
+              type: 'dependency_vulnerability',
+              package: packageName,
+              severity: vuln.severity || 'medium',
+              message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
+              recommendation: vuln.recommendation || 'Update package version'
+            });
+          });
+        }
+      } catch (parseError) {
+        console.warn(chalk.yellow('Warning: Could not parse npm audit results'));
+      }
+    } else {
+      console.warn(chalk.yellow('Warning: Could not run npm audit - this may be due to network issues or npm configuration'));
+    }
+  }
+}
+
+  async checkESLintSecurityIssues() {
+    console.log(chalk.blue('🔍 Checking for security issues with ESLint plugins...'));
+    try {
+      const eslintConfig = getLintConfigFile();
+      if (!eslintConfig) {
+        throw new Error(".eslintrc file is missing");
+      }
+      const eslint = new ESLint({
+        useEslintrc: false,
+        overrideConfigFile: eslintConfig,
+      });
+      const files = await globby(getConfigPattern('jsFilePathPattern'));
+      const results = await eslint.lintFiles(files);
+      for (const file of results) {
+        for (const message of file.messages) {
+          if (
+            message.ruleId &&
+            (
+              message.ruleId.startsWith('security/') ||
+              message.ruleId.startsWith('no-unsanitized/') ||
+              message.ruleId === 'no-unsanitized/method' ||
+              message.ruleId === 'no-unsanitized/property'
+            )
+          ) {
+            const { code, context } = await getCodeContext(file.filePath, message.line);
+            this.securityIssues.push({
+              type: 'eslint_security',
+              file: file.filePath,
+              line: message.line,
+              severity: message.severity === 2 ? 'high' : 'medium',
+              message: message.message,
+              ruleId: message.ruleId,
+              code,
+              context,
+              source: 'eslint'
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not run ESLint for security plugin checks'));
+      if (error && error.message) {
+        console.warn(chalk.yellow(error.message));
+      }
+    }
+  }
+  
   async runSecurityAudit() {
-    console.log(chalk.blue('🔒 Starting Security Audit...'));
-    
+    console.log(chalk.cyan.bold('\n🔍 Running Full Security Audit...'));
+    //await this.checkDependencyVulnerabilities();
     await this.checkForSecrets();
-    await this.checkUnsafeEval();
-    await this.checkXSSVulnerabilities();
-    await this.checkSQLInjection();
-    await this.checkDependencyVulnerabilities();
-    await this.checkSensitiveDataLogging();
-    await this.checkInsecureHttpRequests();
-    await this.checkInsecureCookieUsage();
-    
+    await this.checkESLintSecurityIssues();
+
+    // Deduplicate issues and mark source
+    const uniqueIssues = [];
+    const seen = new Set();
+    for (const issue of this.securityIssues) {
+      if (!issue.source) issue.source = 'custom';
+      const key = `${issue.file || ''}:${issue.line || ''}:${issue.ruleId || issue.type}:${issue.message}`;
+      if (!seen.has(key)) {
+        uniqueIssues.push(issue);
+        seen.add(key);
+      }
+    }
+    this.securityIssues = uniqueIssues;
+
     const results = {
       timestamp: new Date().toISOString(),
       totalIssues: this.securityIssues.length,
-      highSeverity: this.securityIssues.filter(issue => issue.severity === 'high').length,
-      mediumSeverity: this.securityIssues.filter(issue => issue.severity === 'medium').length,
-      lowSeverity: this.securityIssues.filter(issue => issue.severity === 'low').length,
-      infoIssues: this.securityIssues.filter(issue => issue.severity === 'info').length,
+      highSeverity: this.securityIssues.filter(i => i.severity === 'high').length,
+      mediumSeverity: this.securityIssues.filter(i => i.severity === 'medium').length,
+      lowSeverity: this.securityIssues.filter(i => i.severity === 'low').length,
       issues: this.securityIssues
     };
 
-    // Generate JSON report
-    try {
-      const reportPath = path.join(this.folderPath, 'security-audit-report.json');
-      await writeFile(reportPath, JSON.stringify(results, null, 2));
-      console.log(chalk.green(`✅ Security audit report saved to: ${reportPath}`));
-    } catch (error) {
-      console.error(chalk.red('Error saving security audit report:', error.message));
-    }
+    const reportPath = path.join(this.folderPath, 'security-audit-report.json');
+    await fsp.writeFile(reportPath, JSON.stringify(results, null, 2));
 
-    // Display summary
-    console.log(chalk.blue('\n🔒 SECURITY AUDIT SUMMARY'));
-    console.log(chalk.blue('='.repeat(40)));
-    console.log(chalk.white(`Total Issues: ${results.totalIssues}`));
-    console.log(chalk.red(`High Severity: ${results.highSeverity}`));
-    console.log(chalk.yellow(`Medium Severity: ${results.mediumSeverity}`));
-    console.log(chalk.blue(`Low Severity: ${results.lowSeverity}`));
-    console.log(chalk.green(`Info/Positive: ${results.infoIssues}`));
+    console.log(chalk.green(`\n✅ Report saved: ${reportPath}`));
+    console.log(chalk.bold(`\n📋 Total Issues: ${results.totalIssues}`));
+    console.log(chalk.red(`🔴 High: ${results.highSeverity}`));
+    console.log(chalk.yellow(`🟠 Medium: ${results.mediumSeverity}`));
+    console.log(chalk.blue(`🔵 Low: ${results.lowSeverity}`));
 
     return results;
   }
-} 
+}

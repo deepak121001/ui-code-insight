@@ -2,6 +2,7 @@
 /* eslint-disable import/no-extraneous-dependencies */
 /* eslint-disable import/extensions */
 import path from "path";
+import fs from "fs";
 import chalk from "chalk";
 import { execSync } from "child_process";
 import { copyStaticFiles } from "./utils.js";
@@ -101,26 +102,25 @@ const generateComponentUsageReportWrapper = async (
 /**
  * Generates an ESLint report.
  * @async
- * @param {string[]} jsFilePathPattern
  * @param {boolean} recommendedLintRules
+ * @param {string} projectType
+ * @param {Array<string>} reports
  * @returns {Promise<void>}
  */
 const generateESLintReportWrapper = async (
-  jsFilePathPattern,
-  recommendedLintRules
+  recommendedLintRules,
+  projectType = '',
+  reports = []
 ) => {
   try {
-    if (jsFilePathPattern) {
-      console.log(chalk.blue("Generating ESLint report..."));
-      await generateESLintReport(
-        folderPath,
-        jsFilePathPattern,
-        recommendedLintRules
-      );
-      console.log(chalk.green("ESLint report generated successfully!"));
-    } else {
-      console.log(chalk.bold.yellow("jsFilePathPattern is missing!"));
-    }
+    console.log(chalk.blue("Generating ESLint report..."));
+    await generateESLintReport(
+      folderPath,
+      recommendedLintRules,
+      projectType,
+      reports
+    );
+    console.log(chalk.green("ESLint report generated successfully!"));
   } catch (err) {
     handleReportError("Error generating ESLint report", err);
   }
@@ -129,26 +129,25 @@ const generateESLintReportWrapper = async (
 /**
  * Generates a Stylelint report.
  * @async
- * @param {string[]} scssFilePathPattern
  * @param {boolean} recommendedLintRules
+ * @param {string} projectType
+ * @param {Array<string>} reports
  * @returns {Promise<void>}
  */
 const generateStyleLintReportWrapper = async (
-  scssFilePathPattern,
-  recommendedLintRules
+  recommendedLintRules,
+  projectType = '',
+  reports = []
 ) => {
   try {
-    if (scssFilePathPattern) {
-      console.log(chalk.blue("Generating Stylelint report..."));
-      await generateStyleLintReport(
-        folderPath,
-        scssFilePathPattern,
-        recommendedLintRules
-      );
-      console.log(chalk.green("Stylelint report generated successfully!"));
-    } else {
-      console.log(chalk.bold.yellow("scssFilePathPattern is missing!"));
-    }
+    console.log(chalk.blue("Generating Stylelint report..."));
+    await generateStyleLintReport(
+      folderPath,
+      recommendedLintRules,
+      projectType,
+      reports
+    );
+    console.log(chalk.green("Stylelint report generated successfully!"));
   } catch (err) {
     handleReportError("Error generating Stylelint report", err);
   }
@@ -156,9 +155,11 @@ const generateStyleLintReportWrapper = async (
 
 /**
  * Generates an npm package report.
+ * @param {string} projectType
+ * @param {Array<string>} reports
  * @returns {void}
  */
-const generateNpmPackageReportWrapper = () => {
+const generateNpmPackageReportWrapper = (projectType, reports) => {
   try {
     console.log(chalk.blue("Generating npm packages report..."));
     generateNpmPackageReport();
@@ -167,46 +168,26 @@ const generateNpmPackageReportWrapper = () => {
   }
 };
 
-/**
- * Generates all reports as configured.
- * @async
- * @param {boolean} npmReport
- * @param {string[]} jsFilePathPattern
- * @param {string[]} scssFilePathPattern
- * @param {boolean} recommendedLintRules
- * @param {boolean} bundleAnalyzer
- * @param {string} webpackConfigFile
- * @param {string} webpackBundleFolder
- * @returns {Promise<void>}
- */
-const generateAllReport = async (
-  npmReport,
-  jsFilePathPattern,
-  scssFilePathPattern,
-  recommendedLintRules,
-  bundleAnalyzer,
-  webpackConfigFile,
-  webpackBundleFolder
-) => {
-  await generateESLintReportWrapper(jsFilePathPattern, recommendedLintRules);
-  await generateStyleLintReportWrapper(
-    scssFilePathPattern,
-    recommendedLintRules
-  );
-  if (npmReport) {
-    generateNpmPackageReportWrapper();
+// Utility to copy config file to report directory if it exists
+function copyConfigToReportFolder() {
+  const src = path.resolve(process.cwd(), 'ui-code-insight.config.json');
+  const dest = path.resolve(folderPath, 'ui-code-insight.config.json');
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dest);
+    console.log('[ui-code-insight] Copied config to report directory for dashboard.');
   }
-  if (bundleAnalyzer) {
-    await bundleAnalyzerReport(webpackConfigFile, webpackBundleFolder);
-  }
-  console.log(chalk.bold.green("Report generation completed!"));
-};
+}
 
 export default {
-  generateAllReport,
   createReportFolder,
   generateESLintReport: generateESLintReportWrapper,
   generateStyleLintReport: generateStyleLintReportWrapper,
   generateComponentUsageReport: generateComponentUsageReportWrapper,
   generateNpmPackageReport: generateNpmPackageReportWrapper,
+  copyConfigToReportFolder, // Export for manual use if needed
 };
+
+// If this is the main module, run the copy after all reports are generated
+if (import.meta.url === `file://${process.argv[1]}`) {
+  copyConfigToReportFolder();
+}

@@ -3,7 +3,8 @@ import path from 'path';
 import chalk from 'chalk';
 import { globby } from 'globby';
 import { writeFile } from 'fs/promises';
-import { jsTsGlobs, htmlGlobs } from './file-globs.js';
+import { getConfigPattern } from '../config-loader.js';
+import fsp from 'fs/promises';
 
 /**
  * Accessibility audit module for detecting accessibility issues
@@ -12,6 +13,45 @@ export class AccessibilityAudit {
   constructor(folderPath) {
     this.folderPath = folderPath;
     this.accessibilityIssues = [];
+  }
+
+  // Helper to get code and context lines
+  async getCodeContext(filePath, line, contextRadius = 2) {
+    try {
+      const content = await fsp.readFile(filePath, "utf8");
+      const lines = content.split('\n');
+      const idx = line - 1;
+      const start = Math.max(0, idx - contextRadius);
+      const end = Math.min(lines.length - 1, idx + contextRadius);
+      // Only include the specific line for code
+      let code = (lines[idx] || '').trim();
+      if (code.length > 200) code = code.slice(0, 200) + '... (truncated)';
+      // Clean context: trim, remove all-blank, collapse blank lines
+      let contextLines = lines.slice(start, end + 1).map(l => l.trim());
+      while (contextLines.length && contextLines[0] === '') contextLines.shift();
+      while (contextLines.length && contextLines[contextLines.length - 1] === '') contextLines.pop();
+      let lastWasBlank = false;
+      contextLines = contextLines.filter(l => {
+        if (l === '') {
+          if (lastWasBlank) return false;
+          lastWasBlank = true;
+          return true;
+        } else {
+          lastWasBlank = false;
+          return true;
+        }
+      });
+      const context = contextLines.map((l, i) => {
+        const n = start + i + 1;
+        const marker = n === line ? '>>>' : '   ';
+        let lineText = l;
+        if (lineText.length > 200) lineText = lineText.slice(0, 200) + '... (truncated)';
+        return `${marker} ${n}: ${lineText}`;
+      }).join('\n');
+      return { code, context };
+    } catch {
+      return { code: '', context: '' };
+    }
   }
 
   /**
@@ -25,32 +65,38 @@ export class AccessibilityAudit {
       /<Image[^>]*>/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          imagePatterns.forEach(pattern => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of imagePatterns) {
             const matches = line.match(pattern);
             if (matches) {
-              matches.forEach(match => {
+              for (const match of matches) {
                 if (!match.includes('alt=') || match.includes('alt=""')) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
                   this.accessibilityIssues.push({
                     type: 'missing_alt',
-                    file,
+                    file: path.relative(process.cwd(), file),
                     line: index + 1,
                     severity: 'high',
                     message: 'Image missing alt attribute or has empty alt',
-                    code: line.trim()
+                    code,
+                    context,
+                    source: 'custom'
                   });
                 }
-              });
+              }
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -72,15 +118,19 @@ export class AccessibilityAudit {
       /<h6[^>]*>/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          headingPatterns.forEach((pattern, level) => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (let level = 0; level < headingPatterns.length; level++) {
+            const pattern = headingPatterns[level];
             if (pattern.test(line)) {
               // Check for skipped heading levels
               if (level > 0) {
@@ -88,19 +138,22 @@ export class AccessibilityAudit {
                 const hasPreviousHeading = content.substring(0, content.indexOf(line)).match(prevHeadingPattern);
                 
                 if (!hasPreviousHeading) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
                   this.accessibilityIssues.push({
                     type: 'skipped_heading',
-                    file,
+                    file: path.relative(process.cwd(), file),
                     line: index + 1,
                     severity: 'medium',
                     message: `Heading level ${level + 1} used without previous level ${level}`,
-                    code: line.trim()
+                    code,
+                    context,
+                    source: 'custom'
                   });
                 }
               }
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -119,37 +172,43 @@ export class AccessibilityAudit {
       /<select[^>]*>/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          formPatterns.forEach(pattern => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of formPatterns) {
             const matches = line.match(pattern);
             if (matches) {
-              matches.forEach(match => {
+              for (const match of matches) {
                 // Check if input has proper labeling
                 const hasLabel = match.includes('aria-label=') || 
                                match.includes('aria-labelledby=') || 
                                match.includes('id=');
                 
                 if (!hasLabel && !match.includes('type="hidden"')) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
                   this.accessibilityIssues.push({
                     type: 'missing_form_label',
-                    file,
+                    file: path.relative(process.cwd(), file),
                     line: index + 1,
                     severity: 'high',
                     message: 'Form control missing proper labeling',
-                    code: line.trim()
+                    code,
+                    context,
+                    source: 'custom'
                   });
                 }
-              });
+              }
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -169,30 +228,36 @@ export class AccessibilityAudit {
       /background-color:\s*rgb\([^)]+\)/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          colorPatterns.forEach(pattern => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of colorPatterns) {
             if (pattern.test(line)) {
               // This is a basic check - in a real implementation, you'd want to
               // actually calculate contrast ratios
+              const { code, context } = await this.getCodeContext(file, index + 1);
               this.accessibilityIssues.push({
                 type: 'color_contrast',
-                file,
+                file: path.relative(process.cwd(), file),
                 line: index + 1,
                 severity: 'medium',
                 message: 'Color usage detected - verify contrast ratios meet WCAG guidelines',
-                code: line.trim(),
-                recommendation: 'Use tools like axe-core or Lighthouse to check actual contrast ratios'
+                code,
+                context,
+                recommendation: 'Use tools like axe-core or Lighthouse to check actual contrast ratios',
+                source: 'custom'
               });
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -208,18 +273,21 @@ export class AccessibilityAudit {
     const keyboardPatterns = [
       /onClick\s*=/gi,
       /onclick\s*=/gi,
-      /addEventListener\s*\(\s*['"]click['"]/gi,
+      /addEventListener\s*\(\s*['"]click['"]\)/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          keyboardPatterns.forEach(pattern => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of keyboardPatterns) {
             if (pattern.test(line)) {
               // Check if there's also keyboard event handling
               const hasKeyboardSupport = line.includes('onKeyDown') || 
@@ -229,19 +297,22 @@ export class AccessibilityAudit {
                                        (line.includes('keydown') || line.includes('keyup') || line.includes('keypress'));
               
               if (!hasKeyboardSupport) {
+                const { code, context } = await this.getCodeContext(file, index + 1);
                 this.accessibilityIssues.push({
                   type: 'keyboard_navigation',
-                  file,
+                  file: path.relative(process.cwd(), file),
                   line: index + 1,
                   severity: 'medium',
                   message: 'Click handler without keyboard support',
-                  code: line.trim(),
-                  recommendation: 'Add keyboard event handlers or use semantic HTML elements'
+                  code,
+                  context,
+                  recommendation: 'Add keyboard event handlers or use semantic HTML elements',
+                  source: 'custom'
                 });
               }
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -258,33 +329,39 @@ export class AccessibilityAudit {
       /aria-[a-zA-Z-]+/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          ariaPatterns.forEach(pattern => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of ariaPatterns) {
             const matches = line.match(pattern);
             if (matches) {
-              matches.forEach(match => {
+              for (const match of matches) {
                 // Check for common ARIA mistakes
                 if (match.includes('aria-label=""') || match.includes('aria-labelledby=""')) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
                   this.accessibilityIssues.push({
                     type: 'empty_aria',
-                    file,
+                    file: path.relative(process.cwd(), file),
                     line: index + 1,
                     severity: 'medium',
                     message: 'Empty ARIA attribute detected',
-                    code: line.trim()
+                    code,
+                    context,
+                    source: 'custom'
                   });
                 }
-              });
+              }
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -296,35 +373,44 @@ export class AccessibilityAudit {
    */
   async checkTabOrderAndFocus() {
     console.log(chalk.blue('♿ Checking tab order and focus management...'));
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
-        lines.forEach((line, index) => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
           // Check for interactive elements without tabindex
           if ((/<(button|a|input|select|textarea|div|span)[^>]*>/i.test(line) || /onClick=|onKeyDown=|onFocus=/.test(line)) && !/tabindex=/i.test(line)) {
+            const { code, context } = await this.getCodeContext(file, index + 1);
             this.accessibilityIssues.push({
               type: 'tab_order_focus',
-              file,
+              file: path.relative(process.cwd(), file),
               line: index + 1,
               severity: 'medium',
               message: 'Interactive element may be missing tabindex or focus management',
-              code: line.trim()
+              code,
+              context,
+              source: 'custom'
             });
           }
           // Check for modals/dialogs without focus trap
           if (/<(dialog|Modal|modal)[^>]*>/i.test(line) && !/focusTrap|trapFocus|tabindex/i.test(line)) {
+            const { code, context } = await this.getCodeContext(file, index + 1);
             this.accessibilityIssues.push({
               type: 'focus_management',
-              file,
+              file: path.relative(process.cwd(), file),
               line: index + 1,
               severity: 'medium',
               message: 'Modal/dialog may be missing focus trap or focus management',
-              code: line.trim()
+              code,
+              context,
+              source: 'custom'
             });
           }
-        });
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -336,12 +422,14 @@ export class AccessibilityAudit {
    */
   async checkLandmarksAndSkipLinks() {
     console.log(chalk.blue('♿ Checking for landmark roles and skip links...'));
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     let foundLandmark = false;
     let foundSkipLink = false;
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         if (/<(main|nav|aside|header|footer)[^>]*>/i.test(content)) foundLandmark = true;
         if (/<a[^>]+href=["']#main-content["'][^>]*>.*skip to main content.*<\/a>/i.test(content)) foundSkipLink = true;
       } catch (error) {
@@ -353,7 +441,8 @@ export class AccessibilityAudit {
         type: 'missing_landmark',
         severity: 'medium',
         message: 'No landmark roles (<main>, <nav>, <aside>, <header>, <footer>) found in project',
-        recommendation: 'Add semantic landmark elements for better accessibility'
+        recommendation: 'Add semantic landmark elements for better accessibility',
+        source: 'custom'
       });
     }
     if (!foundSkipLink) {
@@ -361,7 +450,8 @@ export class AccessibilityAudit {
         type: 'missing_skip_link',
         severity: 'medium',
         message: 'No skip link found (e.g., <a href="#main-content">Skip to main content</a>)',
-        recommendation: 'Add a skip link for keyboard users'
+        recommendation: 'Add a skip link for keyboard users',
+        source: 'custom'
       });
     }
   }
