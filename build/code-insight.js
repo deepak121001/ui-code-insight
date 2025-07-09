@@ -1,8 +1,8 @@
-import fs, { promises } from 'fs';
 import path from 'path';
+import fs from 'fs';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
-import { mkdir, writeFile, readFile } from 'fs/promises';
+import fsp, { mkdir, writeFile, readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { ESLint } from 'eslint';
 import { globby } from 'globby';
@@ -29,17 +29,210 @@ const copyStaticFiles = async (folderPath) => {
   copyFile(mainCssSourcePath, mainCssTargetPath);
 };
 
+// Centralized globby file patterns for all audits
+
+const defaultJsFilePathPattern = [
+  '**/*.{js,ts,jsx,tsx}',
+  '!**/node_modules/**',
+  '!**/.storybook/**',
+  '!**/storybook/**',
+  '!**/report/**',
+  '!build/**',
+  '!dist/**',
+  '!coverage/**',
+  '!.git/**',
+  '!bin/**',
+  '!**/__dropins__/**',
+  '!**/cypress/**',
+  '!**/*.min.js',
+];
+
+const defaultHtmlFilePathPattern = [
+  '**/*.{html,js,ts,jsx,tsx}',
+  '!**/node_modules/**',
+  '!**/.storybook/**',
+  '!**/storybook/**',
+  '!**/report/**',
+  '!build/**',
+  '!dist/**',
+  '!coverage/**',
+  '!.git/**',
+  '!bin/**',
+  '!**/__dropins__/**',
+  '!**/cypress/**',
+];
+
+const defaultScssFilePathPattern = [
+  '**/*.{scss,less,css}',
+  '!**/node_modules/**',
+  '!**/.storybook/**',
+  '!**/storybook/**',
+  '!**/report/**',
+  '!build/**',
+  '!dist/**',
+  '!coverage/**',
+  '!.git/**',
+  '!bin/**',
+  '!**/__dropins__/**',
+  '!**/cypress/**',
+];
+
+const assetGlobs = [
+  'public/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
+  'assets/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
+  'static/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
+  'src/assets/**/*.{png,jpg,jpeg,bmp,tiff,gif}'
+];
+
+// Add more as needed for CSS, JSON, etc.
+
+let cachedConfig = null;
+let warnedAboutDefaultConfig = false;
+
+function loadConfig() {
+  if (cachedConfig) return cachedConfig;
+  
+  // Get the directory where this config-loader.js file is located
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  
+  // Priority order for config file locations:
+  // 1. Project root (where audit is run)
+  // 2. Package directory (where tool is installed)
+  // 3. Default empty config
+  
+  const possibleConfigPaths = [
+    // Project root (current working directory)
+    path.resolve(process.cwd(), 'ui-code-insight.config.json'),
+    // Package directory (where this tool is installed)
+    path.resolve(__dirname, '..', '..', 'ui-code-insight.config.json'),
+    // Alternative package paths
+    path.resolve(__dirname, '..', 'ui-code-insight.config.json'),
+    path.resolve(__dirname, 'ui-code-insight.config.json')
+  ];
+  
+  let configFound = false;
+  
+  for (const configPath of possibleConfigPaths) {
+    if (fs.existsSync(configPath)) {
+      try {
+        cachedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        console.log(`[ui-code-insight] ✅ Config loaded from: ${configPath}`);
+        configFound = true;
+        break;
+      } catch (error) {
+        console.warn(`[ui-code-insight] ⚠️  Error reading config from ${configPath}:`, error.message);
+        continue;
+      }
+    }
+  }
+  
+  if (!configFound) {
+    cachedConfig = {};
+    if (!warnedAboutDefaultConfig) {
+      console.log('[ui-code-insight] ℹ️  No ui-code-insight.config.json found. Using default file patterns and settings.');
+      console.log('[ui-code-insight] ℹ️  Searched locations:');
+      possibleConfigPaths.forEach((configPath, index) => {
+        console.log(`[ui-code-insight]    ${index + 1}. ${configPath}`);
+      });
+      warnedAboutDefaultConfig = true;
+    }
+  }
+  
+  return cachedConfig;
+}
+
+function getConfigPattern(key) {
+  const config = loadConfig();
+  if (key === 'jsFilePathPattern') return config.jsFilePathPattern || defaultJsFilePathPattern;
+  if (key === 'htmlFilePathPattern') return config.htmlFilePathPattern || defaultHtmlFilePathPattern;
+  if (key === 'scssFilePathPattern') return config.scssFilePathPattern || defaultScssFilePathPattern;
+  return [];
+}
+
+function getExcludeRules(auditType) {
+  const config = loadConfig();
+  const excludeConfig = config.excludeRules || {};
+  const auditConfig = excludeConfig[auditType] || {};
+  
+  return {
+    enabled: auditConfig.enabled !== false, // Default to true
+    overrideDefault: auditConfig.overrideDefault === true,
+    additionalRules: auditConfig.additionalRules || []
+  };
+}
+
+function getMergedExcludeRules(auditType, defaultRules) {
+  const excludeConfig = getExcludeRules(auditType);
+  
+  if (!excludeConfig.enabled) {
+    return [];
+  }
+  
+  if (excludeConfig.overrideDefault) {
+    return excludeConfig.additionalRules;
+  }
+  
+  // Merge default rules with additional rules
+  return [...defaultRules, ...excludeConfig.additionalRules];
+}
+
+// Default ESLint rules to exclude (commonly disabled by project architects)
+const DEFAULT_ESLINT_EXCLUDE_RULES = [
+  // Formatting and style rules
+  'indent', 'quotes', 'semi', 'comma-dangle', 'no-trailing-spaces', 'eol-last',
+  'no-multiple-empty-lines', 'space-before-function-paren', 'space-before-blocks',
+  'keyword-spacing', 'space-infix-ops', 'object-curly-spacing', 'array-bracket-spacing',
+  'comma-spacing', 'key-spacing', 'brace-style', 'camelcase', 'new-cap',
+  'no-underscore-dangle', 'no-unused-vars', 'no-console', 'no-debugger',
+  'prefer-const', 'no-var', 'arrow-spacing', 'no-spaced-func', 'func-call-spacing',
+  'no-multi-spaces', 'no-trailing-spaces', 'no-mixed-spaces-and-tabs',
+  'no-tabs', 'no-mixed-operators', 'operator-linebreak', 'nonblock-statement-body-position',
+  'no-else-return', 'no-nested-ternary', 'no-unneeded-ternary', 'object-shorthand',
+  'prefer-template', 'template-curly-spacing', 'prefer-arrow-callback', 'arrow-body-style',
+  'no-duplicate-imports', 'import/order', 'import/no-unresolved', 'import/extensions',
+  'import/no-extraneous-dependencies', 'import/prefer-default-export',
+  'react/jsx-indent', 'react/jsx-indent-props', 'react/jsx-closing-bracket-location',
+  'react/jsx-closing-tag-location', 'react/jsx-curly-spacing', 'react/jsx-equals-spacing',
+  'react/jsx-first-prop-new-line', 'react/jsx-max-props-per-line', 'react/jsx-one-expression-per-line',
+  'react/jsx-props-no-multi-spaces', 'react/jsx-tag-spacing', 'react/jsx-wrap-multilines',
+  'react/self-closing-comp', 'react/jsx-boolean-value', 'react/jsx-curly-brace-presence',
+  'react/jsx-no-bind', 'react/jsx-no-literals', 'react/jsx-pascal-case',
+  'react/jsx-sort-default-props', 'react/jsx-sort-props', 'react/no-array-index-key',
+  'react/no-danger', 'react/no-deprecated', 'react/no-did-mount-set-state',
+  'react/no-did-update-set-state', 'react/no-direct-mutation-state',
+  'react/no-find-dom-node', 'react/no-is-mounted', 'react/no-multi-comp',
+  'react/no-render-return-value', 'react/no-set-state', 'react/no-string-refs',
+  'react/no-unescaped-entities', 'react/no-unknown-property', 'react/no-unsafe',
+  'react/no-unused-prop-types', 'react/no-unused-state', 'react/prefer-es6-class',
+  'react/prefer-stateless-function', 'react/prop-types', 'react/react-in-jsx-scope',
+  'react/require-default-props', 'react/require-optimization', 'react/require-render-return',
+  'react/sort-comp', 'react/sort-prop-types', 'react/style-prop-object',
+  'react/void-dom-elements-no-children', 'react/jsx-key', 'react/jsx-no-duplicate-props',
+  'react/jsx-no-undef', 'react/jsx-uses-react', 'react/jsx-uses-vars',
+  'react/no-array-index-key', 'react/no-danger', 'react/no-deprecated',
+  'react/no-did-mount-set-state', 'react/no-did-update-set-state',
+  'react/no-direct-mutation-state', 'react/no-find-dom-node', 'react/no-is-mounted',
+  'react/no-multi-comp', 'react/no-render-return-value', 'react/no-set-state',
+  'react/no-string-refs', 'react/no-unescaped-entities', 'react/no-unknown-property',
+  'react/no-unsafe', 'react/no-unused-prop-types', 'react/no-unused-state',
+  'react/prefer-es6-class', 'react/prefer-stateless-function', 'react/prop-types',
+  'react/react-in-jsx-scope', 'react/require-default-props', 'react/require-optimization',
+  'react/require-render-return', 'react/sort-comp', 'react/sort-prop-types',
+  'react/style-prop-object', 'react/void-dom-elements-no-children'
+];
+
 // Constants for configuration files
-const CONFIG_FOLDER$1 = "config";
-const ESLINTRC_JSON = ".eslintrc.json";
-const ESLINTRC_JS = ".eslintrc.js";
-const ESLINTRC_YML = ".eslintrc.yml";
-const ESLINTRC = ".eslintrc";
-const ESLINTRC_REACT = "eslintrc.react.json";
-const ESLINTRC_NODE = "eslintrc.node.json";
-const ESLINTRC_VANILLA = "eslintrc.vanilla.json";
-const ESLINTRC_TS = "eslintrc.typescript.json";
-const ESLINTRC_TSREACT = "eslintrc.tsreact.json";
+const CONFIG_FOLDER$3 = "config";
+const ESLINTRC_JSON$2 = ".eslintrc.json";
+const ESLINTRC_JS$1 = ".eslintrc.js";
+const ESLINTRC_YML$1 = ".eslintrc.yml";
+const ESLINTRC$1 = ".eslintrc";
+const ESLINTRC_REACT$1 = "eslintrc.react.json";
+const ESLINTRC_NODE$1 = "eslintrc.node.json";
+const ESLINTRC_VANILLA$1 = "eslintrc.vanilla.json";
+const ESLINTRC_TS$1 = "eslintrc.typescript.json";
+const ESLINTRC_TSREACT$1 = "eslintrc.tsreact.json";
 
 /**
  * Function to determine ESLint configuration file path
@@ -47,24 +240,24 @@ const ESLINTRC_TSREACT = "eslintrc.tsreact.json";
  * @param {string} projectType
  * @returns {string} lintConfigFile
  */
-const getLintConfigFile$1 = (recommendedLintRules, projectType = '') => {
+const getLintConfigFile$3 = (recommendedLintRules, projectType = '') => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  let configFileName = ESLINTRC_JSON;
+  let configFileName = ESLINTRC_JSON$2;
 
   if (projectType.toLowerCase() === 'react') {
-    configFileName = ESLINTRC_REACT;
+    configFileName = ESLINTRC_REACT$1;
   } else if (projectType.toLowerCase() === 'node') {
-    configFileName = ESLINTRC_NODE;
+    configFileName = ESLINTRC_NODE$1;
   } else if (projectType.toLowerCase() === 'vanilla') {
-    configFileName = ESLINTRC_VANILLA;
+    configFileName = ESLINTRC_VANILLA$1;
   } else if (projectType.toLowerCase() === 'typescript') {
-    configFileName = ESLINTRC_TS;
+    configFileName = ESLINTRC_TS$1;
   } else if (projectType.toLowerCase() === 'typescript + react' || projectType.toLowerCase() === 'tsreact') {
-    configFileName = ESLINTRC_TSREACT;
+    configFileName = ESLINTRC_TSREACT$1;
   }
 
-  const configFilePath = path.join(__dirname, CONFIG_FOLDER$1, configFileName);
+  const configFilePath = path.join(__dirname, CONFIG_FOLDER$3, configFileName);
   if (fs.existsSync(configFilePath)) {
     return configFilePath;
   }
@@ -72,21 +265,21 @@ const getLintConfigFile$1 = (recommendedLintRules, projectType = '') => {
   // fallback to default logic
   const recommendedLintRulesConfigFile = path.join(
     __dirname,
-    CONFIG_FOLDER$1,
-    ESLINTRC_JSON
+    CONFIG_FOLDER$3,
+    ESLINTRC_JSON$2
   );
   const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
-  const eslintLintFilePathFromModule = path.join(moduleDir, ESLINTRC_JSON);
+  const eslintLintFilePathFromModule = path.join(moduleDir, ESLINTRC_JSON$2);
 
   if (recommendedLintRules) {
     return recommendedLintRulesConfigFile;
   }
 
   const configFiles = [
-    ESLINTRC,
-    ESLINTRC_JS,
-    ESLINTRC_YML,
-    ESLINTRC_JSON,
+    ESLINTRC$1,
+    ESLINTRC_JS$1,
+    ESLINTRC_YML$1,
+    ESLINTRC_JSON$2,
     eslintLintFilePathFromModule,
   ];
 
@@ -161,6 +354,10 @@ const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) =
       `Total files count is ${files.length} This linting task will take some time.`
     )
   );
+  
+  // Get merged exclude rules from config
+  const excludeRules = getMergedExcludeRules('eslint', DEFAULT_ESLINT_EXCLUDE_RULES);
+  
   const lintPromises = files.map((filePath) => lintFile$1(filePath, eslint));
 
   try {
@@ -168,17 +365,29 @@ const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) =
     const jsonReport = {
       projectType,
       reports,
+      excludeRules: {
+        enabled: excludeRules.length > 0,
+        rules: excludeRules,
+        count: excludeRules.length
+      },
       results: lintResults.map((result) => ({
         filePath: result?.filePath,
         errorCount: result?.errorCount,
         warningCount: result?.warningCount,
-        messages: result?.messages.map((message) => ({
-          ruleId: message.ruleId,
-          severity: message.severity,
-          line: message.line,
-          column: message.column,
-          message: message.message,
-        })),
+        messages: result?.messages
+          .filter(message => !excludeRules.includes(message.ruleId))
+          .map((message) => ({
+            ruleId: message.ruleId,
+            severity: message.severity,
+            line: message.line,
+            column: message.column,
+            endLine: message.endLine,
+            endColumn: message.endColumn,
+            message: message.message,
+            fix: message.fix,
+            suggestions: message.suggestions,
+            fatal: message.fatal,
+          })),
       })),
     };
 
@@ -201,12 +410,11 @@ const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) =
  */
 const generateESLintReport = async (
   folderPath,
-  jsFilePathPattern,
   recommendedLintRules,
   projectType = '',
   reports = []
 ) => {
-  const lintConfigFile = getLintConfigFile$1(recommendedLintRules, projectType);
+  const lintConfigFile = getLintConfigFile$3(recommendedLintRules, projectType);
   if (!lintConfigFile) {
     throw new Error(".eslintrc file is missing");
   }
@@ -218,20 +426,140 @@ const generateESLintReport = async (
     overrideConfigFile: lintConfigFile,
   });
 
-  const files = await globby([...jsFilePathPattern, '!**/node_modules/**']);
-  console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${jsFilePathPattern.join(', ')}`));
+  const files = await globby(getConfigPattern('jsFilePathPattern'));
+  console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${getConfigPattern('jsFilePathPattern').join(', ')}`));
   console.log(chalk.gray(`Files being processed:`));
   files.slice(0, 10).forEach(file => console.log(chalk.gray(`  - ${file}`)));
   if (files.length > 10) {
     console.log(chalk.gray(`  ... and ${files.length - 10} more files`));
   }
   await lintAllFiles$1(files, folderPath, eslint, projectType, reports);
+
+  try {
+    const auditOutput = execSync('npm audit --json', {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: 'pipe'
+    });
+    try {
+      // Only try to parse if output looks like JSON
+      if (auditOutput.trim().startsWith('{')) {
+        const audit = JSON.parse(auditOutput);
+        // ... process audit ...
+      } else {
+        console.warn(chalk.yellow('npm audit did not return JSON output.'));
+        console.warn(auditOutput);
+      }
+    } catch (parseErr) {
+      console.warn(chalk.yellow('⚠️ Could not parse audit JSON. Output was:'));
+      console.warn(auditOutput);
+    }
+  } catch (error) {
+    // ... existing error handling ...
+  }
 };
 
 const { lint } = stylelint;
 
+// Default Stylelint rules to exclude (commonly disabled by project architects)
+const DEFAULT_STYLELINT_EXCLUDE_RULES = [
+  // Formatting and style rules
+  'indentation', 'string-quotes', 'color-hex-case', 'color-hex-length',
+  'color-named', 'color-no-invalid-hex', 'font-family-name-quotes',
+  'font-weight-notation', 'function-calc-no-unspaced-operator',
+  'function-comma-newline-after', 'function-comma-newline-before',
+  'function-comma-space-after', 'function-comma-space-before',
+  'function-max-empty-lines', 'function-name-case', 'function-parentheses-newline-inside',
+  'function-parentheses-space-inside', 'function-url-quotes', 'function-whitespace-after',
+  'number-leading-zero', 'number-max-precision', 'number-no-trailing-zeros',
+  'string-no-newline', 'unit-case', 'unit-no-unknown', 'value-keyword-case',
+  'value-list-comma-newline-after', 'value-list-comma-newline-before',
+  'value-list-comma-space-after', 'value-list-comma-space-before',
+  'value-list-max-empty-lines', 'value-no-vendor-prefix', 'property-case',
+  'property-no-vendor-prefix', 'declaration-bang-space-after',
+  'declaration-bang-space-before', 'declaration-colon-newline-after',
+  'declaration-colon-space-after', 'declaration-colon-space-before',
+  'declaration-block-no-duplicate-properties', 'declaration-block-no-redundant-longhand-properties',
+  'declaration-block-no-shorthand-property-overrides', 'declaration-block-semicolon-newline-after',
+  'declaration-block-semicolon-newline-before', 'declaration-block-semicolon-space-after',
+  'declaration-block-semicolon-space-before', 'declaration-block-trailing-semicolon',
+  'block-closing-brace-empty-line-before', 'block-closing-brace-newline-after',
+  'block-closing-brace-newline-before', 'block-closing-brace-space-after',
+  'block-closing-brace-space-before', 'block-no-empty', 'block-opening-brace-newline-after',
+  'block-opening-brace-newline-before', 'block-opening-brace-space-after',
+  'block-opening-brace-space-before', 'selector-attribute-brackets-space-inside',
+  'selector-attribute-operator-space-after', 'selector-attribute-operator-space-before',
+  'selector-attribute-quotes', 'selector-combinator-space-after',
+  'selector-combinator-space-before', 'selector-descendant-combinator-no-non-space',
+  'selector-max-compound-selectors', 'selector-max-specificity', 'selector-no-qualifying-type',
+  'selector-pseudo-class-case', 'selector-pseudo-class-no-unknown',
+  'selector-pseudo-class-parentheses-space-inside', 'selector-pseudo-element-case',
+  'selector-pseudo-element-colon-notation', 'selector-pseudo-element-no-unknown',
+  'selector-type-case', 'selector-type-no-unknown', 'selector-max-empty-lines',
+  'rule-empty-line-before', 'at-rule-empty-line-before', 'at-rule-name-case',
+  'at-rule-name-newline-after', 'at-rule-name-space-after', 'at-rule-no-unknown',
+  'at-rule-semicolon-newline-after', 'at-rule-semicolon-space-before',
+  'comment-empty-line-before', 'comment-no-empty', 'comment-whitespace-inside',
+  'comment-word-blacklist', 'max-empty-lines', 'max-line-length', 'max-nesting-depth',
+  'no-browser-hacks', 'no-descending-specificity', 'no-duplicate-selectors',
+  'no-empty-source', 'no-eol-whitespace', 'no-extra-semicolons', 'no-invalid-double-slash-comments',
+  'no-missing-end-of-source-newline', 'no-unknown-animations', 'alpha-value-notation',
+  'color-function-notation', 'hue-degree-notation', 'import-notation',
+  'keyframe-selector-notation', 'media-feature-name-value-allowed-list',
+  'media-feature-range-notation', 'selector-not-notation', 'shorthand-property-no-redundant-values',
+  
+  // Naming convention rules commonly disabled
+  'selector-class-pattern',
+  'selector-id-pattern',
+  'selector-nested-pattern',
+  'custom-property-pattern',
+  'keyframes-name-pattern',
+  'class-name-pattern',
+  'id-pattern',
+  
+  // SCSS specific rules commonly disabled
+  'scss/selector-no-redundant-nesting-selector',
+  'scss/at-rule-no-unknown',
+  'scss/at-import-partial-extension',
+  'scss/at-import-no-partial-leading-underscore',
+  'scss/at-import-partial-extension-blacklist',
+  'scss/at-import-partial-extension-whitelist',
+  'scss/at-rule-conditional-no-parentheses',
+  'scss/at-rule-no-vendor-prefix',
+  'scss/comment-no-empty',
+  'scss/comment-no-loud',
+  'scss/declaration-nested-properties',
+  'scss/declaration-nested-properties-no-divided-groups',
+  'scss/dollar-variable-colon-newline-after',
+  'scss/dollar-variable-colon-space-after',
+  'scss/dollar-variable-colon-space-before',
+  'scss/dollar-variable-default',
+  'scss/dollar-variable-empty-line-after',
+  'scss/dollar-variable-empty-line-before',
+  'scss/dollar-variable-first-in-block',
+  'scss/dollar-variable-no-missing-interpolation',
+  'scss/dollar-variable-pattern',
+  'scss/double-slash-comment-whitespace-inside',
+  'scss/function-color-relative',
+  'scss/function-no-unknown',
+  'scss/function-quote-no-quoted-strings-inside',
+  'scss/function-unquote-no-unquoted-strings-inside',
+  'scss/map-keys-quotes',
+  'scss/media-feature-value-dollar-variable',
+  'scss/no-duplicate-dollar-variables',
+  'scss/no-duplicate-mixins',
+  'scss/no-global-function-names',
+  'scss/operator-no-newline-after',
+  'scss/operator-no-newline-before',
+  'scss/operator-no-unspaced',
+  'scss/partial-no-import',
+  'scss/percent-placeholder-pattern',
+  'scss/selector-nest-combinators',
+  'scss/selector-no-union-class-name'
+];
+
 // Constants for configuration files
-const CONFIG_FOLDER = "config";
+const CONFIG_FOLDER$2 = "config";
 const STYLELINTRC_JSON = ".stylelintrc.json";
 const STYLELINTRC_JS = ".stylelintrc.js";
 const STYLELINTRC_YML = ".stylelintrc.yml";
@@ -242,12 +570,12 @@ const STYLELINTRC_CONFIG = "stylelint.config.js";
  * @param {boolean} recommendedLintRules
  * @returns {string} lintStyleConfigFile
  */
-const getLintConfigFile = (recommendedLintRules) => {
+const getLintConfigFile$2 = (recommendedLintRules) => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const recommendedLintRulesConfigFile = path.join(
     __dirname,
-    CONFIG_FOLDER,
+    CONFIG_FOLDER$2,
     STYLELINTRC_JSON
   );
   const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
@@ -319,9 +647,13 @@ const lintFile = async (filePath, lintStyleConfigFile) => {
       messages: output[0].warnings.map((message) => ({
         line: message.line,
         column: message.column,
+        endLine: message.endLine,
+        endColumn: message.endColumn,
         severity: message.severity,
         rule: message.rule,
         message: message.text,
+        fix: message.fix,
+        suggestions: message.suggestions,
       })),
     };
   } catch (err) {
@@ -335,12 +667,15 @@ const lintFile = async (filePath, lintStyleConfigFile) => {
  * @param {string} folderPath
  * @param {string} lintStyleConfigFile
  */
-const lintAllFiles = async (files, folderPath, lintStyleConfigFile) => {
+const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType, reports) => {
   console.log(
     chalk.green(
       `Total files count is ${files.length} This linting task will take some time.`
     )
   );
+
+  // Get merged exclude rules from config
+  const excludeRules = getMergedExcludeRules('stylelint', DEFAULT_STYLELINT_EXCLUDE_RULES);
 
   const lintPromises = files.map((filePath) =>
     lintFile(filePath, lintStyleConfigFile)
@@ -348,10 +683,24 @@ const lintAllFiles = async (files, folderPath, lintStyleConfigFile) => {
 
   try {
     const lintResults = await Promise.all(lintPromises);
+    
+    const jsonReport = {
+      projectType,
+      reports,
+      excludeRules: {
+        enabled: excludeRules.length > 0,
+        rules: excludeRules,
+        count: excludeRules.length
+      },
+      results: lintResults.map(result => ({
+        ...result,
+        messages: result.messages.filter(message => !excludeRules.includes(message.rule))
+      }))
+    };
 
     await fs.promises.writeFile(
       path.join(folderPath, "stylelint-report.json"),
-      JSON.stringify(lintResults, null, 2)
+      JSON.stringify(jsonReport, null, 2)
     );
   } catch (error) {
     console.error(chalk.red(`Error during Stylelinting:', ${error}`));
@@ -361,23 +710,25 @@ const lintAllFiles = async (files, folderPath, lintStyleConfigFile) => {
 /**
  * Function for linting all matched files
  * @param {String} folderPath
- * @param {String} scssFilePathPattern
  * @param {Boolean} recommendedLintRules
+ * @param {String} projectType
+ * @param {Array<string>} reports
  */
 const generateStyleLintReport = async (
   folderPath,
-  scssFilePathPattern,
-  recommendedLintRules
+  recommendedLintRules,
+  projectType = '',
+  reports = []
 ) => {
-  const lintStyleConfigFile = getLintConfigFile(recommendedLintRules);
+  const lintStyleConfigFile = getLintConfigFile$2(recommendedLintRules);
   if (!lintStyleConfigFile) {
     throw new Error(".stylelintrc.json file is missing");
   }
 
-  // Create a glob pattern to match all SCSS files
-  const files = await globby([...scssFilePathPattern]);
+  // Use config-driven pattern for SCSS/CSS/LESS files
+  const files = await globby(getConfigPattern('scssFilePathPattern'));
 
-  await lintAllFiles(files, folderPath, lintStyleConfigFile);
+  await lintAllFiles(files, folderPath, lintStyleConfigFile, projectType, reports);
 };
 
 const kbToMb = (kilobytes) => kilobytes / 1024;
@@ -553,33 +904,6 @@ const createReportFolder = async () => {
 };
 
 /**
- * Generates a bundle analyzer report using webpack and webpack-bundle-analyzer.
- * @async
- * @param {string} webpackConfigFile - Path to the webpack config file.
- * @param {string} webpackBundleFolder - Path to the webpack bundle folder.
- * @returns {Promise<void>}
- */
-const bundleAnalyzerReport = async (webpackConfigFile, webpackBundleFolder) => {
-  try {
-    console.log(
-      chalk.blue(
-        `Generating Bundle Analyser Report with webpackConfigFile:${webpackConfigFile} & webpackBundleFolder:${webpackBundleFolder}!`
-      )
-    );
-    execSync("npm i webpack-bundle-analyzer");
-    execSync(
-      `npx webpack --config ${webpackConfigFile} --profile --json > report/stats.json`
-    );
-    execSync(
-      `npx webpack-bundle-analyzer report/stats.json ${webpackBundleFolder} --default-sizes stat --mode static --report report/bundle-report.html --no-open`
-    );
-    console.log(chalk.green("Bundle Analyser Run!"));
-  } catch (err) {
-    handleReportError("Error generating Bundle Analyzer report", err);
-  }
-};
-
-/**
  * Generates a component usage report.
  * @async
  * @param {string} authToken
@@ -621,26 +945,25 @@ const generateComponentUsageReportWrapper = async (
 /**
  * Generates an ESLint report.
  * @async
- * @param {string[]} jsFilePathPattern
  * @param {boolean} recommendedLintRules
+ * @param {string} projectType
+ * @param {Array<string>} reports
  * @returns {Promise<void>}
  */
 const generateESLintReportWrapper = async (
-  jsFilePathPattern,
-  recommendedLintRules
+  recommendedLintRules,
+  projectType = '',
+  reports = []
 ) => {
   try {
-    if (jsFilePathPattern) {
-      console.log(chalk.blue("Generating ESLint report..."));
-      await generateESLintReport(
-        folderPath,
-        jsFilePathPattern,
-        recommendedLintRules
-      );
-      console.log(chalk.green("ESLint report generated successfully!"));
-    } else {
-      console.log(chalk.bold.yellow("jsFilePathPattern is missing!"));
-    }
+    console.log(chalk.blue("Generating ESLint report..."));
+    await generateESLintReport(
+      folderPath,
+      recommendedLintRules,
+      projectType,
+      reports
+    );
+    console.log(chalk.green("ESLint report generated successfully!"));
   } catch (err) {
     handleReportError("Error generating ESLint report", err);
   }
@@ -649,26 +972,25 @@ const generateESLintReportWrapper = async (
 /**
  * Generates a Stylelint report.
  * @async
- * @param {string[]} scssFilePathPattern
  * @param {boolean} recommendedLintRules
+ * @param {string} projectType
+ * @param {Array<string>} reports
  * @returns {Promise<void>}
  */
 const generateStyleLintReportWrapper = async (
-  scssFilePathPattern,
-  recommendedLintRules
+  recommendedLintRules,
+  projectType = '',
+  reports = []
 ) => {
   try {
-    if (scssFilePathPattern) {
-      console.log(chalk.blue("Generating Stylelint report..."));
-      await generateStyleLintReport(
-        folderPath,
-        scssFilePathPattern,
-        recommendedLintRules
-      );
-      console.log(chalk.green("Stylelint report generated successfully!"));
-    } else {
-      console.log(chalk.bold.yellow("scssFilePathPattern is missing!"));
-    }
+    console.log(chalk.blue("Generating Stylelint report..."));
+    await generateStyleLintReport(
+      folderPath,
+      recommendedLintRules,
+      projectType,
+      reports
+    );
+    console.log(chalk.green("Stylelint report generated successfully!"));
   } catch (err) {
     handleReportError("Error generating Stylelint report", err);
   }
@@ -676,9 +998,11 @@ const generateStyleLintReportWrapper = async (
 
 /**
  * Generates an npm package report.
+ * @param {string} projectType
+ * @param {Array<string>} reports
  * @returns {void}
  */
-const generateNpmPackageReportWrapper = () => {
+const generateNpmPackageReportWrapper = (projectType, reports) => {
   try {
     console.log(chalk.blue("Generating npm packages report..."));
     generateNpmPackageReport();
@@ -687,576 +1011,393 @@ const generateNpmPackageReportWrapper = () => {
   }
 };
 
-/**
- * Generates all reports as configured.
- * @async
- * @param {boolean} npmReport
- * @param {string[]} jsFilePathPattern
- * @param {string[]} scssFilePathPattern
- * @param {boolean} recommendedLintRules
- * @param {boolean} bundleAnalyzer
- * @param {string} webpackConfigFile
- * @param {string} webpackBundleFolder
- * @returns {Promise<void>}
- */
-const generateAllReport = async (
-  npmReport,
-  jsFilePathPattern,
-  scssFilePathPattern,
-  recommendedLintRules,
-  bundleAnalyzer,
-  webpackConfigFile,
-  webpackBundleFolder
-) => {
-  await generateESLintReportWrapper(jsFilePathPattern, recommendedLintRules);
-  await generateStyleLintReportWrapper(
-    scssFilePathPattern,
-    recommendedLintRules
-  );
-  if (npmReport) {
-    generateNpmPackageReportWrapper();
+// Utility to copy config file to report directory if it exists
+function copyConfigToReportFolder() {
+  const src = path.resolve(process.cwd(), 'ui-code-insight.config.json');
+  const dest = path.resolve(folderPath, 'ui-code-insight.config.json');
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dest);
+    console.log('[ui-code-insight] Copied config to report directory for dashboard.');
   }
-  if (bundleAnalyzer) {
-    await bundleAnalyzerReport(webpackConfigFile, webpackBundleFolder);
-  }
-  console.log(chalk.bold.green("Report generation completed!"));
-};
+}
 
 var audit = {
-  generateAllReport,
   createReportFolder,
   generateESLintReport: generateESLintReportWrapper,
   generateStyleLintReport: generateStyleLintReportWrapper,
   generateComponentUsageReport: generateComponentUsageReportWrapper,
   generateNpmPackageReport: generateNpmPackageReportWrapper,
+  copyConfigToReportFolder, // Export for manual use if needed
 };
 
-// Centralized globby file patterns for all audits
+// If this is the main module, run the copy after all reports are generated
+if (import.meta.url === `file://${process.argv[1]}`) {
+  copyConfigToReportFolder();
+}
 
-const jsTsGlobs = [
-  '**/*.{js,ts,jsx,tsx}',
-  '!**/node_modules/**',
-  '!**/.storybook/**',
-  '!**/storybook/**',
-  '!**/report/**',
-  '!build/**',
-  '!dist/**',
-  '!coverage/**',
-  '!.git/**',
-  '!bin/**'
-];
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const htmlGlobs = [
-  '**/*.{html,js,ts,jsx,tsx}',
-  '!**/node_modules/**',
-  '!**/.storybook/**',
-  '!**/storybook/**',
-  '!**/report/**',
-  '!build/**',
-  '!dist/**',
-  '!coverage/**',
-  '!.git/**',
-  '!bin/**'
-];
+const CONFIG_FOLDER$1 = "config";
+const ESLINTRC_JSON$1 = ".eslintrc.json";
+const ESLINTRC_JS = ".eslintrc.js";
+const ESLINTRC_YML = ".eslintrc.yml";
+const ESLINTRC = ".eslintrc";
+const ESLINTRC_REACT = "eslintrc.react.json";
+const ESLINTRC_NODE = "eslintrc.node.json";
+const ESLINTRC_VANILLA = "eslintrc.vanilla.json";
+const ESLINTRC_TS = "eslintrc.typescript.json";
+const ESLINTRC_TSREACT = "eslintrc.tsreact.json";
 
-const assetGlobs = [
-  'public/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
-  'assets/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
-  'static/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
-  'src/assets/**/*.{png,jpg,jpeg,bmp,tiff,gif}'
-];
+const getLintConfigFile$1 = (recommendedLintRules = false, projectType = '') => {
+  let configFileName = ESLINTRC_JSON$1;
 
-// Add more as needed for CSS, JSON, etc.
+  if (projectType && typeof projectType === 'string') {
+    const type = projectType.toLowerCase();
+    if (type === 'react') configFileName = ESLINTRC_REACT;
+    else if (type === 'node') configFileName = ESLINTRC_NODE;
+    else if (type === 'vanilla') configFileName = ESLINTRC_VANILLA;
+    else if (type === 'typescript') configFileName = ESLINTRC_TS;
+    else if (type === 'typescript + react' || type === 'tsreact') configFileName = ESLINTRC_TSREACT;
+  }
 
-/**
- * Security audit module for detecting common security vulnerabilities
- */
+  const configFilePath = path.join(__dirname, CONFIG_FOLDER$1, configFileName);
+  if (fs.existsSync(configFilePath)) {
+    return configFilePath;
+  }
+
+  // fallback to default logic
+  const recommendedLintRulesConfigFile = path.join(__dirname, CONFIG_FOLDER$1, ESLINTRC_JSON$1);
+  const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
+  const eslintLintFilePathFromModule = path.join(moduleDir, ESLINTRC_JSON$1);
+
+  if (recommendedLintRules) {
+    return recommendedLintRulesConfigFile;
+  }
+
+  const configFiles = [
+    ESLINTRC,
+    ESLINTRC_JS,
+    ESLINTRC_YML,
+    ESLINTRC_JSON$1,
+    eslintLintFilePathFromModule,
+  ];
+
+  return configFiles.find((file) => fs.existsSync(file));
+};
+
+// Helper to get code and context lines
+async function getCodeContext$1(filePath, line, contextRadius = 2) {
+  try {
+    const content = await fsp.readFile(filePath, "utf8");
+    const lines = content.split('\n');
+    const idx = line - 1;
+    const start = Math.max(0, idx - contextRadius);
+    const end = Math.min(lines.length - 1, idx + contextRadius);
+    const code = (lines[idx] || '').slice(0, 200) + ((lines[idx] || '').length > 200 ? '... (truncated)' : '');
+    const context = lines.slice(start, end + 1)
+      .map((l, i) => {
+        const n = start + i + 1;
+        let lineText = l.length > 200 ? l.slice(0, 200) + '... (truncated)' : l;
+        const marker = n === line ? '>>>' : '   ';
+        return `${marker} ${n}: ${lineText}`;
+      }).join('\n');
+    return { code, context };
+  } catch {
+    return { code: '', context: '' };
+  }
+}
+
 class SecurityAudit {
   constructor(folderPath) {
     this.folderPath = folderPath;
     this.securityIssues = [];
   }
 
-/**
- * Check for hardcoded secrets
- */
-async checkForSecrets() {
-  console.log(chalk.blue('🔒 Checking for hardcoded secrets...'));
-
-  const secretPatterns = [
-    /password\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /api[_-]?key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /secret\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /auth[_-]?token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /authorization\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /bearer\s+['"`][^'"`\s]+['"`]/gi,
-    /access[_-]?token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /refresh[_-]?token\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /private[_-]?key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /aws_access_key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /aws_secret_key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /client[_-]?id\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /client[_-]?secret\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /firebase\s*api[_-]?key\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /connection\s*string\s*[:=]\s*['"`][^'"`]+['"`]/gi,
-    /-----BEGIN\s+(RSA|DSA|EC|PGP|OPENSSH|PRIVATE)\s+PRIVATE\s+KEY-----[\s\S]+?-----END\s+(?:RSA|DSA|EC|PGP|OPENSSH|PRIVATE)\s+PRIVATE\s+KEY-----/g,
-    /\b[a-zA-Z0-9_-]*?(api|access|secret|auth|token|key)[a-zA-Z0-9_-]*?\s*[:=]\s*['"`][\w\-]{16,}['"`]/gi,
-    /\b(PASSWORD|SECRET|TOKEN|KEY|ACCESS_KEY|PRIVATE_KEY)\s*=\s*[^'"`\n\r]+/gi
-  ];
-
-  const files = await globby(jsTsGlobs);
-
-  console.log(chalk.gray(`📁 Scanning ${files.length} files for secrets...`));
-
-  for (const file of files) {
-    try {
-      const content = fs.readFileSync(file, 'utf8');
-      const lines = content.split('\n');
-
-      lines.forEach((line, index) => {
-        const trimmedLine = line.trim();
-        if (!trimmedLine || trimmedLine.startsWith('//')) return;
-
-        secretPatterns.forEach(pattern => {
-          if (pattern.test(trimmedLine)) {
-            // Get context lines (2 lines before and after)
-            const contextStart = Math.max(0, index - 2);
-            const contextEnd = Math.min(lines.length - 1, index + 2);
-            const contextLines = lines.slice(contextStart, contextEnd + 1);
-            const contextCode = contextLines.map((line, i) => {
-              const lineNum = contextStart + i + 1;
-              const marker = lineNum === index + 1 ? '>>> ' : '    ';
-              return `${marker}${lineNum}: ${line}`;
-            }).join('\n');
-
-            this.securityIssues.push({
-              type: 'hardcoded_secret',
-              file,
-              line: index + 1,
-              severity: 'high',
-              message: 'Potential hardcoded secret detected',
-              code: trimmedLine,
-              context: contextCode
-            });
-          }
-        });
-      });
-    } catch (error) {
-      console.warn(chalk.yellow(`⚠️ Warning: Could not read file ${file}`));
-    }
+  printContext(lines, index) {
+    const contextStart = Math.max(0, index - 2);
+    const contextEnd = Math.min(lines.length - 1, index + 2);
+    return lines.slice(contextStart, contextEnd + 1)
+      .map((line, i) => {
+        const lineNum = contextStart + i + 1;
+        const marker = lineNum === index + 1 ? chalk.red('>>>') : '   ';
+        return `${marker} ${lineNum}: ${line}`;
+      }).join('\n');
   }
-}
-
-
-/**
- * Check for unsafe eval usage
- */
-async checkUnsafeEval() {
-  console.log(chalk.blue('🔒 Checking for unsafe eval usage...'));
-
-  const files = await globby(jsTsGlobs);
-  console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for unsafe eval...`));
-
-  const unsafePatterns = [
-    /\beval\s*\(/,                      // eval(...)
-    /\bnew\s+Function\s*\(/,           // new Function(...)
-    /\bFunction\s*\(/,                 // Function(...)
-    /\bsetTimeout\s*\(\s*['"`]/,       // setTimeout("...")
-    /\bsetInterval\s*\(\s*['"`]/       // setInterval("...")
-  ];
-
-  for (const file of files) {
-    try {
-      const content = fs.readFileSync(file, 'utf8');
-      const lines = content.split('\n');
-
-      lines.forEach((line, index) => {
-        for (const pattern of unsafePatterns) {
-          if (pattern.test(line)) {
-            // Get context lines (2 lines before and after)
-            const contextStart = Math.max(0, index - 2);
-            const contextEnd = Math.min(lines.length - 1, index + 2);
-            const contextLines = lines.slice(contextStart, contextEnd + 1);
-            const contextCode = contextLines.map((line, i) => {
-              const lineNum = contextStart + i + 1;
-              const marker = lineNum === index + 1 ? '>>> ' : '    ';
-              return `${marker}${lineNum}: ${line}`;
-            }).join('\n');
-
-            this.securityIssues.push({
-              type: 'unsafe_eval',
-              file,
-              line: index + 1,
-              severity: 'high',
-              message: 'Unsafe eval or dynamic code execution detected',
-              code: line.trim(),
-              context: contextCode
-            });
-            break; // Only report once per line
-          }
-        }
-      });
-    } catch (error) {
-      console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
-    }
-  }
-}
-
-
-/**
- * Check for potential XSS vulnerabilities
- */
-async checkXSSVulnerabilities() {
-  console.log(chalk.blue('🔒 Checking for XSS vulnerabilities...'));
-
-  const xssPatterns = [
-    { pattern: /\binnerHTML\s*=/i, message: 'Use of innerHTML can lead to XSS', severity: 'high' },
-    { pattern: /\bouterHTML\s*=/i, message: 'Use of outerHTML can lead to XSS', severity: 'high' },
-    { pattern: /\bdocument\.write\s*\(/i, message: 'Use of document.write is dangerous and can lead to XSS', severity: 'high' },
-    { pattern: /\.insertAdjacentHTML\s*\(/i, message: 'insertAdjacentHTML can be XSS-prone', severity: 'medium' },
-    { pattern: /\b dangerouslySetInnerHTML\s*=/i, message: 'React dangerouslySetInnerHTML used', severity: 'medium' },
-    { pattern: /\bnew\s+DOMParser\s*\(\)/i, message: 'DOMParser can be dangerous if input is not sanitized', severity: 'low' },
-  ];
-
-  const files = await globby(jsTsGlobs);
-
-  console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for XSS vulnerabilities...`));
-
-  for (const file of files) {
-    try {
-      const content = fs.readFileSync(file, 'utf8');
-      const lines = content.split('\n');
-
-      lines.forEach((line, index) => {
-        // Skip commented or empty lines
-        const trimmed = line.trim();
-        if (trimmed.startsWith('//') || trimmed === '') return;
-
-        xssPatterns.forEach(({ pattern, message, severity }) => {
-          if (pattern.test(trimmed)) {
-            // Get context lines (2 lines before and after)
-            const contextStart = Math.max(0, index - 2);
-            const contextEnd = Math.min(lines.length - 1, index + 2);
-            const contextLines = lines.slice(contextStart, contextEnd + 1);
-            const contextCode = contextLines.map((line, i) => {
-              const lineNum = contextStart + i + 1;
-              const marker = lineNum === index + 1 ? '>>> ' : '    ';
-              return `${marker}${lineNum}: ${line}`;
-            }).join('\n');
-
-            this.securityIssues.push({
-              type: 'xss_vulnerability',
-              file,
-              line: index + 1,
-              severity,
-              message,
-              code: trimmed,
-              context: contextCode
-            });
-          }
-        });
-      });
-    } catch (error) {
-      console.warn(chalk.yellow(`⚠️ Warning: Could not read file ${file}`));
-    }
-  }
-}
-
-
-/**
- * Check for potential SQL injection patterns
- */
-async checkSQLInjection() {
-  console.log(chalk.blue('🔒 Checking for SQL injection patterns...'));
-
-  const sqlPatterns = [
-    {
-      pattern: /\b(query|execute)\s*\(\s*[`'"][^`'"']*\$\{[^}]+\}[^`'"']*[`'"]\s*\)/gi,
-      message: 'SQL query contains template string interpolation — possible injection risk',
-      severity: 'high'
-    },
-    {
-      pattern: /\bsql\s*[:=]\s*[`'"][^`'"']*\$\{[^}]+\}[^`'"']*[`'"]/gi,
-      message: 'Interpolated SQL assignment — risk of SQL injection',
-      severity: 'high'
-    },
-    {
-      pattern: /\bSELECT\s+.*\s+FROM\s+/i,
-      message: 'Direct SQL query detected, check for unsafe input handling',
-      severity: 'medium'
-    },
-    {
-      pattern: /\bINSERT\s+INTO\s+/i,
-      message: 'Direct SQL INSERT detected — validate inputs',
-      severity: 'medium'
-    },
-    {
-      pattern: /\bUPDATE\s+\w+\s+SET\s+/i,
-      message: 'Direct SQL UPDATE detected — check parameter usage',
-      severity: 'medium'
-    },
-    {
-      pattern: /\bDELETE\s+FROM\s+/i,
-      message: 'Direct SQL DELETE detected — confirm query safety',
-      severity: 'medium'
-    }
-  ];
-
-  const files = await globby(jsTsGlobs);
-
-  console.log(chalk.gray(`📁 Scanning ${files.length} JS/TS files for SQL injection patterns...`));
-
-  for (const file of files) {
-    try {
-      const content = fs.readFileSync(file, 'utf8');
-      const lines = content.split('\n');
-
-      lines.forEach((line, index) => {
-        const trimmed = line.trim();
-        if (trimmed === '' || trimmed.startsWith('//')) return;
-
-        for (const { pattern, message, severity } of sqlPatterns) {
-          if (pattern.test(trimmed)) {
-            // Get context lines (2 lines before and after)
-            const contextStart = Math.max(0, index - 2);
-            const contextEnd = Math.min(lines.length - 1, index + 2);
-            const contextLines = lines.slice(contextStart, contextEnd + 1);
-            const contextCode = contextLines.map((line, i) => {
-              const lineNum = contextStart + i + 1;
-              const marker = lineNum === index + 1 ? '>>> ' : '    ';
-              return `${marker}${lineNum}: ${line}`;
-            }).join('\n');
-
-            this.securityIssues.push({
-              type: 'sql_injection',
-              file,
-              line: index + 1,
-              severity,
-              message,
-              code: trimmed,
-              context: contextCode
-            });
-            break; // Only one issue per line
-          }
-        }
-      });
-    } catch (error) {
-      console.warn(chalk.yellow(`⚠️ Warning: Could not read file ${file}`));
-    }
-  }
-}
-
 
   /**
-   * Check for outdated dependencies with known vulnerabilities
+   * Check for hardcoded secrets
    */
-  async checkDependencyVulnerabilities() {
-    console.log(chalk.blue('🔒 Checking for dependency vulnerabilities...'));
-    
+  async checkForSecrets() {
+    console.log(chalk.blue('🔒 Checking for hardcoded secrets...'));
+  
+    const secretPatterns = [
+      /\b(const|let|var)\s+\w*(password|api[_-]?key|secret|token|auth|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?id|client[_-]?secret|firebase[_-]?key|connection\s*string)\w*\s*=\s*['"][^'"`]+['"]/i,
+      /['"]?(password|api[_-]?key|secret|token|auth|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?id|client[_-]?secret)['"]?\s*:\s*['"][^'"`]+['"]/i,
+      /\b(PASSWORD|SECRET|TOKEN|KEY|ACCESS_KEY|PRIVATE_KEY)\s*=\s*[^'"`\n\r]+/i,
+      /-----BEGIN\s+\w+PRIVATE KEY-----[\s\S]+?-----END\s+\w+PRIVATE KEY-----/g,
+      /\b(const|let|var)\s+\w*(api|access|secret|auth|token|key)\w*\s*=\s*['"][\w\-]{16,}['"]/i,
+    ];
+  
     try {
-      // Run npm audit to check for vulnerabilities
-      const auditResult = execSync('npm audit --json', { 
-        encoding: 'utf8', 
-        cwd: process.cwd(),
-        stdio: 'pipe'
+      const files = await globby(getConfigPattern('jsFilePathPattern'), {
+        absolute: true, // ✅ Ensures absolute paths are returned
       });
-      const auditData = JSON.parse(auditResult);
-      
-      if (auditData.vulnerabilities && Object.keys(auditData.vulnerabilities).length > 0) {
-        Object.keys(auditData.vulnerabilities).forEach(packageName => {
-          const vuln = auditData.vulnerabilities[packageName];
-          this.securityIssues.push({
-            type: 'dependency_vulnerability',
-            package: packageName,
-            severity: vuln.severity || 'medium',
-            message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
-            recommendation: vuln.recommendation || 'Update package version'
-          });
-        });
-      } else {
-        // No vulnerabilities found - this is good!
-        this.securityIssues.push({
-          type: 'no_vulnerabilities',
-          severity: 'info',
-          message: 'No known vulnerabilities found in dependencies',
-          positive: true
-        });
-      }
-    } catch (error) {
-      // npm audit returns non-zero exit code when vulnerabilities are found
-      if (error.status === 1) {
+  
+      console.log(chalk.gray(`📁 Scanning ${files.length} files for secrets...`));
+  
+      for (const file of files) {
         try {
-          const output = error.stdout.toString();
-          const auditData = JSON.parse(output);
-          
-          if (auditData.vulnerabilities) {
-            Object.keys(auditData.vulnerabilities).forEach(packageName => {
-              const vuln = auditData.vulnerabilities[packageName];
-              this.securityIssues.push({
-                type: 'dependency_vulnerability',
-                package: packageName,
-                severity: vuln.severity || 'medium',
-                message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
-                recommendation: vuln.recommendation || 'Update package version'
-              });
-            });
-          }
-        } catch (parseError) {
-          console.warn(chalk.yellow('Warning: Could not parse npm audit results'));
-        }
-      } else {
-        console.warn(chalk.yellow('Warning: Could not run npm audit - this may be due to network issues or npm configuration'));
-      }
-    }
-  }
-
-  /**
-   * Check for logging of sensitive data
-   */
-  async checkSensitiveDataLogging() {
-    console.log(chalk.blue('🔒 Checking for logging of sensitive data...'));
-    const sensitiveKeywords = [
-      'password', 'token', 'secret', 'key', 'auth', 'jwt', 'access', 'refresh'
-    ];
-    const logPatterns = [
-      /console\.(log|error|warn|info)\s*\(([^)]*)\)/gi,
-      /logger\.(log|error|warn|info)\s*\(([^)]*)\)/gi
-    ];
-    const files = await globby(jsTsGlobs);
-    for (const file of files) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        lines.forEach((line, index) => {
-          logPatterns.forEach(pattern => {
-            const match = pattern.exec(line);
-            if (match) {
-              const args = match[2] || '';
-              if (sensitiveKeywords.some(word => args.toLowerCase().includes(word))) {
+          const content = await fsp.readFile(file, 'utf8');
+          const lines = content.split('\n');
+  
+          lines.forEach((line, index) => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('//')) return;
+  
+            for (const pattern of secretPatterns) {
+              if (
+                pattern.test(trimmed) &&
+                /=\s*['"][^'"`]+['"]/.test(trimmed) &&
+                !/(===|!==|==|!=)/.test(trimmed) &&
+                !/\w+\s*\(/.test(trimmed) &&
+                !/`.*`/.test(trimmed)
+              ) {
                 this.securityIssues.push({
-                  type: 'sensitive_data_logging',
+                  type: 'hardcoded_secret',
                   file,
                   line: index + 1,
                   severity: 'high',
-                  message: 'Sensitive data may be logged',
-                  code: line.trim()
+                  message: 'Potential hardcoded secret detected',
+                  code: trimmed,
+                  context: this.printContext(lines, index),
                 });
+                break;
               }
             }
           });
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+        } catch (err) {
+          console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+        }
       }
+    } catch (err) {
+      console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
   }
-
+  
   /**
-   * Warn on insecure HTTP requests
+   * Common function to scan files with given patterns
    */
-  async checkInsecureHttpRequests() {
-    console.log(chalk.blue('🔒 Checking for insecure HTTP requests...'));
-    const httpPattern = /\b(fetch|axios|XMLHttpRequest|open|src|href)\s*\(?.*['\"]http:\/\//i;
-    const files = await globby(htmlGlobs);
+  async patternScan(files, patterns, type) {
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fs.readFile(file, 'utf8');
         const lines = content.split('\n');
-        lines.forEach((line, index) => {
-          if (httpPattern.test(line)) {
-            this.securityIssues.push({
-              type: 'insecure_http_request',
-              file,
-              line: index + 1,
-              severity: 'medium',
-              message: 'Insecure HTTP request detected (use HTTPS)',
-              code: line.trim()
-            });
-          }
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
-      }
-    }
-  }
 
-  /**
-   * Check for insecure cookie usage
-   */
-  async checkInsecureCookieUsage() {
-    console.log(chalk.blue('🔒 Checking for insecure cookie usage...'));
-    const cookiePattern = /document\.cookie\s*=|setCookie\s*\(/i;
-    const files = await globby(htmlGlobs);
-    for (const file of files) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
         lines.forEach((line, index) => {
-          if (cookiePattern.test(line)) {
-            // Check if Secure/HttpOnly flags are present (simple heuristic)
-            if (!/secure/i.test(line) || !/httponly/i.test(line)) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('//')) return;
+
+          patterns.forEach(({ pattern, message, severity }) => {
+            if (pattern.test(trimmed)) {
               this.securityIssues.push({
-                type: 'insecure_cookie',
+                type,
                 file,
                 line: index + 1,
-                severity: 'medium',
-                message: 'Cookie set without Secure/HttpOnly flags',
-                code: line.trim()
+                severity,
+                message,
+                code: trimmed,
+                context: this.printContext(lines, index)
               });
             }
-          }
+          });
         });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      } catch {
+        console.warn(chalk.yellow(`⚠️ Could not read file ${file}`));
       }
     }
   }
 
-  /**
-   * Run all security checks
+/**
+   * Check for outdated dependencies with known vulnerabilities
    */
+async checkDependencyVulnerabilities() {
+  console.log(chalk.blue('🔒 Checking for dependency vulnerabilities...'));
+  
+  try {
+    // Run npm audit to check for vulnerabilities
+    const auditResult = execSync('npm audit --json', { 
+      encoding: 'utf8', 
+      cwd: process.cwd(),
+      stdio: 'pipe'
+    });
+    const auditData = JSON.parse(auditResult);
+    
+    if (auditData.vulnerabilities && Object.keys(auditData.vulnerabilities).length > 0) {
+      Object.keys(auditData.vulnerabilities).forEach(packageName => {
+        const vuln = auditData.vulnerabilities[packageName];
+        this.securityIssues.push({
+          type: 'dependency_vulnerability',
+          package: packageName,
+          severity: vuln.severity || 'medium',
+          message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
+          recommendation: vuln.recommendation || 'Update package version'
+        });
+      });
+    } else {
+      // No vulnerabilities found - this is good!
+      this.securityIssues.push({
+        type: 'no_vulnerabilities',
+        severity: 'info',
+        message: 'No known vulnerabilities found in dependencies',
+        positive: true
+      });
+    }
+  } catch (error) {
+    // npm audit returns non-zero exit code when vulnerabilities are found
+    if (error.status === 1) {
+      try {
+        const output = error.stdout.toString();
+        const auditData = JSON.parse(output);
+        
+        if (auditData.vulnerabilities) {
+          Object.keys(auditData.vulnerabilities).forEach(packageName => {
+            const vuln = auditData.vulnerabilities[packageName];
+            this.securityIssues.push({
+              type: 'dependency_vulnerability',
+              package: packageName,
+              severity: vuln.severity || 'medium',
+              message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
+              recommendation: vuln.recommendation || 'Update package version'
+            });
+          });
+        }
+      } catch (parseError) {
+        console.warn(chalk.yellow('Warning: Could not parse npm audit results'));
+      }
+    } else {
+      console.warn(chalk.yellow('Warning: Could not run npm audit - this may be due to network issues or npm configuration'));
+    }
+  }
+}
+
+  async checkESLintSecurityIssues() {
+    console.log(chalk.blue('🔍 Checking for security issues with ESLint plugins...'));
+    try {
+      const eslintConfig = getLintConfigFile$1();
+      if (!eslintConfig) {
+        throw new Error(".eslintrc file is missing");
+      }
+      const eslint = new ESLint({
+        useEslintrc: false,
+        overrideConfigFile: eslintConfig,
+      });
+      const files = await globby(getConfigPattern('jsFilePathPattern'));
+      const results = await eslint.lintFiles(files);
+      for (const file of results) {
+        for (const message of file.messages) {
+          if (
+            message.ruleId &&
+            (
+              message.ruleId.startsWith('security/') ||
+              message.ruleId.startsWith('no-unsanitized/') ||
+              message.ruleId === 'no-unsanitized/method' ||
+              message.ruleId === 'no-unsanitized/property'
+            )
+          ) {
+            const { code, context } = await getCodeContext$1(file.filePath, message.line);
+            this.securityIssues.push({
+              type: 'eslint_security',
+              file: file.filePath,
+              line: message.line,
+              severity: message.severity === 2 ? 'high' : 'medium',
+              message: message.message,
+              ruleId: message.ruleId,
+              code,
+              context,
+              source: 'eslint'
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not run ESLint for security plugin checks'));
+      if (error && error.message) {
+        console.warn(chalk.yellow(error.message));
+      }
+    }
+  }
+  
   async runSecurityAudit() {
-    console.log(chalk.blue('🔒 Starting Security Audit...'));
-    
+    console.log(chalk.cyan.bold('\n🔍 Running Full Security Audit...'));
+    //await this.checkDependencyVulnerabilities();
     await this.checkForSecrets();
-    await this.checkUnsafeEval();
-    await this.checkXSSVulnerabilities();
-    await this.checkSQLInjection();
-    await this.checkDependencyVulnerabilities();
-    await this.checkSensitiveDataLogging();
-    await this.checkInsecureHttpRequests();
-    await this.checkInsecureCookieUsage();
-    
+    await this.checkESLintSecurityIssues();
+
+    // Deduplicate issues and mark source
+    const uniqueIssues = [];
+    const seen = new Set();
+    for (const issue of this.securityIssues) {
+      if (!issue.source) issue.source = 'custom';
+      const key = `${issue.file || ''}:${issue.line || ''}:${issue.ruleId || issue.type}:${issue.message}`;
+      if (!seen.has(key)) {
+        uniqueIssues.push(issue);
+        seen.add(key);
+      }
+    }
+    this.securityIssues = uniqueIssues;
+
     const results = {
       timestamp: new Date().toISOString(),
       totalIssues: this.securityIssues.length,
-      highSeverity: this.securityIssues.filter(issue => issue.severity === 'high').length,
-      mediumSeverity: this.securityIssues.filter(issue => issue.severity === 'medium').length,
-      lowSeverity: this.securityIssues.filter(issue => issue.severity === 'low').length,
-      infoIssues: this.securityIssues.filter(issue => issue.severity === 'info').length,
+      highSeverity: this.securityIssues.filter(i => i.severity === 'high').length,
+      mediumSeverity: this.securityIssues.filter(i => i.severity === 'medium').length,
+      lowSeverity: this.securityIssues.filter(i => i.severity === 'low').length,
       issues: this.securityIssues
     };
 
-    // Generate JSON report
-    try {
-      const reportPath = path.join(this.folderPath, 'security-audit-report.json');
-      await writeFile(reportPath, JSON.stringify(results, null, 2));
-      console.log(chalk.green(`✅ Security audit report saved to: ${reportPath}`));
-    } catch (error) {
-      console.error(chalk.red('Error saving security audit report:', error.message));
-    }
+    const reportPath = path.join(this.folderPath, 'security-audit-report.json');
+    await fsp.writeFile(reportPath, JSON.stringify(results, null, 2));
 
-    // Display summary
-    console.log(chalk.blue('\n🔒 SECURITY AUDIT SUMMARY'));
-    console.log(chalk.blue('='.repeat(40)));
-    console.log(chalk.white(`Total Issues: ${results.totalIssues}`));
-    console.log(chalk.red(`High Severity: ${results.highSeverity}`));
-    console.log(chalk.yellow(`Medium Severity: ${results.mediumSeverity}`));
-    console.log(chalk.blue(`Low Severity: ${results.lowSeverity}`));
-    console.log(chalk.green(`Info/Positive: ${results.infoIssues}`));
+    console.log(chalk.green(`\n✅ Report saved: ${reportPath}`));
+    console.log(chalk.bold(`\n📋 Total Issues: ${results.totalIssues}`));
+    console.log(chalk.red(`🔴 High: ${results.highSeverity}`));
+    console.log(chalk.yellow(`🟠 Medium: ${results.mediumSeverity}`));
+    console.log(chalk.blue(`🔵 Low: ${results.lowSeverity}`));
 
     return results;
+  }
+}
+
+const CONFIG_FOLDER = "config";
+const ESLINTRC_JSON = ".eslintrc.json";
+const getLintConfigFile = (recommendedLintRules = false, projectType = '') => {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  let configFileName = ESLINTRC_JSON;
+  const configFilePath = path.join(__dirname, CONFIG_FOLDER, configFileName);
+  if (fs.existsSync(configFilePath)) return configFilePath;
+  return null;
+};
+
+async function getCodeContext(filePath, line, contextRadius = 2) {
+  try {
+    const content = await fsp.readFile(filePath, "utf8");
+    const lines = content.split('\n');
+    const idx = line - 1;
+    const start = Math.max(0, idx - contextRadius);
+    const end = Math.min(lines.length - 1, idx + contextRadius);
+    const code = (lines[idx] || '').slice(0, 200) + ((lines[idx] || '').length > 200 ? '... (truncated)' : '');
+    const context = lines.slice(start, end + 1)
+      .map((l, i) => {
+        const n = start + i + 1;
+        let lineText = l.length > 200 ? l.slice(0, 200) + '... (truncated)' : l;
+        const marker = n === line ? '>>>' : '   ';
+        return `${marker} ${n}: ${lineText}`;
+      }).join('\n');
+    return { code, context };
+  } catch {
+    return { code: '', context: '' };
   }
 }
 
@@ -1322,7 +1463,6 @@ class PerformanceAudit {
    */
   async checkInefficientOperations() {
     console.log(chalk.blue('⚡ Checking for inefficient operations...'));
-    
     const inefficientPatterns = [
       {
         pattern: /for\s*\(\s*let\s+\w+\s*=\s*0;\s*\w+\s*<\s*array\.length;\s*\w+\+\+\)/g,
@@ -1351,30 +1491,36 @@ class PerformanceAudit {
       }
     ];
 
-    const files = await globby(jsTsGlobs);
-    
-    for (const file of files) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        
-        lines.forEach((line, index) => {
-          inefficientPatterns.forEach(({ pattern, message, severity }) => {
-            if (pattern.test(line)) {
-              this.performanceIssues.push({
-                type: 'inefficient_operation',
-                file,
-                line: index + 1,
-                severity,
-                message,
-                code: line.trim()
-              });
+    try {
+      const files = await globby(getConfigPattern('jsFilePathPattern'), { absolute: true });
+      for (const file of files) {
+        try {
+          const content = await fsp.readFile(file, 'utf8');
+          const lines = content.split('\n');
+          for (let index = 0; index < lines.length; index++) {
+            const line = lines[index];
+            for (const { pattern, message, severity } of inefficientPatterns) {
+              if (pattern.test(line)) {
+                const { code, context } = await getCodeContext(file, index + 1);
+                this.performanceIssues.push({
+                  type: 'inefficient_operation',
+                  file,
+                  line: index + 1,
+                  severity,
+                  message,
+                  code,
+                  context,
+                  source: 'custom'
+                });
+              }
             }
-          });
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+          }
+        } catch (err) {
+          console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+        }
       }
+    } catch (err) {
+      console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
   }
 
@@ -1383,7 +1529,6 @@ class PerformanceAudit {
    */
   async checkMemoryLeaks() {
     console.log(chalk.blue('⚡ Checking for potential memory leaks...'));
-    
     const memoryLeakPatterns = [
       {
         pattern: /addEventListener\([^)]+\)(?!\s*removeEventListener)/g,
@@ -1402,30 +1547,36 @@ class PerformanceAudit {
       }
     ];
 
-    const files = await globby(jsTsGlobs);
-    
-    for (const file of files) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        
-        lines.forEach((line, index) => {
-          memoryLeakPatterns.forEach(({ pattern, message, severity }) => {
-            if (pattern.test(line)) {
-              this.performanceIssues.push({
-                type: 'memory_leak',
-                file,
-                line: index + 1,
-                severity,
-                message,
-                code: line.trim()
-              });
+    try {
+      const files = await globby(getConfigPattern('jsFilePathPattern'), { absolute: true });
+      for (const file of files) {
+        try {
+          const content = await fsp.readFile(file, 'utf8');
+          const lines = content.split('\n');
+          for (let index = 0; index < lines.length; index++) {
+            const line = lines[index];
+            for (const { pattern, message, severity } of memoryLeakPatterns) {
+              if (pattern.test(line)) {
+                const { code, context } = await getCodeContext(file, index + 1);
+                this.performanceIssues.push({
+                  type: 'memory_leak',
+                  file,
+                  line: index + 1,
+                  severity,
+                  message,
+                  code,
+                  context,
+                  source: 'custom'
+                });
+              }
             }
-          });
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+          }
+        } catch (err) {
+          console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+        }
       }
+    } catch (err) {
+      console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
   }
 
@@ -1434,17 +1585,17 @@ class PerformanceAudit {
    */
   async checkLargeDependencies() {
     console.log(chalk.blue('⚡ Checking for large dependencies...'));
-    
     try {
-      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-      
-      // Common large packages to flag
+      const data = await fsp.readFile("package.json", "utf8");
+      const packageJson = JSON.parse(data);
+      const allDeps = {
+        ...packageJson.dependencies,
+        ...packageJson.devDependencies,
+      };
       const largePackages = [
         'lodash', 'moment', 'date-fns', 'ramda', 'immutable',
-        'bootstrap', 'material-ui', 'antd', 'semantic-ui'
+        'bootstrap', 'material-ui', 'antd', 'semantic-ui',
       ];
-      
       largePackages.forEach(pkg => {
         if (allDeps[pkg]) {
           this.performanceIssues.push({
@@ -1452,12 +1603,17 @@ class PerformanceAudit {
             package: pkg,
             severity: 'low',
             message: `Large dependency detected: ${pkg}`,
-            recommendation: 'Consider using lighter alternatives or tree-shaking'
+            recommendation: 'Consider using lighter alternatives or tree-shaking',
           });
         }
       });
     } catch (error) {
-      console.warn(chalk.yellow('Warning: Could not read package.json'));
+      if (error.code === 'ENOENT') {
+        console.warn(chalk.yellow('No package.json found in this directory. Please run the audit from the root of a Node.js project.'));
+      } else {
+        console.warn(chalk.yellow('Warning: Could not read package.json'));
+        console.warn(chalk.gray(error.message));
+      }
     }
   }
 
@@ -1466,33 +1622,43 @@ class PerformanceAudit {
    */
   async checkUnusedCode() {
     console.log(chalk.blue('⚡ Checking for unused code...'));
-    
     try {
-      // Use ESLint to check for unused variables and imports
-      const eslintResult = execSync('npx eslint . --ext .js,.ts,.jsx,.tsx --format json', { 
-        encoding: 'utf8', 
-        cwd: process.cwd(),
-        stdio: 'pipe'
+      const eslintConfig = getLintConfigFile();
+      if (!eslintConfig) {
+        throw new Error(".eslintrc file is missing");
+      }
+      const eslint = new ESLint({
+        useEslintrc: false,
+        overrideConfigFile: eslintConfig,
       });
-      
-      const eslintData = JSON.parse(eslintResult);
-      
-      eslintData.forEach(file => {
-        file.messages.forEach(message => {
-          if (message.ruleId === 'no-unused-vars' || message.ruleId === '@typescript-eslint/no-unused-vars') {
+      const files = await globby(getConfigPattern('jsFilePathPattern'));
+      const results = await eslint.lintFiles(files);
+      for (const file of results) {
+        for (const message of file.messages) {
+          if (
+            message.ruleId === 'no-unused-vars' ||
+            message.ruleId === '@typescript-eslint/no-unused-vars'
+          ) {
+            const { code, context } = await getCodeContext(file.filePath, message.line);
             this.performanceIssues.push({
               type: 'unused_code',
               file: file.filePath,
               line: message.line,
               severity: 'low',
               message: 'Unused variable or import detected',
-              code: message.message
+              ruleId: message.ruleId,
+              code,
+              context,
+              source: 'eslint'
             });
           }
-        });
-      });
+        }
+      }
     } catch (error) {
       console.warn(chalk.yellow('Warning: Could not run ESLint for unused code check'));
+      if (error && error.message) {
+        console.warn(chalk.yellow(error.message));
+      }
     }
   }
 
@@ -1501,39 +1667,46 @@ class PerformanceAudit {
    */
   async checkBlockingCodeInAsync() {
     console.log(chalk.blue('⚡ Checking for blocking code in async contexts...'));
-    const files = await globby(jsTsGlobs);
-    const blockingPatterns = [
-      /while\s*\(true\)/i,
-      /for\s*\(.*;.*;.*\)/i,
-      /setTimeout\s*\(.*,[^)]{5,}\)/i, // setTimeout with long duration
-      /setInterval\s*\(.*,[^)]{5,}\)/i
-    ];
-    for (const file of files) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        let inAsync = false;
-        lines.forEach((line, index) => {
-          if (/async\s+function|async\s*\(/.test(line)) inAsync = true;
-          if (inAsync) {
-            blockingPatterns.forEach(pattern => {
-              if (pattern.test(line)) {
-                this.performanceIssues.push({
-                  type: 'blocking_code_in_async',
-                  file,
-                  line: index + 1,
-                  severity: 'medium',
-                  message: 'Potential blocking code in async context',
-                  code: line.trim()
-                });
+    try {
+      const files = await globby(getConfigPattern('jsFilePathPattern'), { absolute: true });
+      const blockingPatterns = [
+        /while\s*\(true\)/i,
+        /for\s*\(.*;.*;.*\)/i,
+        /setTimeout\s*\(.*,[^)]{5,}\)/i, // setTimeout with long duration
+        /setInterval\s*\(.*,[^)]{5,}\)/i
+      ];
+      for (const file of files) {
+        try {
+          const content = await fsp.readFile(file, 'utf8');
+          const lines = content.split('\n');
+          let inAsync = false;
+          lines.forEach(async (line, index) => {
+            if (/async\s+function|async\s*\(/.test(line)) inAsync = true;
+            if (inAsync) {
+              for (const pattern of blockingPatterns) {
+                if (pattern.test(line)) {
+                  const { code, context } = await getCodeContext(file, index + 1);
+                  this.performanceIssues.push({
+                    type: 'blocking_code_in_async',
+                    file,
+                    line: index + 1,
+                    severity: 'medium',
+                    message: 'Potential blocking code in async context',
+                    code,
+                    context,
+                    source: "custom"
+                  });
+                }
               }
-            });
-          }
-          if (/}/.test(line)) inAsync = false;
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+            }
+            if (/}/.test(line)) inAsync = false;
+          });
+        } catch (err) {
+          console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+        }
       }
+    } catch (err) {
+      console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
   }
 
@@ -1576,19 +1749,76 @@ class PerformanceAudit {
   }
 
   /**
+   * Check for promise/async issues with ESLint plugins
+   */
+  async checkESLintPromiseIssues() {
+    console.log(chalk.blue('⚡ Checking for promise/async issues with ESLint plugins...'));
+    console.log(chalk.gray('🔌 Using ESLint plugin: eslint-plugin-promise'));
+    try {
+      const eslintConfig = getLintConfigFile();
+      if (!eslintConfig) {
+        throw new Error(".eslintrc file is missing");
+      }
+      const eslint = new ESLint({
+        useEslintrc: false,
+        overrideConfigFile: eslintConfig,
+      });
+      const files = await globby(getConfigPattern('jsFilePathPattern'));
+      const results = await eslint.lintFiles(files);
+      for (const file of results) {
+        for (const message of file.messages) {
+          if (message.ruleId && message.ruleId.startsWith('promise/')) {
+            const { code, context } = await getCodeContext(file.filePath, message.line);
+            this.performanceIssues.push({
+              type: 'eslint_promise',
+              file: file.filePath,
+              line: message.line,
+              severity: message.severity === 2 ? 'high' : 'medium',
+              message: message.message,
+              ruleId: message.ruleId,
+              code,
+              context,
+              source: 'eslint'
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not run ESLint for promise plugin checks'));
+      if (error && error.message) {
+        console.warn(chalk.yellow(error.message));
+      }
+    }
+  }
+
+  /**
    * Run all performance checks
    */
   async runPerformanceAudit() {
     console.log(chalk.blue('⚡ Starting Performance Audit...'));
     
-    //await this.checkBundleSize();
+    await this.checkBundleSize();
     await this.checkInefficientOperations();
     await this.checkMemoryLeaks();
     await this.checkLargeDependencies();
     await this.checkUnusedCode();
     await this.checkBlockingCodeInAsync();
     await this.checkUnoptimizedAssets();
+    await this.checkESLintPromiseIssues();
     
+    // Deduplicate issues and mark source
+    const uniqueIssues = [];
+    const seen = new Set();
+    for (const issue of this.performanceIssues) {
+      if (!issue.source) issue.source = 'custom';
+      const key = `${issue.file || ''}:${issue.line || ''}:${issue.ruleId || issue.type}:${issue.message}`;
+      if (!seen.has(key)) {
+        uniqueIssues.push(issue);
+        seen.add(key);
+      }
+    }
+    this.performanceIssues = uniqueIssues;
+
     const results = {
       timestamp: new Date().toISOString(),
       totalIssues: this.performanceIssues.length,
@@ -1628,6 +1858,45 @@ class AccessibilityAudit {
     this.accessibilityIssues = [];
   }
 
+  // Helper to get code and context lines
+  async getCodeContext(filePath, line, contextRadius = 2) {
+    try {
+      const content = await fsp.readFile(filePath, "utf8");
+      const lines = content.split('\n');
+      const idx = line - 1;
+      const start = Math.max(0, idx - contextRadius);
+      const end = Math.min(lines.length - 1, idx + contextRadius);
+      // Only include the specific line for code
+      let code = (lines[idx] || '').trim();
+      if (code.length > 200) code = code.slice(0, 200) + '... (truncated)';
+      // Clean context: trim, remove all-blank, collapse blank lines
+      let contextLines = lines.slice(start, end + 1).map(l => l.trim());
+      while (contextLines.length && contextLines[0] === '') contextLines.shift();
+      while (contextLines.length && contextLines[contextLines.length - 1] === '') contextLines.pop();
+      let lastWasBlank = false;
+      contextLines = contextLines.filter(l => {
+        if (l === '') {
+          if (lastWasBlank) return false;
+          lastWasBlank = true;
+          return true;
+        } else {
+          lastWasBlank = false;
+          return true;
+        }
+      });
+      const context = contextLines.map((l, i) => {
+        const n = start + i + 1;
+        const marker = n === line ? '>>>' : '   ';
+        let lineText = l;
+        if (lineText.length > 200) lineText = lineText.slice(0, 200) + '... (truncated)';
+        return `${marker} ${n}: ${lineText}`;
+      }).join('\n');
+      return { code, context };
+    } catch {
+      return { code: '', context: '' };
+    }
+  }
+
   /**
    * Check for missing alt attributes on images
    */
@@ -1639,32 +1908,38 @@ class AccessibilityAudit {
       /<Image[^>]*>/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          imagePatterns.forEach(pattern => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of imagePatterns) {
             const matches = line.match(pattern);
             if (matches) {
-              matches.forEach(match => {
+              for (const match of matches) {
                 if (!match.includes('alt=') || match.includes('alt=""')) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
                   this.accessibilityIssues.push({
                     type: 'missing_alt',
-                    file,
+                    file: path.relative(process.cwd(), file),
                     line: index + 1,
                     severity: 'high',
                     message: 'Image missing alt attribute or has empty alt',
-                    code: line.trim()
+                    code,
+                    context,
+                    source: 'custom'
                   });
                 }
-              });
+              }
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -1686,15 +1961,19 @@ class AccessibilityAudit {
       /<h6[^>]*>/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          headingPatterns.forEach((pattern, level) => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (let level = 0; level < headingPatterns.length; level++) {
+            const pattern = headingPatterns[level];
             if (pattern.test(line)) {
               // Check for skipped heading levels
               if (level > 0) {
@@ -1702,19 +1981,22 @@ class AccessibilityAudit {
                 const hasPreviousHeading = content.substring(0, content.indexOf(line)).match(prevHeadingPattern);
                 
                 if (!hasPreviousHeading) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
                   this.accessibilityIssues.push({
                     type: 'skipped_heading',
-                    file,
+                    file: path.relative(process.cwd(), file),
                     line: index + 1,
                     severity: 'medium',
                     message: `Heading level ${level + 1} used without previous level ${level}`,
-                    code: line.trim()
+                    code,
+                    context,
+                    source: 'custom'
                   });
                 }
               }
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -1733,37 +2015,43 @@ class AccessibilityAudit {
       /<select[^>]*>/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          formPatterns.forEach(pattern => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of formPatterns) {
             const matches = line.match(pattern);
             if (matches) {
-              matches.forEach(match => {
+              for (const match of matches) {
                 // Check if input has proper labeling
                 const hasLabel = match.includes('aria-label=') || 
                                match.includes('aria-labelledby=') || 
                                match.includes('id=');
                 
                 if (!hasLabel && !match.includes('type="hidden"')) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
                   this.accessibilityIssues.push({
                     type: 'missing_form_label',
-                    file,
+                    file: path.relative(process.cwd(), file),
                     line: index + 1,
                     severity: 'high',
                     message: 'Form control missing proper labeling',
-                    code: line.trim()
+                    code,
+                    context,
+                    source: 'custom'
                   });
                 }
-              });
+              }
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -1783,30 +2071,36 @@ class AccessibilityAudit {
       /background-color:\s*rgb\([^)]+\)/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          colorPatterns.forEach(pattern => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of colorPatterns) {
             if (pattern.test(line)) {
               // This is a basic check - in a real implementation, you'd want to
               // actually calculate contrast ratios
+              const { code, context } = await this.getCodeContext(file, index + 1);
               this.accessibilityIssues.push({
                 type: 'color_contrast',
-                file,
+                file: path.relative(process.cwd(), file),
                 line: index + 1,
                 severity: 'medium',
                 message: 'Color usage detected - verify contrast ratios meet WCAG guidelines',
-                code: line.trim(),
-                recommendation: 'Use tools like axe-core or Lighthouse to check actual contrast ratios'
+                code,
+                context,
+                recommendation: 'Use tools like axe-core or Lighthouse to check actual contrast ratios',
+                source: 'custom'
               });
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -1822,18 +2116,21 @@ class AccessibilityAudit {
     const keyboardPatterns = [
       /onClick\s*=/gi,
       /onclick\s*=/gi,
-      /addEventListener\s*\(\s*['"]click['"]/gi,
+      /addEventListener\s*\(\s*['"]click['"]\)/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          keyboardPatterns.forEach(pattern => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of keyboardPatterns) {
             if (pattern.test(line)) {
               // Check if there's also keyboard event handling
               const hasKeyboardSupport = line.includes('onKeyDown') || 
@@ -1843,19 +2140,22 @@ class AccessibilityAudit {
                                        (line.includes('keydown') || line.includes('keyup') || line.includes('keypress'));
               
               if (!hasKeyboardSupport) {
+                const { code, context } = await this.getCodeContext(file, index + 1);
                 this.accessibilityIssues.push({
                   type: 'keyboard_navigation',
-                  file,
+                  file: path.relative(process.cwd(), file),
                   line: index + 1,
                   severity: 'medium',
                   message: 'Click handler without keyboard support',
-                  code: line.trim(),
-                  recommendation: 'Add keyboard event handlers or use semantic HTML elements'
+                  code,
+                  context,
+                  recommendation: 'Add keyboard event handlers or use semantic HTML elements',
+                  source: 'custom'
                 });
               }
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -1872,33 +2172,39 @@ class AccessibilityAudit {
       /aria-[a-zA-Z-]+/gi,
     ];
 
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
-        lines.forEach((line, index) => {
-          ariaPatterns.forEach(pattern => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of ariaPatterns) {
             const matches = line.match(pattern);
             if (matches) {
-              matches.forEach(match => {
+              for (const match of matches) {
                 // Check for common ARIA mistakes
                 if (match.includes('aria-label=""') || match.includes('aria-labelledby=""')) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
                   this.accessibilityIssues.push({
                     type: 'empty_aria',
-                    file,
+                    file: path.relative(process.cwd(), file),
                     line: index + 1,
                     severity: 'medium',
                     message: 'Empty ARIA attribute detected',
-                    code: line.trim()
+                    code,
+                    context,
+                    source: 'custom'
                   });
                 }
-              });
+              }
             }
-          });
-        });
+          }
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -1910,35 +2216,44 @@ class AccessibilityAudit {
    */
   async checkTabOrderAndFocus() {
     console.log(chalk.blue('♿ Checking tab order and focus management...'));
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
-        lines.forEach((line, index) => {
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
           // Check for interactive elements without tabindex
           if ((/<(button|a|input|select|textarea|div|span)[^>]*>/i.test(line) || /onClick=|onKeyDown=|onFocus=/.test(line)) && !/tabindex=/i.test(line)) {
+            const { code, context } = await this.getCodeContext(file, index + 1);
             this.accessibilityIssues.push({
               type: 'tab_order_focus',
-              file,
+              file: path.relative(process.cwd(), file),
               line: index + 1,
               severity: 'medium',
               message: 'Interactive element may be missing tabindex or focus management',
-              code: line.trim()
+              code,
+              context,
+              source: 'custom'
             });
           }
           // Check for modals/dialogs without focus trap
           if (/<(dialog|Modal|modal)[^>]*>/i.test(line) && !/focusTrap|trapFocus|tabindex/i.test(line)) {
+            const { code, context } = await this.getCodeContext(file, index + 1);
             this.accessibilityIssues.push({
               type: 'focus_management',
-              file,
+              file: path.relative(process.cwd(), file),
               line: index + 1,
               severity: 'medium',
               message: 'Modal/dialog may be missing focus trap or focus management',
-              code: line.trim()
+              code,
+              context,
+              source: 'custom'
             });
           }
-        });
+        }
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
@@ -1950,12 +2265,14 @@ class AccessibilityAudit {
    */
   async checkLandmarksAndSkipLinks() {
     console.log(chalk.blue('♿ Checking for landmark roles and skip links...'));
-    const files = await globby(jsTsGlobs);
+    const files = await globby(getConfigPattern('jsFilePathPattern'), {
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+    });
     let foundLandmark = false;
     let foundSkipLink = false;
     for (const file of files) {
       try {
-        const content = fs.readFileSync(file, 'utf8');
+        const content = await fsp.readFile(file, 'utf8');
         if (/<(main|nav|aside|header|footer)[^>]*>/i.test(content)) foundLandmark = true;
         if (/<a[^>]+href=["']#main-content["'][^>]*>.*skip to main content.*<\/a>/i.test(content)) foundSkipLink = true;
       } catch (error) {
@@ -1967,7 +2284,8 @@ class AccessibilityAudit {
         type: 'missing_landmark',
         severity: 'medium',
         message: 'No landmark roles (<main>, <nav>, <aside>, <header>, <footer>) found in project',
-        recommendation: 'Add semantic landmark elements for better accessibility'
+        recommendation: 'Add semantic landmark elements for better accessibility',
+        source: 'custom'
       });
     }
     if (!foundSkipLink) {
@@ -1975,7 +2293,8 @@ class AccessibilityAudit {
         type: 'missing_skip_link',
         severity: 'medium',
         message: 'No skip link found (e.g., <a href="#main-content">Skip to main content</a>)',
-        recommendation: 'Add a skip link for keyboard users'
+        recommendation: 'Add a skip link for keyboard users',
+        source: 'custom'
       });
     }
   }
@@ -2040,7 +2359,7 @@ class TestingAudit {
   async checkTestFiles() {
     console.log(chalk.blue('🧪 Checking test files...'));
     
-    const testFiles = await globby(jsTsGlobs.testFiles);
+    const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
     
     if (testFiles.length === 0) {
       this.testingIssues.push({
@@ -2151,7 +2470,7 @@ class TestingAudit {
   async checkTestingPatterns() {
     console.log(chalk.blue('🧪 Checking testing patterns...'));
     
-    const testFiles = await globby(jsTsGlobs.testFiles);
+    const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
     
     for (const file of testFiles) {
       try {
@@ -2159,7 +2478,7 @@ class TestingAudit {
         const lines = content.split('\n');
         
         lines.forEach((line, index) => {
-          jsTsGlobs.testPatterns.forEach(({ pattern, name, positive }) => {
+          getConfigPattern('testPatterns').forEach(({ pattern, name, positive }) => {
             if (pattern.test(line)) {
               if (positive) {
                 this.testingIssues.push({
@@ -2187,7 +2506,7 @@ class TestingAudit {
   async checkMockingPatterns() {
     console.log(chalk.blue('🧪 Checking mocking patterns...'));
     
-    const testFiles = await globby(jsTsGlobs.testFiles);
+    const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
     
     for (const file of testFiles) {
       try {
@@ -2195,7 +2514,7 @@ class TestingAudit {
         const lines = content.split('\n');
         
         lines.forEach((line, index) => {
-          jsTsGlobs.mockPatterns.forEach(({ pattern, name, positive }) => {
+          getConfigPattern('mockPatterns').forEach(({ pattern, name, positive }) => {
             if (pattern.test(line)) {
               if (positive) {
                 this.testingIssues.push({
@@ -2434,34 +2753,74 @@ class DependencyAudit {
    */
   async checkUnusedDependencies() {
     console.log(chalk.blue('📦 Checking for unused dependencies...'));
-    
+    const { spawnSync } = await import('child_process');
+    let depcheckPath;
     try {
-      // Use depcheck to find unused dependencies
-      const depcheckResult = execSync('npx depcheck --json', { 
-        encoding: 'utf8', 
-        cwd: process.cwd(),
-        stdio: 'pipe'
-      });
-      
-      const depcheckData = JSON.parse(depcheckResult);
-      
+      // Use createRequire for ESM compatibility
+      let require;
+      try {
+        const { createRequire } = await import('module');
+        require = createRequire(import.meta.url);
+        depcheckPath = require.resolve('depcheck');
+      } catch (resolveErr) {
+        depcheckPath = null;
+      }
+      if (!depcheckPath) {
+        console.warn(chalk.yellow('depcheck is not installed. Please run: npm install depcheck --save-dev'));
+        this.dependencyIssues.push({
+          type: 'depcheck_missing',
+          severity: 'medium',
+          message: 'depcheck is not installed. Unused dependency check skipped.',
+          recommendation: 'Run npm install depcheck --save-dev'
+        });
+        return;
+      }
+      // Run depcheck
+      const depcheckResult = spawnSync('npx', ['depcheck', '--json'], { encoding: 'utf8' });
+      if (depcheckResult.error) {
+        throw depcheckResult.error;
+      }
+      // Accept nonzero exit code if output is present (depcheck returns 1 if unused found)
+      let depcheckData;
+      const output = depcheckResult.stdout ? depcheckResult.stdout.trim() : '';
+      if (!output && depcheckResult.stderr) {
+        console.warn(chalk.yellow('depcheck stderr output:'));
+        console.warn(depcheckResult.stderr);
+      }
+      try {
+        depcheckData = JSON.parse(output);
+      } catch (parseErr) {
+        console.warn(chalk.yellow('Warning: Could not parse depcheck output as JSON.'));
+        if (output) {
+          console.warn(chalk.gray('depcheck output was:'));
+          console.warn(output);
+        }
+        this.dependencyIssues.push({
+          type: 'depcheck_parse_error',
+          severity: 'medium',
+          message: 'depcheck output could not be parsed as JSON.',
+          recommendation: 'Try running depcheck manually to debug.'
+        });
+        return;
+      }
       if (depcheckData.dependencies && depcheckData.dependencies.length > 0) {
         depcheckData.dependencies.forEach(dep => {
           this.dependencyIssues.push({
             type: 'unused_dependency',
             package: dep,
+            file: dep || undefined, // Only set file to dep if no file info is present
             severity: 'low',
             message: `Unused dependency: ${dep}`,
             recommendation: `Remove ${dep} from package.json if not needed`
           });
         });
       }
-      
       if (depcheckData.devDependencies && depcheckData.devDependencies.length > 0) {
         depcheckData.devDependencies.forEach(dep => {
           this.dependencyIssues.push({
             type: 'unused_dev_dependency',
             package: dep,
+            file: dep || undefined, // Only set file to dep if no file info is present
             severity: 'low',
             message: `Unused dev dependency: ${dep}`,
             recommendation: `Remove ${dep} from devDependencies if not needed`
@@ -2469,7 +2828,16 @@ class DependencyAudit {
         });
       }
     } catch (error) {
-      console.warn(chalk.yellow('Warning: Could not check for unused dependencies (depcheck not available)'));
+      console.warn(chalk.yellow('Warning: Could not check for unused dependencies.'));
+      if (error && error.message) {
+        console.warn(chalk.yellow(error.message));
+      }
+      this.dependencyIssues.push({
+        type: 'depcheck_error',
+        severity: 'medium',
+        message: 'Error occurred while running depcheck.',
+        recommendation: 'Try running depcheck manually to debug.'
+      });
     }
   }
 
@@ -2934,92 +3302,39 @@ class AuditOrchestrator {
   }
 }
 
-const configPath = process.argv[2];
-const defaultConfig = {
-  jsFilePathPattern: [
-    "./src/**/*.js",
-    "./src/**/*.ts",
-    "./src/**/*.jsx",
-    "./src/**/*.tsx",
-    "!./src/**/*.stories.js",
-  ],
-  scssFilePathPattern: [
-    "./src/**/*.scss",
-    "./src/**/*.less",
-    "./src/**/*.css",
-    "!./node_modules/**",
-  ],
-  npmReport: false,
-  recommendedLintRules: true,
-  bundleAnalyzer: false,
-  webpackConfigFile: "./webpack.prod.js",
-  webpackBundleFolder: "dist",
-};
-
 const codeInsightInit = async (options = {}) => {
   try {
-    let data;
-    // Check if configPath is available
-    if (configPath) {
-      data = await promises.readFile(configPath, "utf8");
-    } else {
-      console.log("Config file not available hence using default config");
-      data = defaultConfig;
-    }
-    let {
-      npmReport,
-      jsFilePathPattern,
-      scssFilePathPattern,
-      aemBasePath,
-      aemContentPath,
-      aemAppsPath,
-      slingResourceTypeBase,
-      recommendedLintRules = true,
-      bundleAnalyzer,
-      webpackConfigFile,
-      webpackBundleFolder
-    } = configPath ? JSON.parse(data) : data;
     await audit.createReportFolder();
 
     const { reports = [], projectType } = options;
+    
     if (projectType) {
       console.log(`Project type selected: ${projectType}`);
-      // Adjust recommendedLintRules based on projectType
-      if (projectType === 'React') {
-        recommendedLintRules = true;
-      } else if (projectType === 'Node') {
-        recommendedLintRules = false;
-      }
     }
 
     // Traditional reports
     if (reports.includes('all') || reports.includes('eslint')) {
-      await audit.generateESLintReport(jsFilePathPattern, recommendedLintRules, projectType, reports);
+      await audit.generateESLintReport(true, projectType, reports);
     }
     if (reports.includes('all') || reports.includes('stylelint')) {
-      await audit.generateStyleLintReport(scssFilePathPattern, recommendedLintRules, projectType, reports);
+      await audit.generateStyleLintReport(true, projectType, reports);
     }
     if (reports.includes('all') || reports.includes('package')) {
       await audit.generateNpmPackageReport(projectType, reports);
     }
 
-    // New comprehensive audits
+    // Comprehensive audits
     const auditCategories = ['security', 'performance', 'accessibility', 'testing', 'dependency'];
-    
-    // Convert kebab-case to camelCase if needed (no modern-practices anymore)
-    const normalizedReports = reports;
-    const hasAuditReports = auditCategories.some(category => normalizedReports.includes(category));
+    const hasAuditReports = auditCategories.some(category => reports.includes(category));
     
     if (reports.includes('comprehensive') || hasAuditReports) {
       const orchestrator = new AuditOrchestrator('./report');
       
       if (reports.includes('comprehensive')) {
-        // Run all audit categories
         await orchestrator.runAllAudits();
       } else {
-        // Run specific audit categories
         for (const category of auditCategories) {
-          if (normalizedReports.includes(category)) {
+          if (reports.includes(category)) {
             console.log(`\nRunning ${category} audit...`);
             await orchestrator.runSpecificAudit(category);
           }
@@ -3027,8 +3342,10 @@ const codeInsightInit = async (options = {}) => {
       }
     }
   } catch (error) {
-    console.error("Error reading the file:", error);
+    console.error("Error in codeInsightInit:", error);
   }
+  // Ensure config is copied to report folder after all reports
+  audit.copyConfigToReportFolder();
 };
 
 export { codeInsightInit };

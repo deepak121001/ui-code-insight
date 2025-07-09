@@ -5,6 +5,53 @@ import { fileURLToPath } from "url";
 import { globby } from "globby";
 import fs from "fs";
 import chalk from "chalk";
+import { getConfigPattern, getMergedExcludeRules } from '../config-loader.js';
+import { execSync } from 'child_process';
+
+// Default ESLint rules to exclude (commonly disabled by project architects)
+const DEFAULT_ESLINT_EXCLUDE_RULES = [
+  // Formatting and style rules
+  'indent', 'quotes', 'semi', 'comma-dangle', 'no-trailing-spaces', 'eol-last',
+  'no-multiple-empty-lines', 'space-before-function-paren', 'space-before-blocks',
+  'keyword-spacing', 'space-infix-ops', 'object-curly-spacing', 'array-bracket-spacing',
+  'comma-spacing', 'key-spacing', 'brace-style', 'camelcase', 'new-cap',
+  'no-underscore-dangle', 'no-unused-vars', 'no-console', 'no-debugger',
+  'prefer-const', 'no-var', 'arrow-spacing', 'no-spaced-func', 'func-call-spacing',
+  'no-multi-spaces', 'no-trailing-spaces', 'no-mixed-spaces-and-tabs',
+  'no-tabs', 'no-mixed-operators', 'operator-linebreak', 'nonblock-statement-body-position',
+  'no-else-return', 'no-nested-ternary', 'no-unneeded-ternary', 'object-shorthand',
+  'prefer-template', 'template-curly-spacing', 'prefer-arrow-callback', 'arrow-body-style',
+  'no-duplicate-imports', 'import/order', 'import/no-unresolved', 'import/extensions',
+  'import/no-extraneous-dependencies', 'import/prefer-default-export',
+  'react/jsx-indent', 'react/jsx-indent-props', 'react/jsx-closing-bracket-location',
+  'react/jsx-closing-tag-location', 'react/jsx-curly-spacing', 'react/jsx-equals-spacing',
+  'react/jsx-first-prop-new-line', 'react/jsx-max-props-per-line', 'react/jsx-one-expression-per-line',
+  'react/jsx-props-no-multi-spaces', 'react/jsx-tag-spacing', 'react/jsx-wrap-multilines',
+  'react/self-closing-comp', 'react/jsx-boolean-value', 'react/jsx-curly-brace-presence',
+  'react/jsx-no-bind', 'react/jsx-no-literals', 'react/jsx-pascal-case',
+  'react/jsx-sort-default-props', 'react/jsx-sort-props', 'react/no-array-index-key',
+  'react/no-danger', 'react/no-deprecated', 'react/no-did-mount-set-state',
+  'react/no-did-update-set-state', 'react/no-direct-mutation-state',
+  'react/no-find-dom-node', 'react/no-is-mounted', 'react/no-multi-comp',
+  'react/no-render-return-value', 'react/no-set-state', 'react/no-string-refs',
+  'react/no-unescaped-entities', 'react/no-unknown-property', 'react/no-unsafe',
+  'react/no-unused-prop-types', 'react/no-unused-state', 'react/prefer-es6-class',
+  'react/prefer-stateless-function', 'react/prop-types', 'react/react-in-jsx-scope',
+  'react/require-default-props', 'react/require-optimization', 'react/require-render-return',
+  'react/sort-comp', 'react/sort-prop-types', 'react/style-prop-object',
+  'react/void-dom-elements-no-children', 'react/jsx-key', 'react/jsx-no-duplicate-props',
+  'react/jsx-no-undef', 'react/jsx-uses-react', 'react/jsx-uses-vars',
+  'react/no-array-index-key', 'react/no-danger', 'react/no-deprecated',
+  'react/no-did-mount-set-state', 'react/no-did-update-set-state',
+  'react/no-direct-mutation-state', 'react/no-find-dom-node', 'react/no-is-mounted',
+  'react/no-multi-comp', 'react/no-render-return-value', 'react/no-set-state',
+  'react/no-string-refs', 'react/no-unescaped-entities', 'react/no-unknown-property',
+  'react/no-unsafe', 'react/no-unused-prop-types', 'react/no-unused-state',
+  'react/prefer-es6-class', 'react/prefer-stateless-function', 'react/prop-types',
+  'react/react-in-jsx-scope', 'react/require-default-props', 'react/require-optimization',
+  'react/require-render-return', 'react/sort-comp', 'react/sort-prop-types',
+  'react/style-prop-object', 'react/void-dom-elements-no-children'
+];
 
 // Constants for configuration files
 const CONFIG_FOLDER = "config";
@@ -138,6 +185,10 @@ const lintAllFiles = async (files, folderPath, eslint, projectType, reports) => 
       `Total files count is ${files.length} This linting task will take some time.`
     )
   );
+  
+  // Get merged exclude rules from config
+  const excludeRules = getMergedExcludeRules('eslint', DEFAULT_ESLINT_EXCLUDE_RULES);
+  
   const lintPromises = files.map((filePath) => lintFile(filePath, eslint));
 
   try {
@@ -145,17 +196,29 @@ const lintAllFiles = async (files, folderPath, eslint, projectType, reports) => 
     const jsonReport = {
       projectType,
       reports,
+      excludeRules: {
+        enabled: excludeRules.length > 0,
+        rules: excludeRules,
+        count: excludeRules.length
+      },
       results: lintResults.map((result) => ({
         filePath: result?.filePath,
         errorCount: result?.errorCount,
         warningCount: result?.warningCount,
-        messages: result?.messages.map((message) => ({
-          ruleId: message.ruleId,
-          severity: message.severity,
-          line: message.line,
-          column: message.column,
-          message: message.message,
-        })),
+        messages: result?.messages
+          .filter(message => !excludeRules.includes(message.ruleId))
+          .map((message) => ({
+            ruleId: message.ruleId,
+            severity: message.severity,
+            line: message.line,
+            column: message.column,
+            endLine: message.endLine,
+            endColumn: message.endColumn,
+            message: message.message,
+            fix: message.fix,
+            suggestions: message.suggestions,
+            fatal: message.fatal,
+          })),
       })),
     };
 
@@ -178,7 +241,6 @@ const lintAllFiles = async (files, folderPath, eslint, projectType, reports) => 
  */
 export const generateESLintReport = async (
   folderPath,
-  jsFilePathPattern,
   recommendedLintRules,
   projectType = '',
   reports = []
@@ -195,12 +257,35 @@ export const generateESLintReport = async (
     overrideConfigFile: lintConfigFile,
   });
 
-  const files = await globby([...jsFilePathPattern, '!**/node_modules/**']);
-  console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${jsFilePathPattern.join(', ')}`));
+  const files = await globby(getConfigPattern('jsFilePathPattern'));
+  console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${getConfigPattern('jsFilePathPattern').join(', ')}`));
   console.log(chalk.gray(`Files being processed:`));
   files.slice(0, 10).forEach(file => console.log(chalk.gray(`  - ${file}`)));
   if (files.length > 10) {
     console.log(chalk.gray(`  ... and ${files.length - 10} more files`));
   }
   await lintAllFiles(files, folderPath, eslint, projectType, reports);
+
+  try {
+    const auditOutput = execSync('npm audit --json', {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: 'pipe'
+    });
+    try {
+      // Only try to parse if output looks like JSON
+      if (auditOutput.trim().startsWith('{')) {
+        const audit = JSON.parse(auditOutput);
+        // ... process audit ...
+      } else {
+        console.warn(chalk.yellow('npm audit did not return JSON output.'));
+        console.warn(auditOutput);
+      }
+    } catch (parseErr) {
+      console.warn(chalk.yellow('⚠️ Could not parse audit JSON. Output was:'));
+      console.warn(auditOutput);
+    }
+  } catch (error) {
+    // ... existing error handling ...
+  }
 };

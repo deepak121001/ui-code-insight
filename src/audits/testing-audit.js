@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { globby } from 'globby';
 import { writeFile } from 'fs/promises';
-import { jsTsGlobs } from './file-globs.js';
+import { getConfigPattern } from '../config-loader.js';
 
 /**
  * Testing audit module for detecting testing practices and coverage
@@ -21,7 +21,7 @@ export class TestingAudit {
   async checkTestFiles() {
     console.log(chalk.blue('🧪 Checking test files...'));
     
-    const testFiles = await globby(jsTsGlobs.testFiles);
+    const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
     
     if (testFiles.length === 0) {
       this.testingIssues.push({
@@ -132,7 +132,7 @@ export class TestingAudit {
   async checkTestingPatterns() {
     console.log(chalk.blue('🧪 Checking testing patterns...'));
     
-    const testFiles = await globby(jsTsGlobs.testFiles);
+    const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
     
     for (const file of testFiles) {
       try {
@@ -140,7 +140,7 @@ export class TestingAudit {
         const lines = content.split('\n');
         
         lines.forEach((line, index) => {
-          jsTsGlobs.testPatterns.forEach(({ pattern, name, positive }) => {
+          getConfigPattern('testPatterns').forEach(({ pattern, name, positive }) => {
             if (pattern.test(line)) {
               if (positive) {
                 this.testingIssues.push({
@@ -168,7 +168,7 @@ export class TestingAudit {
   async checkMockingPatterns() {
     console.log(chalk.blue('🧪 Checking mocking patterns...'));
     
-    const testFiles = await globby(jsTsGlobs.testFiles);
+    const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
     
     for (const file of testFiles) {
       try {
@@ -176,7 +176,7 @@ export class TestingAudit {
         const lines = content.split('\n');
         
         lines.forEach((line, index) => {
-          jsTsGlobs.mockPatterns.forEach(({ pattern, name, positive }) => {
+          getConfigPattern('mockPatterns').forEach(({ pattern, name, positive }) => {
             if (pattern.test(line)) {
               if (positive) {
                 this.testingIssues.push({

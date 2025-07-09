@@ -1,6 +1,6 @@
 import { writeFile } from "fs/promises";
 import path from "path";
-import { makeAPIRequest } from "./get-aem-data";
+import { makeAPIRequest } from "./get-aem-data.js";
 
 export const generateComponentUsageReport = async (
   reportFolderPath,

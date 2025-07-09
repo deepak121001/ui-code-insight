@@ -1,0 +1,96 @@
+{
+  "jsFilePathPattern": [
+    "./src/**/*.js",
+    "./src/**/*.ts",
+    "./src/**/*.jsx",
+    "./src/**/*.tsx",
+    "!./dist/**",
+    "!./build/**",
+    "!./target/**",
+    "!./cypress/**",
+    "!./ui.frontend/dist/**",
+    "!./ui.tests/test-module/cypress/**",
+    "!./ui.frontend/webpack.*.js",
+    "!**/*.min.js"
+  ],
+  "htmlFilePathPattern": [
+    "**/*.{html,js,ts,jsx,tsx}",
+    "!**/node_modules/**",
+    "!**/.storybook/**",
+    "!**/storybook/**",
+    "!**/report/**",
+    "!build/**",
+    "!dist/**",
+    "!coverage/**",
+    "!.git/**",
+    "!bin/**",
+    "!**/__mocks__/**",
+    "!**/__dropins__/**"
+  ],
+  "scssFilePathPattern": [
+    "**/*.{scss,css,less}",
+    "!**/node_modules/**",
+    "!**/.storybook/**",
+    "!**/storybook/**",
+    "!**/report/**",
+    "!build/**",
+    "!dist/**",
+    "!coverage/**",
+    "!.git/**",
+    "!bin/**",
+    "!**/__mocks__/**",
+    "!**/__dropins__/**"
+  ],
+  "excludeRules": {
+    "eslint": {
+      "enabled": true,
+      "overrideDefault": false,
+      "additionalRules": [
+        "my-custom-rule",
+        "project-specific-rule"
+      ]
+    },
+    "stylelint": {
+      "enabled": true,
+      "overrideDefault": false,
+      "additionalRules": [
+        "my-custom-style-rule"
+      ]
+    },
+    "security": {
+      "enabled": true,
+      "overrideDefault": false,
+      "additionalRules": [
+        "custom-security-rule"
+      ]
+    },
+    "performance": {
+      "enabled": true,
+      "overrideDefault": false,
+      "additionalRules": [
+        "custom-performance-rule"
+      ]
+    },
+    "accessibility": {
+      "enabled": true,
+      "overrideDefault": false,
+      "additionalRules": [
+        "custom-accessibility-rule"
+      ]
+    },
+    "testing": {
+      "enabled": true,
+      "overrideDefault": false,
+      "additionalRules": [
+        "custom-testing-rule"
+      ]
+    },
+    "dependency": {
+      "enabled": true,
+      "overrideDefault": false,
+      "additionalRules": [
+        "custom-dependency-rule"
+      ]
+    }
+  }
+} 

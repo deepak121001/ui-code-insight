@@ -4,7 +4,43 @@ import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { globby } from 'globby';
 import { writeFile } from 'fs/promises';
-import { jsTsGlobs, assetGlobs } from './file-globs.js';
+import { assetGlobs } from './file-globs.js';
+import { getConfigPattern } from '../config-loader.js';
+import fsp from "fs/promises";
+import { ESLint } from "eslint";
+import { fileURLToPath } from "url";
+
+const CONFIG_FOLDER = "config";
+const ESLINTRC_JSON = ".eslintrc.json";
+const getLintConfigFile = (recommendedLintRules = false, projectType = '') => {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  let configFileName = ESLINTRC_JSON;
+  const configFilePath = path.join(__dirname, CONFIG_FOLDER, configFileName);
+  if (fs.existsSync(configFilePath)) return configFilePath;
+  return null;
+};
+
+async function getCodeContext(filePath, line, contextRadius = 2) {
+  try {
+    const content = await fsp.readFile(filePath, "utf8");
+    const lines = content.split('\n');
+    const idx = line - 1;
+    const start = Math.max(0, idx - contextRadius);
+    const end = Math.min(lines.length - 1, idx + contextRadius);
+    const code = (lines[idx] || '').slice(0, 200) + ((lines[idx] || '').length > 200 ? '... (truncated)' : '');
+    const context = lines.slice(start, end + 1)
+      .map((l, i) => {
+        const n = start + i + 1;
+        let lineText = l.length > 200 ? l.slice(0, 200) + '... (truncated)' : l;
+        const marker = n === line ? '>>>' : '   ';
+        return `${marker} ${n}: ${lineText}`;
+      }).join('\n');
+    return { code, context };
+  } catch {
+    return { code: '', context: '' };
+  }
+}
 
 /**
  * Performance audit module for detecting performance issues
@@ -68,7 +104,6 @@ export class PerformanceAudit {
    */
   async checkInefficientOperations() {
     console.log(chalk.blue('⚡ Checking for inefficient operations...'));
-    
     const inefficientPatterns = [
       {
         pattern: /for\s*\(\s*let\s+\w+\s*=\s*0;\s*\w+\s*<\s*array\.length;\s*\w+\+\+\)/g,
@@ -97,30 +132,36 @@ export class PerformanceAudit {
       }
     ];
 
-    const files = await globby(jsTsGlobs);
-    
-    for (const file of files) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        
-        lines.forEach((line, index) => {
-          inefficientPatterns.forEach(({ pattern, message, severity }) => {
-            if (pattern.test(line)) {
-              this.performanceIssues.push({
-                type: 'inefficient_operation',
-                file,
-                line: index + 1,
-                severity,
-                message,
-                code: line.trim()
-              });
+    try {
+      const files = await globby(getConfigPattern('jsFilePathPattern'), { absolute: true });
+      for (const file of files) {
+        try {
+          const content = await fsp.readFile(file, 'utf8');
+          const lines = content.split('\n');
+          for (let index = 0; index < lines.length; index++) {
+            const line = lines[index];
+            for (const { pattern, message, severity } of inefficientPatterns) {
+              if (pattern.test(line)) {
+                const { code, context } = await getCodeContext(file, index + 1);
+                this.performanceIssues.push({
+                  type: 'inefficient_operation',
+                  file,
+                  line: index + 1,
+                  severity,
+                  message,
+                  code,
+                  context,
+                  source: 'custom'
+                });
+              }
             }
-          });
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+          }
+        } catch (err) {
+          console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+        }
       }
+    } catch (err) {
+      console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
   }
 
@@ -129,7 +170,6 @@ export class PerformanceAudit {
    */
   async checkMemoryLeaks() {
     console.log(chalk.blue('⚡ Checking for potential memory leaks...'));
-    
     const memoryLeakPatterns = [
       {
         pattern: /addEventListener\([^)]+\)(?!\s*removeEventListener)/g,
@@ -148,30 +188,36 @@ export class PerformanceAudit {
       }
     ];
 
-    const files = await globby(jsTsGlobs);
-    
-    for (const file of files) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        
-        lines.forEach((line, index) => {
-          memoryLeakPatterns.forEach(({ pattern, message, severity }) => {
-            if (pattern.test(line)) {
-              this.performanceIssues.push({
-                type: 'memory_leak',
-                file,
-                line: index + 1,
-                severity,
-                message,
-                code: line.trim()
-              });
+    try {
+      const files = await globby(getConfigPattern('jsFilePathPattern'), { absolute: true });
+      for (const file of files) {
+        try {
+          const content = await fsp.readFile(file, 'utf8');
+          const lines = content.split('\n');
+          for (let index = 0; index < lines.length; index++) {
+            const line = lines[index];
+            for (const { pattern, message, severity } of memoryLeakPatterns) {
+              if (pattern.test(line)) {
+                const { code, context } = await getCodeContext(file, index + 1);
+                this.performanceIssues.push({
+                  type: 'memory_leak',
+                  file,
+                  line: index + 1,
+                  severity,
+                  message,
+                  code,
+                  context,
+                  source: 'custom'
+                });
+              }
             }
-          });
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+          }
+        } catch (err) {
+          console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+        }
       }
+    } catch (err) {
+      console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
   }
 
@@ -180,17 +226,17 @@ export class PerformanceAudit {
    */
   async checkLargeDependencies() {
     console.log(chalk.blue('⚡ Checking for large dependencies...'));
-    
     try {
-      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-      
-      // Common large packages to flag
+      const data = await fsp.readFile("package.json", "utf8");
+      const packageJson = JSON.parse(data);
+      const allDeps = {
+        ...packageJson.dependencies,
+        ...packageJson.devDependencies,
+      };
       const largePackages = [
         'lodash', 'moment', 'date-fns', 'ramda', 'immutable',
-        'bootstrap', 'material-ui', 'antd', 'semantic-ui'
+        'bootstrap', 'material-ui', 'antd', 'semantic-ui',
       ];
-      
       largePackages.forEach(pkg => {
         if (allDeps[pkg]) {
           this.performanceIssues.push({
@@ -198,12 +244,17 @@ export class PerformanceAudit {
             package: pkg,
             severity: 'low',
             message: `Large dependency detected: ${pkg}`,
-            recommendation: 'Consider using lighter alternatives or tree-shaking'
+            recommendation: 'Consider using lighter alternatives or tree-shaking',
           });
         }
       });
     } catch (error) {
-      console.warn(chalk.yellow('Warning: Could not read package.json'));
+      if (error.code === 'ENOENT') {
+        console.warn(chalk.yellow('No package.json found in this directory. Please run the audit from the root of a Node.js project.'));
+      } else {
+        console.warn(chalk.yellow('Warning: Could not read package.json'));
+        console.warn(chalk.gray(error.message));
+      }
     }
   }
 
@@ -212,33 +263,43 @@ export class PerformanceAudit {
    */
   async checkUnusedCode() {
     console.log(chalk.blue('⚡ Checking for unused code...'));
-    
     try {
-      // Use ESLint to check for unused variables and imports
-      const eslintResult = execSync('npx eslint . --ext .js,.ts,.jsx,.tsx --format json', { 
-        encoding: 'utf8', 
-        cwd: process.cwd(),
-        stdio: 'pipe'
+      const eslintConfig = getLintConfigFile();
+      if (!eslintConfig) {
+        throw new Error(".eslintrc file is missing");
+      }
+      const eslint = new ESLint({
+        useEslintrc: false,
+        overrideConfigFile: eslintConfig,
       });
-      
-      const eslintData = JSON.parse(eslintResult);
-      
-      eslintData.forEach(file => {
-        file.messages.forEach(message => {
-          if (message.ruleId === 'no-unused-vars' || message.ruleId === '@typescript-eslint/no-unused-vars') {
+      const files = await globby(getConfigPattern('jsFilePathPattern'));
+      const results = await eslint.lintFiles(files);
+      for (const file of results) {
+        for (const message of file.messages) {
+          if (
+            message.ruleId === 'no-unused-vars' ||
+            message.ruleId === '@typescript-eslint/no-unused-vars'
+          ) {
+            const { code, context } = await getCodeContext(file.filePath, message.line);
             this.performanceIssues.push({
               type: 'unused_code',
               file: file.filePath,
               line: message.line,
               severity: 'low',
               message: 'Unused variable or import detected',
-              code: message.message
+              ruleId: message.ruleId,
+              code,
+              context,
+              source: 'eslint'
             });
           }
-        });
-      });
+        }
+      }
     } catch (error) {
       console.warn(chalk.yellow('Warning: Could not run ESLint for unused code check'));
+      if (error && error.message) {
+        console.warn(chalk.yellow(error.message));
+      }
     }
   }
 
@@ -247,39 +308,46 @@ export class PerformanceAudit {
    */
   async checkBlockingCodeInAsync() {
     console.log(chalk.blue('⚡ Checking for blocking code in async contexts...'));
-    const files = await globby(jsTsGlobs);
-    const blockingPatterns = [
-      /while\s*\(true\)/i,
-      /for\s*\(.*;.*;.*\)/i,
-      /setTimeout\s*\(.*,[^)]{5,}\)/i, // setTimeout with long duration
-      /setInterval\s*\(.*,[^)]{5,}\)/i
-    ];
-    for (const file of files) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        let inAsync = false;
-        lines.forEach((line, index) => {
-          if (/async\s+function|async\s*\(/.test(line)) inAsync = true;
-          if (inAsync) {
-            blockingPatterns.forEach(pattern => {
-              if (pattern.test(line)) {
-                this.performanceIssues.push({
-                  type: 'blocking_code_in_async',
-                  file,
-                  line: index + 1,
-                  severity: 'medium',
-                  message: 'Potential blocking code in async context',
-                  code: line.trim()
-                });
+    try {
+      const files = await globby(getConfigPattern('jsFilePathPattern'), { absolute: true });
+      const blockingPatterns = [
+        /while\s*\(true\)/i,
+        /for\s*\(.*;.*;.*\)/i,
+        /setTimeout\s*\(.*,[^)]{5,}\)/i, // setTimeout with long duration
+        /setInterval\s*\(.*,[^)]{5,}\)/i
+      ];
+      for (const file of files) {
+        try {
+          const content = await fsp.readFile(file, 'utf8');
+          const lines = content.split('\n');
+          let inAsync = false;
+          lines.forEach(async (line, index) => {
+            if (/async\s+function|async\s*\(/.test(line)) inAsync = true;
+            if (inAsync) {
+              for (const pattern of blockingPatterns) {
+                if (pattern.test(line)) {
+                  const { code, context } = await getCodeContext(file, index + 1);
+                  this.performanceIssues.push({
+                    type: 'blocking_code_in_async',
+                    file,
+                    line: index + 1,
+                    severity: 'medium',
+                    message: 'Potential blocking code in async context',
+                    code,
+                    context,
+                    source: "custom"
+                  });
+                }
               }
-            });
-          }
-          if (/}/.test(line)) inAsync = false;
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+            }
+            if (/}/.test(line)) inAsync = false;
+          });
+        } catch (err) {
+          console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+        }
       }
+    } catch (err) {
+      console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
   }
 
@@ -323,19 +391,76 @@ export class PerformanceAudit {
   }
 
   /**
+   * Check for promise/async issues with ESLint plugins
+   */
+  async checkESLintPromiseIssues() {
+    console.log(chalk.blue('⚡ Checking for promise/async issues with ESLint plugins...'));
+    console.log(chalk.gray('🔌 Using ESLint plugin: eslint-plugin-promise'));
+    try {
+      const eslintConfig = getLintConfigFile();
+      if (!eslintConfig) {
+        throw new Error(".eslintrc file is missing");
+      }
+      const eslint = new ESLint({
+        useEslintrc: false,
+        overrideConfigFile: eslintConfig,
+      });
+      const files = await globby(getConfigPattern('jsFilePathPattern'));
+      const results = await eslint.lintFiles(files);
+      for (const file of results) {
+        for (const message of file.messages) {
+          if (message.ruleId && message.ruleId.startsWith('promise/')) {
+            const { code, context } = await getCodeContext(file.filePath, message.line);
+            this.performanceIssues.push({
+              type: 'eslint_promise',
+              file: file.filePath,
+              line: message.line,
+              severity: message.severity === 2 ? 'high' : 'medium',
+              message: message.message,
+              ruleId: message.ruleId,
+              code,
+              context,
+              source: 'eslint'
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not run ESLint for promise plugin checks'));
+      if (error && error.message) {
+        console.warn(chalk.yellow(error.message));
+      }
+    }
+  }
+
+  /**
    * Run all performance checks
    */
   async runPerformanceAudit() {
     console.log(chalk.blue('⚡ Starting Performance Audit...'));
     
-    //await this.checkBundleSize();
+    await this.checkBundleSize();
     await this.checkInefficientOperations();
     await this.checkMemoryLeaks();
     await this.checkLargeDependencies();
     await this.checkUnusedCode();
     await this.checkBlockingCodeInAsync();
     await this.checkUnoptimizedAssets();
+    await this.checkESLintPromiseIssues();
     
+    // Deduplicate issues and mark source
+    const uniqueIssues = [];
+    const seen = new Set();
+    for (const issue of this.performanceIssues) {
+      if (!issue.source) issue.source = 'custom';
+      const key = `${issue.file || ''}:${issue.line || ''}:${issue.ruleId || issue.type}:${issue.message}`;
+      if (!seen.has(key)) {
+        uniqueIssues.push(issue);
+        seen.add(key);
+      }
+    }
+    this.performanceIssues = uniqueIssues;
+
     const results = {
       timestamp: new Date().toISOString(),
       totalIssues: this.performanceIssues.length,

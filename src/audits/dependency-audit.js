@@ -110,34 +110,74 @@ export class DependencyAudit {
    */
   async checkUnusedDependencies() {
     console.log(chalk.blue('📦 Checking for unused dependencies...'));
-    
+    const { spawnSync } = await import('child_process');
+    let depcheckPath;
     try {
-      // Use depcheck to find unused dependencies
-      const depcheckResult = execSync('npx depcheck --json', { 
-        encoding: 'utf8', 
-        cwd: process.cwd(),
-        stdio: 'pipe'
-      });
-      
-      const depcheckData = JSON.parse(depcheckResult);
-      
+      // Use createRequire for ESM compatibility
+      let require;
+      try {
+        const { createRequire } = await import('module');
+        require = createRequire(import.meta.url);
+        depcheckPath = require.resolve('depcheck');
+      } catch (resolveErr) {
+        depcheckPath = null;
+      }
+      if (!depcheckPath) {
+        console.warn(chalk.yellow('depcheck is not installed. Please run: npm install depcheck --save-dev'));
+        this.dependencyIssues.push({
+          type: 'depcheck_missing',
+          severity: 'medium',
+          message: 'depcheck is not installed. Unused dependency check skipped.',
+          recommendation: 'Run npm install depcheck --save-dev'
+        });
+        return;
+      }
+      // Run depcheck
+      const depcheckResult = spawnSync('npx', ['depcheck', '--json'], { encoding: 'utf8' });
+      if (depcheckResult.error) {
+        throw depcheckResult.error;
+      }
+      // Accept nonzero exit code if output is present (depcheck returns 1 if unused found)
+      let depcheckData;
+      const output = depcheckResult.stdout ? depcheckResult.stdout.trim() : '';
+      if (!output && depcheckResult.stderr) {
+        console.warn(chalk.yellow('depcheck stderr output:'));
+        console.warn(depcheckResult.stderr);
+      }
+      try {
+        depcheckData = JSON.parse(output);
+      } catch (parseErr) {
+        console.warn(chalk.yellow('Warning: Could not parse depcheck output as JSON.'));
+        if (output) {
+          console.warn(chalk.gray('depcheck output was:'));
+          console.warn(output);
+        }
+        this.dependencyIssues.push({
+          type: 'depcheck_parse_error',
+          severity: 'medium',
+          message: 'depcheck output could not be parsed as JSON.',
+          recommendation: 'Try running depcheck manually to debug.'
+        });
+        return;
+      }
       if (depcheckData.dependencies && depcheckData.dependencies.length > 0) {
         depcheckData.dependencies.forEach(dep => {
           this.dependencyIssues.push({
             type: 'unused_dependency',
             package: dep,
+            file: dep || undefined, // Only set file to dep if no file info is present
             severity: 'low',
             message: `Unused dependency: ${dep}`,
             recommendation: `Remove ${dep} from package.json if not needed`
           });
         });
       }
-      
       if (depcheckData.devDependencies && depcheckData.devDependencies.length > 0) {
         depcheckData.devDependencies.forEach(dep => {
           this.dependencyIssues.push({
             type: 'unused_dev_dependency',
             package: dep,
+            file: dep || undefined, // Only set file to dep if no file info is present
             severity: 'low',
             message: `Unused dev dependency: ${dep}`,
             recommendation: `Remove ${dep} from devDependencies if not needed`
@@ -145,7 +185,16 @@ export class DependencyAudit {
         });
       }
     } catch (error) {
-      console.warn(chalk.yellow('Warning: Could not check for unused dependencies (depcheck not available)'));
+      console.warn(chalk.yellow('Warning: Could not check for unused dependencies.'));
+      if (error && error.message) {
+        console.warn(chalk.yellow(error.message));
+      }
+      this.dependencyIssues.push({
+        type: 'depcheck_error',
+        severity: 'medium',
+        message: 'Error occurred while running depcheck.',
+        recommendation: 'Try running depcheck manually to debug.'
+      });
     }
   }
 
