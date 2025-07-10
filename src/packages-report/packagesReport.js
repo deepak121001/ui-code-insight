@@ -18,7 +18,7 @@ export const generateNpmPackageReport = async () => {
     };
 
     const processPackage = async (packageName, isDevDependency = false) => {
-      console.log(chalk.green(`Validating ${packageName}`));
+      // console.log(chalk.green(`Validating ${packageName}`));
       try {
         const response = await fetch(
           `https://registry.npmjs.org/${packageName}`
@@ -59,15 +59,24 @@ export const generateNpmPackageReport = async () => {
       }
     };
 
-    // Process regular dependencies
-    for (const packageName in dependencies) {
+    const depNames = Object.keys(dependencies);
+    let processed = 0;
+    for (const packageName of depNames) {
+      processed++;
+      process.stdout.write(`\r[NPM Packages] Progress: ${processed}/${depNames.length} dependencies checked`);
       await processPackage(packageName);
     }
+    process.stdout.write(`\r[NPM Packages] Progress: ${depNames.length}/${depNames.length} dependencies checked\n`);
 
     // Process devDependencies
-    for (const packageName in devDependencies) {
+    const devDepNames = Object.keys(devDependencies);
+    let devProcessed = 0;
+    for (const packageName of devDepNames) {
+      devProcessed++;
+      process.stdout.write(`\r[NPM Dev Packages] Progress: ${devProcessed}/${devDepNames.length} devDependencies checked`);
       await processPackage(packageName, true);
     }
+    process.stdout.write(`\r[NPM Dev Packages] Progress: ${devDepNames.length}/${devDepNames.length} devDependencies checked\n`);
 
     await writeFile(
       `${folderPath}/npm-report.json`,

@@ -49,6 +49,14 @@ export class PerformanceAudit {
   constructor(folderPath) {
     this.folderPath = folderPath;
     this.performanceIssues = [];
+    this.issuesFile = path.join(this.folderPath, 'performance-issues.jsonl');
+    // Remove file if it exists from previous runs
+    if (fs.existsSync(this.issuesFile)) fs.unlinkSync(this.issuesFile);
+    this.issueStream = fs.createWriteStream(this.issuesFile, { flags: 'a' });
+  }
+
+  async addPerformanceIssue(issue) {
+    this.issueStream.write(JSON.stringify(issue) + '\n');
   }
 
   /**
@@ -81,7 +89,7 @@ export class PerformanceAudit {
               const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
               
               if (totalSize > 1024 * 1024) { // 1MB threshold
-                this.performanceIssues.push({
+                await this.addPerformanceIssue({
                   type: 'large_bundle',
                   severity: 'medium',
                   message: `Bundle size is ${sizeInMB}MB, consider code splitting`,
@@ -143,7 +151,7 @@ export class PerformanceAudit {
             for (const { pattern, message, severity } of inefficientPatterns) {
               if (pattern.test(line)) {
                 const { code, context } = await getCodeContext(file, index + 1);
-                this.performanceIssues.push({
+                await this.addPerformanceIssue({
                   type: 'inefficient_operation',
                   file,
                   line: index + 1,
@@ -199,7 +207,7 @@ export class PerformanceAudit {
             for (const { pattern, message, severity } of memoryLeakPatterns) {
               if (pattern.test(line)) {
                 const { code, context } = await getCodeContext(file, index + 1);
-                this.performanceIssues.push({
+                await this.addPerformanceIssue({
                   type: 'memory_leak',
                   file,
                   line: index + 1,
@@ -237,9 +245,9 @@ export class PerformanceAudit {
         'lodash', 'moment', 'date-fns', 'ramda', 'immutable',
         'bootstrap', 'material-ui', 'antd', 'semantic-ui',
       ];
-      largePackages.forEach(pkg => {
+      largePackages.forEach(async pkg => {
         if (allDeps[pkg]) {
-          this.performanceIssues.push({
+          await this.addPerformanceIssue({
             type: 'large_dependency',
             package: pkg,
             severity: 'low',
@@ -281,7 +289,7 @@ export class PerformanceAudit {
             message.ruleId === '@typescript-eslint/no-unused-vars'
           ) {
             const { code, context } = await getCodeContext(file.filePath, message.line);
-            this.performanceIssues.push({
+            await this.addPerformanceIssue({
               type: 'unused_code',
               file: file.filePath,
               line: message.line,
@@ -327,7 +335,7 @@ export class PerformanceAudit {
               for (const pattern of blockingPatterns) {
                 if (pattern.test(line)) {
                   const { code, context } = await getCodeContext(file, index + 1);
-                  this.performanceIssues.push({
+                  await this.addPerformanceIssue({
                     type: 'blocking_code_in_async',
                     file,
                     line: index + 1,
@@ -365,7 +373,7 @@ export class PerformanceAudit {
           try {
             const stats = fs.statSync(file);
             if (stats.size > 500 * 1024) { // >500KB
-              this.performanceIssues.push({
+              await this.addPerformanceIssue({
                 type: 'unoptimized_asset',
                 file,
                 severity: 'medium',
@@ -374,7 +382,7 @@ export class PerformanceAudit {
               });
             }
             if (['.bmp', '.tiff'].some(ext => file.endsWith(ext))) {
-              this.performanceIssues.push({
+              await this.addPerformanceIssue({
                 type: 'unoptimized_asset',
                 file,
                 severity: 'medium',
@@ -406,25 +414,37 @@ export class PerformanceAudit {
         overrideConfigFile: eslintConfig,
       });
       const files = await globby(getConfigPattern('jsFilePathPattern'));
-      const results = await eslint.lintFiles(files);
-      for (const file of results) {
-        for (const message of file.messages) {
-          if (message.ruleId && message.ruleId.startsWith('promise/')) {
-            const { code, context } = await getCodeContext(file.filePath, message.line);
-            this.performanceIssues.push({
-              type: 'eslint_promise',
-              file: file.filePath,
-              line: message.line,
-              severity: message.severity === 2 ? 'high' : 'medium',
-              message: message.message,
-              ruleId: message.ruleId,
-              code,
-              context,
-              source: 'eslint'
-            });
+      let processed = 0;
+      for (const file of files) {
+        try {
+          const results = await eslint.lintFiles([file]);
+          for (const result of results) {
+            for (const message of result.messages) {
+              if (message.ruleId && message.ruleId.startsWith('promise/')) {
+                const { code, context } = await getCodeContext(result.filePath, message.line);
+                await this.addPerformanceIssue({
+                  type: 'eslint_promise',
+                  file: result.filePath,
+                  line: message.line,
+                  severity: message.severity === 2 ? 'high' : 'medium',
+                  message: message.message,
+                  ruleId: message.ruleId,
+                  code,
+                  context,
+                  source: 'eslint'
+                });
+              }
+            }
           }
+        } catch (err) {
+          console.warn(chalk.yellow(`⚠️ ESLint failed on file ${file}: ${err.message}`));
+        }
+        processed++;
+        if (processed % 10 === 0 || processed === files.length) {
+          process.stdout.write(`\rESLint Promise Progress: ${processed}/${files.length} files checked`);
         }
       }
+      process.stdout.write(`\rESLint Promise Progress: ${files.length}/${files.length} files checked\n`);
     } catch (error) {
       console.warn(chalk.yellow('Warning: Could not run ESLint for promise plugin checks'));
       if (error && error.message) {
@@ -449,17 +469,25 @@ export class PerformanceAudit {
     await this.checkESLintPromiseIssues();
     
     // Deduplicate issues and mark source
-    const uniqueIssues = [];
-    const seen = new Set();
-    for (const issue of this.performanceIssues) {
-      if (!issue.source) issue.source = 'custom';
-      const key = `${issue.file || ''}:${issue.line || ''}:${issue.ruleId || issue.type}:${issue.message}`;
-      if (!seen.has(key)) {
-        uniqueIssues.push(issue);
-        seen.add(key);
+    this.issueStream.end();
+    // Load issues from file
+    if (fs.existsSync(this.issuesFile)) {
+      const lines = fs.readFileSync(this.issuesFile, 'utf8').split('\n').filter(Boolean);
+      const seen = new Set();
+      const uniqueIssues = [];
+      for (const line of lines) {
+        try {
+          const issue = JSON.parse(line);
+          if (!issue.source) issue.source = 'custom';
+          const key = `${issue.file || ''}:${issue.line || ''}:${issue.ruleId || issue.type}:${issue.message}`;
+          if (!seen.has(key)) {
+            uniqueIssues.push(issue);
+            seen.add(key);
+          }
+        } catch {}
       }
+      this.performanceIssues = uniqueIssues;
     }
-    this.performanceIssues = uniqueIssues;
 
     const results = {
       timestamp: new Date().toISOString(),

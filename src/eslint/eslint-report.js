@@ -151,13 +151,13 @@ const lintFile = async (filePath, eslint) => {
       filePath,
     });
 
-    if (messages[0].errorCount) {
-      logError(filePath);
-    } else if (messages[0].warningCount) {
-      logWarning(filePath);
-    } else {
-      logSuccess(filePath);
-    }
+    // if (messages[0].errorCount) {
+    //   logError(filePath);
+    // } else if (messages[0].warningCount) {
+    //   logWarning(filePath);
+    // } else {
+    //   logSuccess(filePath);
+    // }
 
     return {
       filePath,
@@ -170,6 +170,8 @@ const lintFile = async (filePath, eslint) => {
     return null;
   }
 };
+
+const BATCH_SIZE = 5;
 
 /**
  * Function to lint all files
@@ -185,50 +187,56 @@ const lintAllFiles = async (files, folderPath, eslint, projectType, reports) => 
       `Total files count is ${files.length} This linting task will take some time.`
     )
   );
-  
+
   // Get merged exclude rules from config
   const excludeRules = getMergedExcludeRules('eslint', DEFAULT_ESLINT_EXCLUDE_RULES);
-  
-  const lintPromises = files.map((filePath) => lintFile(filePath, eslint));
 
-  try {
-    const lintResults = await Promise.all(lintPromises);
-    const jsonReport = {
-      projectType,
-      reports,
-      excludeRules: {
-        enabled: excludeRules.length > 0,
-        rules: excludeRules,
-        count: excludeRules.length
-      },
-      results: lintResults.map((result) => ({
-        filePath: result?.filePath,
-        errorCount: result?.errorCount,
-        warningCount: result?.warningCount,
-        messages: result?.messages
-          .filter(message => !excludeRules.includes(message.ruleId))
-          .map((message) => ({
-            ruleId: message.ruleId,
-            severity: message.severity,
-            line: message.line,
-            column: message.column,
-            endLine: message.endLine,
-            endColumn: message.endColumn,
-            message: message.message,
-            fix: message.fix,
-            suggestions: message.suggestions,
-            fatal: message.fatal,
-          })),
-      })),
-    };
-
-    await writeFile(
-      path.join(folderPath, "eslint-report.json"),
-      JSON.stringify(jsonReport, null, 2)
-    );
-  } catch (error) {
-    console.error(chalk.red(`Error during JS linting:', ${error}`));
+  let results = [];
+  let processed = 0;
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    const batch = files.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(async (filePath) => {
+      processed++;
+      process.stdout.write(`\r[ESLint] Progress: ${processed}/${files.length} files checked`);
+      return await lintFile(filePath, eslint);
+    }));
+    results.push(...batchResults);
   }
+  process.stdout.write(`\r[ESLint] Progress: ${files.length}/${files.length} files checked\n`);
+
+  const jsonReport = {
+    projectType,
+    reports,
+    excludeRules: {
+      enabled: excludeRules.length > 0,
+      rules: excludeRules,
+      count: excludeRules.length
+    },
+    results: results.map((result) => ({
+      filePath: result?.filePath,
+      errorCount: result?.errorCount,
+      warningCount: result?.warningCount,
+      messages: result?.messages
+        .filter(message => !excludeRules.includes(message.ruleId))
+        .map((message) => ({
+          ruleId: message.ruleId,
+          severity: message.severity,
+          line: message.line,
+          column: message.column,
+          endLine: message.endLine,
+          endColumn: message.endColumn,
+          message: message.message,
+          fix: message.fix,
+          suggestions: message.suggestions,
+          fatal: message.fatal,
+        })),
+    })),
+  };
+
+  await writeFile(
+    path.join(folderPath, "eslint-report.json"),
+    JSON.stringify(jsonReport, null, 2)
+  );
 };
 
 /**
@@ -259,11 +267,11 @@ export const generateESLintReport = async (
 
   const files = await globby(getConfigPattern('jsFilePathPattern'));
   console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${getConfigPattern('jsFilePathPattern').join(', ')}`));
-  console.log(chalk.gray(`Files being processed:`));
-  files.slice(0, 10).forEach(file => console.log(chalk.gray(`  - ${file}`)));
-  if (files.length > 10) {
-    console.log(chalk.gray(`  ... and ${files.length - 10} more files`));
-  }
+  // console.log(chalk.gray(`Files being processed:`));
+  // files.slice(0, 10).forEach(file => console.log(chalk.gray(`  - ${file}`)));
+  // if (files.length > 10) {
+  //   console.log(chalk.gray(`  ... and ${files.length - 10} more files`));
+  // }
   await lintAllFiles(files, folderPath, eslint, projectType, reports);
 
   try {

@@ -154,7 +154,23 @@ You can customize how files are scanned and which rules are excluded by adding a
 
 ---
 
+## ⚠️ Important Usage Note
+
+**Do not run 'Comprehensive Audit (All Categories)' and 'All Traditional Reports' together on large projects.**
+
+Running both at the same time may cause the tool to crash or run out of memory on large codebases. For best results, run one or the other, not both together.
+
+---
+
 ## ❓ FAQ
+
+**Q: How accurate are the reports?**  
+A: 
+- **Rule-Based Static Analysis:** The tool uses established static analysis engines (like ESLint, Stylelint, and custom audits) that apply well-known rules and patterns to your codebase. The accuracy of each report is tied to the quality and completeness of these rules.
+- **Coverage of Patterns:** The tool looks for a wide range of issues, but it can only find what it’s programmed to detect. If an issue falls outside these patterns, it won’t be flagged.
+- **No False Positives/Negatives Guarantee:** Like all static analysis tools, there may be false positives (flagging something that isn’t really a problem) or false negatives (missing a real issue). The tool aims to minimize these by using up-to-date, community-accepted rules and by allowing configuration for project-specific needs.
+- **Transparency and Customization:** The tool outputs detailed reports, so users can review and verify each finding. Users can customize rules or add exceptions to improve relevance and reduce noise.
+- **Not a Substitute for Manual Review:** Automated tools are a first line of defense and help catch common issues quickly. For critical applications, manual code review and testing are still recommended to catch context-specific or business-logic issues.
 
 **Q: Do I need to configure anything?**  
 A: No! Defaults work for most users. Advanced users can add a config file.

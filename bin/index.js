@@ -29,6 +29,8 @@ async function main() {
         'eslint-plugin-import',
         'eslint-plugin-jsx-a11y',
         'eslint-config-airbnb',
+        "eslint-plugin-promise",
+        "eslint-plugin-security",
       ],
       stylelint: [
         'stylelint',
@@ -48,6 +50,8 @@ async function main() {
       eslint: [
         'eslint',
         'eslint-config-airbnb-base',
+        "eslint-plugin-promise",
+        "eslint-plugin-security",
       ],
       stylelint: [
         'stylelint',
@@ -60,6 +64,8 @@ async function main() {
         '@typescript-eslint/parser',
         '@typescript-eslint/eslint-plugin',
         'eslint-config-airbnb-base',
+        "eslint-plugin-promise",
+        "eslint-plugin-security",
       ],
       stylelint: [
         'stylelint',
@@ -77,6 +83,8 @@ async function main() {
         'eslint-plugin-jsx-a11y',
         'eslint-config-airbnb',
         'eslint-config-airbnb-typescript',
+        "eslint-plugin-promise",
+        "eslint-plugin-security",
       ],
       stylelint: [
         'stylelint',
@@ -88,6 +96,8 @@ async function main() {
       eslint: [
         'eslint',
         'eslint-config-airbnb-base',
+        "eslint-plugin-promise",
+        "eslint-plugin-security",
       ],
       stylelint: [
         'stylelint',
@@ -118,16 +128,16 @@ async function main() {
       name: 'reports',
       message: 'Which report(s) do you want to generate?',
       choices: [
+        { name: 'All Traditional Reports (ESLint Stylelint, NPM-Report)', value: 'all' },
         { name: 'Comprehensive Audit (All Categories)', value: 'comprehensive' },
-        { name: 'All Traditional Reports', value: 'all' },
         { name: 'ESLint', value: 'eslint' },
         { name: 'Stylelint', value: 'stylelint' },
         { name: 'Security Audit', value: 'security' },
         { name: 'Code Performance Audit', value: 'performance' },
         { name: 'Accessibility Audit', value: 'accessibility' },
+        { name: 'Dependency Audit', value: 'dependency' },
         { name: 'Package Report', value: 'package' },
         { name: 'Testing Audit', value: 'testing' },
-        { name: 'Dependency Audit', value: 'dependency' },
       ],
       validate: (answer) => answer.length > 0 || 'Select at least one report.'
     },

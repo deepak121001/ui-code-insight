@@ -1,6 +1,6 @@
 {
   "name": "ui-code-insight",
-  "version": "2.0.5",
+  "version": "2.0.7",
   "description": "Interactive CLI for generating code quality, style, and package analysis reports for JavaScript, TypeScript, CSS, and modern web projects.",
   "author": "Deepak Sharma",
   "main": "index.js",
@@ -44,6 +44,7 @@
     "globby": "^13.2.2",
     "inquirer": "^12.7.0",
     "node-fetch": "^3.3.2",
+    "p-limit": "^6.2.0",
     "puppeteer": "^24.11.2",
     "stylelint": "^16.21.1",
     "stylelint-config-prettier-scss": "^1.0.0",

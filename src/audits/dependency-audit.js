@@ -11,6 +11,14 @@ export class DependencyAudit {
   constructor(folderPath) {
     this.folderPath = folderPath;
     this.dependencyIssues = [];
+    this.issuesFile = path.join(this.folderPath, 'dependency-issues.jsonl');
+    // Remove file if it exists from previous runs
+    if (fs.existsSync(this.issuesFile)) fs.unlinkSync(this.issuesFile);
+    this.issueStream = fs.createWriteStream(this.issuesFile, { flags: 'a' });
+  }
+
+  async addDependencyIssue(issue) {
+    this.issueStream.write(JSON.stringify(issue) + '\n');
   }
 
   /**
@@ -28,19 +36,26 @@ export class DependencyAudit {
       
       const outdatedData = JSON.parse(outdatedResult);
       
-      Object.keys(outdatedData).forEach(packageName => {
-        const packageInfo = outdatedData[packageName];
-        this.dependencyIssues.push({
-          type: 'outdated_dependency',
-          package: packageName,
-          current: packageInfo.current,
-          wanted: packageInfo.wanted,
-          latest: packageInfo.latest,
-          severity: packageInfo.latest !== packageInfo.wanted ? 'medium' : 'low',
-          message: `${packageName} is outdated (current: ${packageInfo.current}, latest: ${packageInfo.latest})`,
-          recommendation: `Update ${packageName} to version ${packageInfo.latest}`
+      const BATCH_SIZE = 5;
+      const keys = Object.keys(outdatedData);
+      for (let i = 0; i < keys.length; i += BATCH_SIZE) {
+        const batch = keys.slice(i, i + BATCH_SIZE);
+        batch.forEach((packageName, idx) => {
+          process.stdout.write(`\r[Outdated Dependencies] Progress: ${i + idx + 1}/${keys.length} checked`);
+          const packageInfo = outdatedData[packageName];
+          this.addDependencyIssue({
+            type: 'outdated_dependency',
+            package: packageName,
+            current: packageInfo.current,
+            wanted: packageInfo.wanted,
+            latest: packageInfo.latest,
+            severity: packageInfo.latest !== packageInfo.wanted ? 'medium' : 'low',
+            message: `${packageName} is outdated (current: ${packageInfo.current}, latest: ${packageInfo.latest})`,
+            recommendation: `Update ${packageName} to version ${packageInfo.latest}`
+          });
         });
-      });
+      }
+      process.stdout.write(`\r[Outdated Dependencies] Progress: ${keys.length}/${keys.length} checked\n`);
     } catch (error) {
       // npm outdated returns non-zero exit code when there are outdated packages
       if (error.status === 1) {
@@ -54,7 +69,7 @@ export class DependencyAudit {
             if (match) {
               const [, packageName, current, wanted, latest] = match;
               if (packageName !== 'Package' && current !== 'Current') {
-                this.dependencyIssues.push({
+                this.addDependencyIssue({
                   type: 'outdated_dependency',
                   package: packageName,
                   current,
@@ -87,19 +102,23 @@ export class DependencyAudit {
       const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
       
       const packageNames = Object.keys(allDeps);
-      const duplicates = packageNames.filter((name, index) => packageNames.indexOf(name) !== index);
-      
-      if (duplicates.length > 0) {
-        duplicates.forEach(duplicate => {
-          this.dependencyIssues.push({
-            type: 'duplicate_dependency',
-            package: duplicate,
-            severity: 'medium',
-            message: `Duplicate dependency found: ${duplicate}`,
-            recommendation: 'Remove duplicate entry from package.json'
-          });
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < packageNames.length; i += BATCH_SIZE) {
+        const batch = packageNames.slice(i, i + BATCH_SIZE);
+        batch.forEach((name, idx) => {
+          process.stdout.write(`\r[Duplicate Dependencies] Progress: ${i + idx + 1}/${packageNames.length} checked`);
+          if (packageNames.indexOf(name) !== i + idx) {
+            this.addDependencyIssue({
+              type: 'duplicate_dependency',
+              package: name,
+              severity: 'medium',
+              message: `Duplicate dependency found: ${name}`,
+              recommendation: 'Remove duplicate entry from package.json'
+            });
+          }
         });
       }
+      process.stdout.write(`\r[Duplicate Dependencies] Progress: ${packageNames.length}/${packageNames.length} checked\n`);
     } catch (error) {
       console.warn(chalk.yellow('Warning: Could not check for duplicate dependencies'));
     }
@@ -124,7 +143,7 @@ export class DependencyAudit {
       }
       if (!depcheckPath) {
         console.warn(chalk.yellow('depcheck is not installed. Please run: npm install depcheck --save-dev'));
-        this.dependencyIssues.push({
+        this.addDependencyIssue({
           type: 'depcheck_missing',
           severity: 'medium',
           message: 'depcheck is not installed. Unused dependency check skipped.',
@@ -152,7 +171,7 @@ export class DependencyAudit {
           console.warn(chalk.gray('depcheck output was:'));
           console.warn(output);
         }
-        this.dependencyIssues.push({
+        this.addDependencyIssue({
           type: 'depcheck_parse_error',
           severity: 'medium',
           message: 'depcheck output could not be parsed as JSON.',
@@ -160,36 +179,47 @@ export class DependencyAudit {
         });
         return;
       }
+      const BATCH_SIZE = 5;
       if (depcheckData.dependencies && depcheckData.dependencies.length > 0) {
-        depcheckData.dependencies.forEach(dep => {
-          this.dependencyIssues.push({
-            type: 'unused_dependency',
-            package: dep,
-            file: dep || undefined, // Only set file to dep if no file info is present
-            severity: 'low',
-            message: `Unused dependency: ${dep}`,
-            recommendation: `Remove ${dep} from package.json if not needed`
+        for (let i = 0; i < depcheckData.dependencies.length; i += BATCH_SIZE) {
+          const batch = depcheckData.dependencies.slice(i, i + BATCH_SIZE);
+          batch.forEach((dep, idx) => {
+            process.stdout.write(`\r[Unused Dependencies] Progress: ${i + idx + 1}/${depcheckData.dependencies.length} checked`);
+            this.addDependencyIssue({
+              type: 'unused_dependency',
+              package: dep,
+              file: dep || undefined, // Only set file to dep if no file info is present
+              severity: 'low',
+              message: `Unused dependency: ${dep}`,
+              recommendation: `Remove ${dep} from package.json if not needed`
+            });
           });
-        });
+        }
+        process.stdout.write(`\r[Unused Dependencies] Progress: ${depcheckData.dependencies.length}/${depcheckData.dependencies.length} checked\n`);
       }
       if (depcheckData.devDependencies && depcheckData.devDependencies.length > 0) {
-        depcheckData.devDependencies.forEach(dep => {
-          this.dependencyIssues.push({
-            type: 'unused_dev_dependency',
-            package: dep,
-            file: dep || undefined, // Only set file to dep if no file info is present
-            severity: 'low',
-            message: `Unused dev dependency: ${dep}`,
-            recommendation: `Remove ${dep} from devDependencies if not needed`
+        for (let i = 0; i < depcheckData.devDependencies.length; i += BATCH_SIZE) {
+          const batch = depcheckData.devDependencies.slice(i, i + BATCH_SIZE);
+          batch.forEach((dep, idx) => {
+            process.stdout.write(`\r[Unused Dev Dependencies] Progress: ${i + idx + 1}/${depcheckData.devDependencies.length} checked`);
+            this.addDependencyIssue({
+              type: 'unused_dev_dependency',
+              package: dep,
+              file: dep || undefined, // Only set file to dep if no file info is present
+              severity: 'low',
+              message: `Unused dev dependency: ${dep}`,
+              recommendation: `Remove ${dep} from devDependencies if not needed`
+            });
           });
-        });
+        }
+        process.stdout.write(`\r[Unused Dev Dependencies] Progress: ${depcheckData.devDependencies.length}/${depcheckData.devDependencies.length} checked\n`);
       }
     } catch (error) {
       console.warn(chalk.yellow('Warning: Could not check for unused dependencies.'));
       if (error && error.message) {
         console.warn(chalk.yellow(error.message));
       }
-      this.dependencyIssues.push({
+      this.addDependencyIssue({
         type: 'depcheck_error',
         severity: 'medium',
         message: 'Error occurred while running depcheck.',
@@ -210,7 +240,7 @@ export class DependencyAudit {
       
       // Check if node_modules exists
       if (!fs.existsSync('node_modules')) {
-        this.dependencyIssues.push({
+        this.addDependencyIssue({
           type: 'missing_node_modules',
           severity: 'high',
           message: 'node_modules directory not found',
@@ -220,18 +250,24 @@ export class DependencyAudit {
       }
       
       // Check for missing packages in node_modules
-      Object.keys(allDeps).forEach(packageName => {
-        const packagePath = path.join('node_modules', packageName);
-        if (!fs.existsSync(packagePath)) {
-          this.dependencyIssues.push({
-            type: 'missing_package',
-            package: packageName,
-            severity: 'high',
-            message: `Package ${packageName} is missing from node_modules`,
-            recommendation: `Run npm install to install ${packageName}`
-          });
-        }
-      });
+      const depKeys = Object.keys(allDeps);
+      for (let i = 0; i < depKeys.length; i += BATCH_SIZE) {
+        const batch = depKeys.slice(i, i + BATCH_SIZE);
+        batch.forEach((packageName, idx) => {
+          process.stdout.write(`\r[Missing Packages] Progress: ${i + idx + 1}/${depKeys.length} checked`);
+          const packagePath = path.join('node_modules', packageName);
+          if (!fs.existsSync(packagePath)) {
+            this.addDependencyIssue({
+              type: 'missing_package',
+              package: packageName,
+              severity: 'high',
+              message: `Package ${packageName} is missing from node_modules`,
+              recommendation: `Run npm install to install ${packageName}`
+            });
+          }
+        });
+      }
+      process.stdout.write(`\r[Missing Packages] Progress: ${depKeys.length}/${depKeys.length} checked\n`);
     } catch (error) {
       console.warn(chalk.yellow('Warning: Could not check for missing dependencies'));
     }
@@ -247,22 +283,26 @@ export class DependencyAudit {
       const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
       
       if (packageJson.peerDependencies) {
-        Object.keys(packageJson.peerDependencies).forEach(peerDep => {
-          const requiredVersion = packageJson.peerDependencies[peerDep];
-          
-          // Check if peer dependency is installed
-          const packagePath = path.join('node_modules', peerDep);
-          if (!fs.existsSync(packagePath)) {
-            this.dependencyIssues.push({
-              type: 'missing_peer_dependency',
-              package: peerDep,
-              requiredVersion,
-              severity: 'high',
-              message: `Peer dependency ${peerDep}@${requiredVersion} is not installed`,
-              recommendation: `Install ${peerDep}@${requiredVersion}`
-            });
-          }
-        });
+        const peerKeys = Object.keys(packageJson.peerDependencies);
+        for (let i = 0; i < peerKeys.length; i += BATCH_SIZE) {
+          const batch = peerKeys.slice(i, i + BATCH_SIZE);
+          batch.forEach((peerDep, idx) => {
+            process.stdout.write(`\r[Peer Dependencies] Progress: ${i + idx + 1}/${peerKeys.length} checked`);
+            const requiredVersion = packageJson.peerDependencies[peerDep];
+            const packagePath = path.join('node_modules', peerDep);
+            if (!fs.existsSync(packagePath)) {
+              this.addDependencyIssue({
+                type: 'missing_peer_dependency',
+                package: peerDep,
+                requiredVersion,
+                severity: 'high',
+                message: `Peer dependency ${peerDep}@${requiredVersion} is not installed`,
+                recommendation: `Install ${peerDep}@${requiredVersion}`
+              });
+            }
+          });
+        }
+        process.stdout.write(`\r[Peer Dependencies] Progress: ${peerKeys.length}/${peerKeys.length} checked\n`);
       }
     } catch (error) {
       console.warn(chalk.yellow('Warning: Could not check peer dependencies'));
@@ -286,17 +326,22 @@ export class DependencyAudit {
         'jquery', 'angular', 'vue', 'react-dom'
       ];
       
-      largePackages.forEach(pkg => {
-        if (allDeps[pkg]) {
-          this.dependencyIssues.push({
-            type: 'large_dependency',
-            package: pkg,
-            severity: 'low',
-            message: `Large dependency detected: ${pkg}`,
-            recommendation: 'Consider using lighter alternatives or tree-shaking'
-          });
-        }
-      });
+      for (let i = 0; i < largePackages.length; i += BATCH_SIZE) {
+        const batch = largePackages.slice(i, i + BATCH_SIZE);
+        batch.forEach((pkg, idx) => {
+          process.stdout.write(`\r[Large Dependencies] Progress: ${i + idx + 1}/${largePackages.length} checked`);
+          if (allDeps[pkg]) {
+            this.addDependencyIssue({
+              type: 'large_dependency',
+              package: pkg,
+              severity: 'low',
+              message: `Large dependency detected: ${pkg}`,
+              recommendation: 'Consider using lighter alternatives or tree-shaking'
+            });
+          }
+        });
+      }
+      process.stdout.write(`\r[Large Dependencies] Progress: ${largePackages.length}/${largePackages.length} checked\n`);
     } catch (error) {
       console.warn(chalk.yellow('Warning: Could not check dependency sizes'));
     }
@@ -312,7 +357,7 @@ export class DependencyAudit {
       const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
       
       if (!packageJson.license) {
-        this.dependencyIssues.push({
+        this.addDependencyIssue({
           type: 'missing_license',
           severity: 'medium',
           message: 'No license specified in package.json',
@@ -332,23 +377,29 @@ export class DependencyAudit {
         
         const problematicLicenses = ['GPL', 'AGPL', 'LGPL'];
         
-        Object.keys(licenseData).forEach(packageName => {
-          const packageInfo = licenseData[packageName];
-          if (packageInfo.licenses) {
-            problematicLicenses.forEach(license => {
-              if (packageInfo.licenses.includes(license)) {
-                this.dependencyIssues.push({
-                  type: 'problematic_license',
-                  package: packageName,
-                  license: packageInfo.licenses,
-                  severity: 'medium',
-                  message: `Package ${packageName} uses ${packageInfo.licenses} license`,
-                  recommendation: 'Review license compatibility with your project'
-                });
-              }
-            });
-          }
-        });
+        const licenseKeys = Object.keys(licenseData);
+        for (let i = 0; i < licenseKeys.length; i += BATCH_SIZE) {
+          const batch = licenseKeys.slice(i, i + BATCH_SIZE);
+          batch.forEach((packageName, idx) => {
+            process.stdout.write(`\r[License Compliance] Progress: ${i + idx + 1}/${licenseKeys.length} checked`);
+            const packageInfo = licenseData[packageName];
+            if (packageInfo.licenses) {
+              problematicLicenses.forEach(license => {
+                if (packageInfo.licenses.includes(license)) {
+                  this.addDependencyIssue({
+                    type: 'problematic_license',
+                    package: packageName,
+                    license: packageInfo.licenses,
+                    severity: 'medium',
+                    message: `Package ${packageName} uses ${packageInfo.licenses} license`,
+                    recommendation: 'Review license compatibility with your project'
+                  });
+                }
+              });
+            }
+          });
+        }
+        process.stdout.write(`\r[License Compliance] Progress: ${licenseKeys.length}/${licenseKeys.length} checked\n`);
       } catch (licenseError) {
         console.warn(chalk.yellow('Warning: Could not check dependency licenses (license-checker not available)'));
       }
@@ -371,6 +422,26 @@ export class DependencyAudit {
     await this.checkDependencySizes();
     await this.checkLicenseCompliance();
     
+    this.issueStream.end();
+    // Load issues from file
+    if (fs.existsSync(this.issuesFile)) {
+      const lines = fs.readFileSync(this.issuesFile, 'utf8').split('\n').filter(Boolean);
+      const seen = new Set();
+      const uniqueIssues = [];
+      for (const line of lines) {
+        try {
+          const issue = JSON.parse(line);
+          if (!issue.source) issue.source = 'custom';
+          const key = `${issue.file || ''}:${issue.line || ''}:${issue.type}:${issue.message}`;
+          if (!seen.has(key)) {
+            uniqueIssues.push(issue);
+            seen.add(key);
+          }
+        } catch {}
+      }
+      this.dependencyIssues = uniqueIssues;
+    }
+
     const results = {
       timestamp: new Date().toISOString(),
       totalIssues: this.dependencyIssues.length,

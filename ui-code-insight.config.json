@@ -4,6 +4,7 @@
     "./src/**/*.ts",
     "./src/**/*.jsx",
     "./src/**/*.tsx",
+    "!**/report/**",
     "!./dist/**",
     "!./build/**",
     "!./target/**",

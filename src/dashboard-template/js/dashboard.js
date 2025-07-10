@@ -1408,7 +1408,11 @@ window.addEventListener('DOMContentLoaded', async () => {
             html += `</div>`;
             html += `<span class="text-lg font-bold">${categoryData.totalIssues}</span>`;
             html += `</div>`;
-            html += `<div class="text-sm text-gray-500">${categoryData.description}</div>`;
+            html += `<div class="text-sm text-gray-500">` +
+              `High: <span class='text-red-600 font-bold'>${categoryData.highSeverity || 0}</span> | ` +
+              `Medium: <span class='text-yellow-600 font-bold'>${categoryData.mediumSeverity || 0}</span> | ` +
+              `Low: <span class='text-blue-600 font-bold'>${categoryData.lowSeverity || 0}</span>` +
+              `</div>`;
             html += `</div>`;
           }
         });

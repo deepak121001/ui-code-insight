@@ -7,6 +7,7 @@ import { globby } from 'globby';
 import { getConfigPattern } from '../config-loader.js';
 import { ESLint } from "eslint";
 import { fileURLToPath } from 'url';
+import pLimit from 'p-limit';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -112,47 +113,60 @@ export class SecurityAudit {
       /\b(const|let|var)\s+\w*(api|access|secret|auth|token|key)\w*\s*=\s*['"][\w\-]{16,}['"]/i,
     ];
   
+    const CONCURRENCY = 10; // Limit number of files processed in parallel
+    const BATCH_SIZE = 50; // Process files in batches
     try {
       const files = await globby(getConfigPattern('jsFilePathPattern'), {
-        absolute: true, // ✅ Ensures absolute paths are returned
+        absolute: true,
       });
-  
       console.log(chalk.gray(`📁 Scanning ${files.length} files for secrets...`));
-  
-      for (const file of files) {
-        try {
-          const content = await fsp.readFile(file, 'utf8');
-          const lines = content.split('\n');
-  
-          lines.forEach((line, index) => {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith('//')) return;
-  
-            for (const pattern of secretPatterns) {
-              if (
-                pattern.test(trimmed) &&
-                /=\s*['"][^'"`]+['"]/.test(trimmed) &&
-                !/(===|!==|==|!=)/.test(trimmed) &&
-                !/\w+\s*\(/.test(trimmed) &&
-                !/`.*`/.test(trimmed)
-              ) {
-                this.securityIssues.push({
-                  type: 'hardcoded_secret',
-                  file,
-                  line: index + 1,
-                  severity: 'high',
-                  message: 'Potential hardcoded secret detected',
-                  code: trimmed,
-                  context: this.printContext(lines, index),
-                });
-                break;
+      const limit = pLimit(CONCURRENCY);
+      let processed = 0;
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(file => limit(async () => {
+          try {
+            const content = await fsp.readFile(file, 'utf8');
+            const lines = content.split('\n');
+            lines.forEach((line, index) => {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed.startsWith('//')) return;
+              for (const pattern of secretPatterns) {
+                if (
+                  pattern.test(trimmed) &&
+                  /=\s*['"][^'"`]+['"]/ .test(trimmed) &&
+                  !/(===|!==|==|!=)/.test(trimmed) &&
+                  !/\w+\s*\(/.test(trimmed) &&
+                  !/`.*`/.test(trimmed)
+                ) {
+                  this.securityIssues.push({
+                    type: 'hardcoded_secret',
+                    file,
+                    line: index + 1,
+                    severity: 'high',
+                    message: 'Potential hardcoded secret detected',
+                    code: trimmed,
+                    context: this.printContext(lines, index),
+                  });
+                  break;
+                }
               }
-            }
-          });
-        } catch (err) {
-          console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
-        }
+            });
+            // Release memory
+            for (let j = 0; j < lines.length; j++) lines[j] = null;
+          } catch (err) {
+            console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+          }
+          processed++;
+          if (processed % 25 === 0 || processed === files.length) {
+            process.stdout.write(`\rProgress: ${processed}/${files.length} files processed`);
+          }
+        })));
+        // Optionally force garbage collection if available
+        if (global.gc) global.gc();
       }
+      // Final progress output
+      process.stdout.write(`\rProgress: ${files.length}/${files.length} files processed\n`);
     } catch (err) {
       console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
@@ -162,33 +176,47 @@ export class SecurityAudit {
    * Common function to scan files with given patterns
    */
   async patternScan(files, patterns, type) {
-    for (const file of files) {
-      try {
-        const content = await fs.readFile(file, 'utf8');
-        const lines = content.split('\n');
-
-        lines.forEach((line, index) => {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith('//')) return;
-
-          patterns.forEach(({ pattern, message, severity }) => {
-            if (pattern.test(trimmed)) {
-              this.securityIssues.push({
-                type,
-                file,
-                line: index + 1,
-                severity,
-                message,
-                code: trimmed,
-                context: this.printContext(lines, index)
-              });
-            }
+    const CONCURRENCY = 10;
+    const BATCH_SIZE = 50;
+    const limit = pLimit(CONCURRENCY);
+    let processed = 0;
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(file => limit(async () => {
+        try {
+          const content = await fs.readFile(file, 'utf8');
+          const lines = content.split('\n');
+          lines.forEach((line, index) => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('//')) return;
+            patterns.forEach(({ pattern, message, severity }) => {
+              if (pattern.test(trimmed)) {
+                this.securityIssues.push({
+                  type,
+                  file,
+                  line: index + 1,
+                  severity,
+                  message,
+                  code: trimmed,
+                  context: this.printContext(lines, index)
+                });
+              }
+            });
           });
-        });
-      } catch {
-        console.warn(chalk.yellow(`⚠️ Could not read file ${file}`));
-      }
+          // Release memory
+          for (let j = 0; j < lines.length; j++) lines[j] = null;
+        } catch {
+          console.warn(chalk.yellow(`⚠️ Could not read file ${file}`));
+        }
+        processed++;
+        if (processed % 25 === 0 || processed === files.length) {
+          process.stdout.write(`\rProgress: ${processed}/${files.length} files processed`);
+        }
+      })));
+      if (global.gc) global.gc();
     }
+    // Final progress output
+    process.stdout.write(`\rProgress: ${files.length}/${files.length} files processed\n`);
   }
 
 /**
@@ -256,6 +284,10 @@ async checkDependencyVulnerabilities() {
 
   async checkESLintSecurityIssues() {
     console.log(chalk.blue('🔍 Checking for security issues with ESLint plugins...'));
+    const issuesFile = path.join(this.folderPath, 'security-issues.jsonl');
+    // Remove file if it exists from previous runs
+    if (fs.existsSync(issuesFile)) fs.unlinkSync(issuesFile);
+    const stream = fs.createWriteStream(issuesFile, { flags: 'a' });
     try {
       const eslintConfig = getLintConfigFile();
       if (!eslintConfig) {
@@ -266,37 +298,62 @@ async checkDependencyVulnerabilities() {
         overrideConfigFile: eslintConfig,
       });
       const files = await globby(getConfigPattern('jsFilePathPattern'));
-      const results = await eslint.lintFiles(files);
-      for (const file of results) {
-        for (const message of file.messages) {
-          if (
-            message.ruleId &&
-            (
-              message.ruleId.startsWith('security/') ||
-              message.ruleId.startsWith('no-unsanitized/') ||
-              message.ruleId === 'no-unsanitized/method' ||
-              message.ruleId === 'no-unsanitized/property'
-            )
-          ) {
-            const { code, context } = await getCodeContext(file.filePath, message.line);
-            this.securityIssues.push({
-              type: 'eslint_security',
-              file: file.filePath,
-              line: message.line,
-              severity: message.severity === 2 ? 'high' : 'medium',
-              message: message.message,
-              ruleId: message.ruleId,
-              code,
-              context,
-              source: 'eslint'
-            });
+      let processed = 0;
+      for (const file of files) {
+        try {
+          const results = await eslint.lintFiles([file]);
+          for (const result of results) {
+            for (const message of result.messages) {
+              if (
+                message.ruleId &&
+                (
+                  message.ruleId.startsWith('security/') ||
+                  message.ruleId.startsWith('no-unsanitized/') ||
+                  message.ruleId === 'no-unsanitized/method' ||
+                  message.ruleId === 'no-unsanitized/property'
+                )
+              ) {
+                const { code, context } = await getCodeContext(result.filePath, message.line);
+                const issue = {
+                  type: 'eslint_security',
+                  file: result.filePath,
+                  line: message.line,
+                  severity: message.severity === 2 ? 'high' : 'medium',
+                  message: message.message,
+                  ruleId: message.ruleId,
+                  code,
+                  context,
+                  source: 'eslint'
+                };
+                stream.write(JSON.stringify(issue) + '\n');
+              }
+            }
           }
+        } catch (err) {
+          console.warn(chalk.yellow(`⚠️ ESLint failed on file ${file}: ${err.message}`));
         }
+        processed++;
+        if (processed % 10 === 0 || processed === files.length) {
+          process.stdout.write(`\rESLint Progress: ${processed}/${files.length} files checked`);
+        }
+        if (global.gc) global.gc();
       }
+      process.stdout.write(`\rESLint Progress: ${files.length}/${files.length} files checked\n`);
     } catch (error) {
       console.warn(chalk.yellow('Warning: Could not run ESLint for security plugin checks'));
       if (error && error.message) {
         console.warn(chalk.yellow(error.message));
+      }
+    } finally {
+      stream.end();
+    }
+    // After all files, read issues from file and add to this.securityIssues
+    if (fs.existsSync(issuesFile)) {
+      const lines = fs.readFileSync(issuesFile, 'utf8').split('\n').filter(Boolean);
+      for (const line of lines) {
+        try {
+          this.securityIssues.push(JSON.parse(line));
+        } catch {}
       }
     }
   }

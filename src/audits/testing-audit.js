@@ -13,6 +13,14 @@ export class TestingAudit {
   constructor(folderPath) {
     this.folderPath = folderPath;
     this.testingIssues = [];
+    this.issuesFile = path.join(this.folderPath, 'testing-issues.jsonl');
+    // Remove file if it exists from previous runs
+    if (fs.existsSync(this.issuesFile)) fs.unlinkSync(this.issuesFile);
+    this.issueStream = fs.createWriteStream(this.issuesFile, { flags: 'a' });
+  }
+
+  async addTestingIssue(issue) {
+    this.issueStream.write(JSON.stringify(issue) + '\n');
   }
 
   /**
@@ -24,14 +32,14 @@ export class TestingAudit {
     const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
     
     if (testFiles.length === 0) {
-      this.testingIssues.push({
+      await this.addTestingIssue({
         type: 'no_test_files',
         severity: 'high',
         message: 'No test files found',
         recommendation: 'Create test files with .test.js or .spec.js extensions'
       });
     } else {
-      this.testingIssues.push({
+      await this.addTestingIssue({
         type: 'test_files_found',
         severity: 'info',
         message: `Found ${testFiles.length} test files`,
@@ -53,14 +61,14 @@ export class TestingAudit {
       const foundFrameworks = testingFrameworks.filter(framework => allDeps[framework]);
       
       if (foundFrameworks.length === 0) {
-        this.testingIssues.push({
+        await this.addTestingIssue({
           type: 'no_testing_framework',
           severity: 'high',
           message: 'No testing framework detected',
           recommendation: 'Install a testing framework like Jest, Mocha, or Vitest'
         });
       } else {
-        this.testingIssues.push({
+        await this.addTestingIssue({
           type: 'testing_framework_found',
           severity: 'info',
           message: `Testing frameworks detected: ${foundFrameworks.join(', ')}`,
@@ -96,7 +104,7 @@ export class TestingAudit {
           const coverageDirs = ['coverage', '.nyc_output'];
           for (const dir of coverageDirs) {
             if (fs.existsSync(dir)) {
-              this.testingIssues.push({
+              await this.addTestingIssue({
                 type: 'coverage_report_generated',
                 severity: 'info',
                 message: 'Test coverage report generated',
@@ -106,7 +114,7 @@ export class TestingAudit {
             }
           }
         } catch (error) {
-          this.testingIssues.push({
+          await this.addTestingIssue({
             type: 'coverage_failed',
             severity: 'medium',
             message: 'Test coverage generation failed',
@@ -114,7 +122,7 @@ export class TestingAudit {
           });
         }
       } else {
-        this.testingIssues.push({
+        await this.addTestingIssue({
           type: 'no_coverage_script',
           severity: 'medium',
           message: 'No test coverage script found',
@@ -133,33 +141,40 @@ export class TestingAudit {
     console.log(chalk.blue('🧪 Checking testing patterns...'));
     
     const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    
-    for (const file of testFiles) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        
-        lines.forEach((line, index) => {
-          getConfigPattern('testPatterns').forEach(({ pattern, name, positive }) => {
-            if (pattern.test(line)) {
-              if (positive) {
-                this.testingIssues.push({
-                  type: 'testing_pattern_found',
-                  file,
-                  line: index + 1,
-                  severity: 'info',
-                  message: `Testing ${name} detected`,
-                  code: line.trim(),
-                  positive: true
-                });
+    const BATCH_SIZE = 5;
+    let processed = 0;
+    for (let i = 0; i < testFiles.length; i += BATCH_SIZE) {
+      const batch = testFiles.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (file) => {
+        processed++;
+        process.stdout.write(`\r[Test Patterns] Progress: ${processed}/${testFiles.length} files checked`);
+        try {
+          const content = fs.readFileSync(file, 'utf8');
+          const lines = content.split('\n');
+          
+          lines.forEach((line, index) => {
+            getConfigPattern('testPatterns').forEach(({ pattern, name, positive }) => {
+              if (pattern.test(line)) {
+                if (positive) {
+                  this.testingIssues.push({
+                    type: 'testing_pattern_found',
+                    file,
+                    line: index + 1,
+                    severity: 'info',
+                    message: `Testing ${name} detected`,
+                    code: line.trim(),
+                    positive: true
+                  });
+                }
               }
-            }
+            });
           });
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
-      }
+        } catch (error) {
+          console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
+        }
+      }));
     }
+    process.stdout.write(`\r[Test Patterns] Progress: ${testFiles.length}/${testFiles.length} files checked\n`);
   }
 
   /**
@@ -169,33 +184,40 @@ export class TestingAudit {
     console.log(chalk.blue('🧪 Checking mocking patterns...'));
     
     const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    
-    for (const file of testFiles) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        
-        lines.forEach((line, index) => {
-          getConfigPattern('mockPatterns').forEach(({ pattern, name, positive }) => {
-            if (pattern.test(line)) {
-              if (positive) {
-                this.testingIssues.push({
-                  type: 'mocking_pattern_found',
-                  file,
-                  line: index + 1,
-                  severity: 'info',
-                  message: `${name} detected`,
-                  code: line.trim(),
-                  positive: true
-                });
+    const BATCH_SIZE = 5;
+    let processed = 0;
+    for (let i = 0; i < testFiles.length; i += BATCH_SIZE) {
+      const batch = testFiles.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (file) => {
+        processed++;
+        process.stdout.write(`\r[Mocking Patterns] Progress: ${processed}/${testFiles.length} files checked`);
+        try {
+          const content = fs.readFileSync(file, 'utf8');
+          const lines = content.split('\n');
+          
+          lines.forEach((line, index) => {
+            getConfigPattern('mockPatterns').forEach(({ pattern, name, positive }) => {
+              if (pattern.test(line)) {
+                if (positive) {
+                  this.testingIssues.push({
+                    type: 'mocking_pattern_found',
+                    file,
+                    line: index + 1,
+                    severity: 'info',
+                    message: `${name} detected`,
+                    code: line.trim(),
+                    positive: true
+                  });
+                }
               }
-            }
+            });
           });
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
-      }
+        } catch (error) {
+          console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
+        }
+      }));
     }
+    process.stdout.write(`\r[Mocking Patterns] Progress: ${testFiles.length}/${testFiles.length} files checked\n`);
   }
 
   /**
@@ -269,6 +291,62 @@ export class TestingAudit {
    */
   async runTestingAudit() {
     console.log(chalk.blue('🧪 Starting Testing Audit...'));
+
+    // Check for common test folders or files before running the rest of the audit
+    const testPatterns = [
+      '**/__tests__/**',
+      '**/test/**',
+      '**/tests/**',
+      '**/*.test.js',
+      '**/*.spec.js',
+      '**/*.test.ts',
+      '**/*.spec.ts',
+      '**/*.test.tsx',
+      '**/*.spec.tsx',
+    ];
+    const foundTestFiles = (await globby(testPatterns, { ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/out/**'] })).length > 0;
+    if (!foundTestFiles) {
+      await this.addTestingIssue({
+        type: 'no_test_files',
+        severity: 'high',
+        message: 'No test files or folders found. Test case not written.',
+        recommendation: 'Create test files in __tests__, test, or tests folders, or use .test.js/.spec.js/.test.ts file naming.'
+      });
+      this.issueStream.end();
+      // Write minimal report and return
+      const results = {
+        timestamp: new Date().toISOString(),
+        totalIssues: 1,
+        positivePractices: 0,
+        highSeverity: 1,
+        mediumSeverity: 0,
+        lowSeverity: 0,
+        issues: [
+          {
+            type: 'no_test_files',
+            severity: 'high',
+            message: 'No test files or folders found. Test case not written.',
+            recommendation: 'Create test files in __tests__, test, or tests folders, or use .test.js/.spec.js/.test.ts file naming.'
+          }
+        ]
+      };
+      try {
+        const reportPath = path.join(this.folderPath, 'testing-audit-report.json');
+        await writeFile(reportPath, JSON.stringify(results, null, 2));
+        console.log(chalk.green(`✅ Testing audit report saved to: ${reportPath}`));
+      } catch (error) {
+        console.error(chalk.red('Error saving testing audit report:', error.message));
+      }
+      // Display summary
+      console.log(chalk.blue('\n🧪 TESTING AUDIT SUMMARY'));
+      console.log(chalk.blue('='.repeat(40)));
+      console.log(chalk.white('Total Issues: 1'));
+      console.log(chalk.green('Positive Practices: 0'));
+      console.log(chalk.red('High Severity: 1'));
+      console.log(chalk.yellow('Medium Severity: 0'));
+      console.log(chalk.blue('Low Severity: 0'));
+      return results;
+    }
     
     await this.checkTestFiles();
     await this.checkTestCoverage();
@@ -277,6 +355,26 @@ export class TestingAudit {
     await this.checkE2ETesting();
     await this.checkTestConfiguration();
     
+    this.issueStream.end();
+    // Load issues from file
+    if (fs.existsSync(this.issuesFile)) {
+      const lines = fs.readFileSync(this.issuesFile, 'utf8').split('\n').filter(Boolean);
+      const seen = new Set();
+      const uniqueIssues = [];
+      for (const line of lines) {
+        try {
+          const issue = JSON.parse(line);
+          if (!issue.source) issue.source = 'custom';
+          const key = `${issue.file || ''}:${issue.line || ''}:${issue.type}:${issue.message}`;
+          if (!seen.has(key)) {
+            uniqueIssues.push(issue);
+            seen.add(key);
+          }
+        } catch {}
+      }
+      this.testingIssues = uniqueIssues;
+    }
+
     const results = {
       timestamp: new Date().toISOString(),
       totalIssues: this.testingIssues.length,

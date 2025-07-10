@@ -182,11 +182,11 @@ const lintFile = async (filePath, lintStyleConfigFile) => {
     });
 
     const output = JSON.parse(item.output);
-    if (output[0].errored) {
-      logError(filePath);
-    } else {
-      logSuccess(filePath);
-    }
+    // if (output[0].errored) {
+    //   logError(filePath);
+    // } else {
+    //   logSuccess(filePath);
+    // }
 
     return {
       filePath,
@@ -209,6 +209,8 @@ const lintFile = async (filePath, lintStyleConfigFile) => {
   }
 };
 
+const BATCH_SIZE = 5;
+
 /**
  * Function to lint all files
  * @param {Array<string>} files
@@ -225,34 +227,37 @@ const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType,
   // Get merged exclude rules from config
   const excludeRules = getMergedExcludeRules('stylelint', DEFAULT_STYLELINT_EXCLUDE_RULES);
 
-  const lintPromises = files.map((filePath) =>
-    lintFile(filePath, lintStyleConfigFile)
-  );
-
-  try {
-    const lintResults = await Promise.all(lintPromises);
-    
-    const jsonReport = {
-      projectType,
-      reports,
-      excludeRules: {
-        enabled: excludeRules.length > 0,
-        rules: excludeRules,
-        count: excludeRules.length
-      },
-      results: lintResults.map(result => ({
-        ...result,
-        messages: result.messages.filter(message => !excludeRules.includes(message.rule))
-      }))
-    };
-
-    await fs.promises.writeFile(
-      path.join(folderPath, "stylelint-report.json"),
-      JSON.stringify(jsonReport, null, 2)
-    );
-  } catch (error) {
-    console.error(chalk.red(`Error during Stylelinting:', ${error}`));
+  let results = [];
+  let processed = 0;
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    const batch = files.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(async (filePath) => {
+      processed++;
+      process.stdout.write(`\r[Stylelint] Progress: ${processed}/${files.length} files checked`);
+      return await lintFile(filePath, lintStyleConfigFile);
+    }));
+    results.push(...batchResults);
   }
+  process.stdout.write(`\r[Stylelint] Progress: ${files.length}/${files.length} files checked\n`);
+
+  const jsonReport = {
+    projectType,
+    reports,
+    excludeRules: {
+      enabled: excludeRules.length > 0,
+      rules: excludeRules,
+      count: excludeRules.length
+    },
+    results: results.map(result => ({
+      ...result,
+      messages: result.messages.filter(message => !excludeRules.includes(message.rule))
+    }))
+  };
+
+  await fs.promises.writeFile(
+    path.join(folderPath, "stylelint-report.json"),
+    JSON.stringify(jsonReport, null, 2)
+  );
 };
 
 /**
