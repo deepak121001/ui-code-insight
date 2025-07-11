@@ -1,7 +1,6 @@
 {
   "extends": [
-    "stylelint-config-standard-scss",
-    "stylelint-config-prettier-scss"
+    "stylelint-config-standard-scss"
   ],
   "syntax": "scss",
   "rules": {
@@ -18,5 +17,8 @@
     "property-no-vendor-prefix": true,
     "at-rule-no-vendor-prefix": true,
     "media-feature-name-no-vendor-prefix": true
-  }
+  },
+  "reportDescriptionlessDisables": true,
+  "reportInvalidScopeDisables": true,
+  "reportNeedlessDisables": true
 }

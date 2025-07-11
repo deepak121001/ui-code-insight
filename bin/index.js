@@ -2,6 +2,16 @@
 import inquirer from 'inquirer';
 import { codeInsightInit } from "../build/code-insight.js";
 
+function getFriendlyConfigName(configKey) {
+  if (configKey === 'airbnb') return 'Airbnb';
+  if (configKey === 'airbnb-base') return 'Airbnb Base';
+  if (configKey === 'eslint:recommended') return 'ESLint Recommended';
+  if (configKey === 'plugin:react/recommended') return 'React Recommended';
+  if (configKey === 'plugin:import/recommended') return 'Import Plugin Recommended';
+  // Add more as needed
+  return configKey.replace(/^plugin:/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
 async function main() {
   const { projectType } = await inquirer.prompt([
     {

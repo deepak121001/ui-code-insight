@@ -8,6 +8,7 @@ import { getConfigPattern } from '../config-loader.js';
 import { ESLint } from "eslint";
 import { fileURLToPath } from 'url';
 import pLimit from 'p-limit';
+import { getMergedExcludeRules } from '../config-loader.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -364,12 +365,22 @@ async checkDependencyVulnerabilities() {
     await this.checkForSecrets();
     await this.checkESLintSecurityIssues();
 
+    // Apply excludeRules from config
+    const excludeRules = getMergedExcludeRules('security', []);
+    this.securityIssues = this.securityIssues.filter(issue => {
+      // Exclude by ruleId
+      if (issue.ruleId && excludeRules.includes(issue.ruleId)) return false;
+      // Exclude by code pattern
+      if (issue.code && excludeRules.some(pattern => issue.code && issue.code.includes(pattern))) return false;
+      return true;
+    });
+
     // Deduplicate issues and mark source
     const uniqueIssues = [];
     const seen = new Set();
     for (const issue of this.securityIssues) {
       if (!issue.source) issue.source = 'custom';
-      const key = `${issue.file || ''}:${issue.line || ''}:${issue.ruleId || issue.type}:${issue.message}`;
+      const key = `${issue.file || ''}:${issue.line || issue.type}:${issue.ruleId || issue.type}:${issue.message}`;
       if (!seen.has(key)) {
         uniqueIssues.push(issue);
         seen.add(key);

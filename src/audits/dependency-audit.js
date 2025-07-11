@@ -43,18 +43,18 @@ export class DependencyAudit {
         const batch = keys.slice(i, i + BATCH_SIZE);
         batch.forEach((packageName, idx) => {
           process.stdout.write(`\r[Outdated Dependencies] Progress: ${i + idx + 1}/${keys.length} checked`);
-          const packageInfo = outdatedData[packageName];
-          this.addDependencyIssue({
-            type: 'outdated_dependency',
-            package: packageName,
-            current: packageInfo.current,
-            wanted: packageInfo.wanted,
-            latest: packageInfo.latest,
-            severity: packageInfo.latest !== packageInfo.wanted ? 'medium' : 'low',
-            message: `${packageName} is outdated (current: ${packageInfo.current}, latest: ${packageInfo.latest})`,
-            recommendation: `Update ${packageName} to version ${packageInfo.latest}`
-          });
+        const packageInfo = outdatedData[packageName];
+        this.addDependencyIssue({
+          type: 'outdated_dependency',
+          package: packageName,
+          current: packageInfo.current,
+          wanted: packageInfo.wanted,
+          latest: packageInfo.latest,
+          severity: packageInfo.latest !== packageInfo.wanted ? 'medium' : 'low',
+          message: `${packageName} is outdated (current: ${packageInfo.current}, latest: ${packageInfo.latest})`,
+          recommendation: `Update ${packageName} to version ${packageInfo.latest}`
         });
+      });
       }
       process.stdout.write(`\r[Outdated Dependencies] Progress: ${keys.length}/${keys.length} checked\n`);
     } catch (error) {
@@ -108,13 +108,13 @@ export class DependencyAudit {
         batch.forEach((name, idx) => {
           process.stdout.write(`\r[Duplicate Dependencies] Progress: ${i + idx + 1}/${packageNames.length} checked`);
           if (packageNames.indexOf(name) !== i + idx) {
-            this.addDependencyIssue({
-              type: 'duplicate_dependency',
+          this.addDependencyIssue({
+            type: 'duplicate_dependency',
               package: name,
-              severity: 'medium',
+            severity: 'medium',
               message: `Duplicate dependency found: ${name}`,
-              recommendation: 'Remove duplicate entry from package.json'
-            });
+            recommendation: 'Remove duplicate entry from package.json'
+          });
           }
         });
       }
@@ -184,15 +184,15 @@ export class DependencyAudit {
           const batch = depcheckData.dependencies.slice(i, i + BATCH_SIZE);
           batch.forEach((dep, idx) => {
             process.stdout.write(`\r[Unused Dependencies] Progress: ${i + idx + 1}/${depcheckData.dependencies.length} checked`);
-            this.addDependencyIssue({
-              type: 'unused_dependency',
-              package: dep,
-              file: dep || undefined, // Only set file to dep if no file info is present
-              severity: 'low',
-              message: `Unused dependency: ${dep}`,
-              recommendation: `Remove ${dep} from package.json if not needed`
-            });
+          this.addDependencyIssue({
+            type: 'unused_dependency',
+            package: dep,
+            file: dep || undefined, // Only set file to dep if no file info is present
+            severity: 'low',
+            message: `Unused dependency: ${dep}`,
+            recommendation: `Remove ${dep} from package.json if not needed`
           });
+        });
         }
         process.stdout.write(`\r[Unused Dependencies] Progress: ${depcheckData.dependencies.length}/${depcheckData.dependencies.length} checked\n`);
       }
@@ -201,15 +201,15 @@ export class DependencyAudit {
           const batch = depcheckData.devDependencies.slice(i, i + BATCH_SIZE);
           batch.forEach((dep, idx) => {
             process.stdout.write(`\r[Unused Dev Dependencies] Progress: ${i + idx + 1}/${depcheckData.devDependencies.length} checked`);
-            this.addDependencyIssue({
-              type: 'unused_dev_dependency',
-              package: dep,
-              file: dep || undefined, // Only set file to dep if no file info is present
-              severity: 'low',
-              message: `Unused dev dependency: ${dep}`,
-              recommendation: `Remove ${dep} from devDependencies if not needed`
-            });
+          this.addDependencyIssue({
+            type: 'unused_dev_dependency',
+            package: dep,
+            file: dep || undefined, // Only set file to dep if no file info is present
+            severity: 'low',
+            message: `Unused dev dependency: ${dep}`,
+            recommendation: `Remove ${dep} from devDependencies if not needed`
           });
+        });
         }
         process.stdout.write(`\r[Unused Dev Dependencies] Progress: ${depcheckData.devDependencies.length}/${depcheckData.devDependencies.length} checked\n`);
       }
@@ -254,17 +254,17 @@ export class DependencyAudit {
         const batch = depKeys.slice(i, i + BATCH_SIZE);
         batch.forEach((packageName, idx) => {
           process.stdout.write(`\r[Missing Packages] Progress: ${i + idx + 1}/${depKeys.length} checked`);
-          const packagePath = path.join('node_modules', packageName);
-          if (!fs.existsSync(packagePath)) {
-            this.addDependencyIssue({
-              type: 'missing_package',
-              package: packageName,
-              severity: 'high',
-              message: `Package ${packageName} is missing from node_modules`,
-              recommendation: `Run npm install to install ${packageName}`
-            });
-          }
-        });
+        const packagePath = path.join('node_modules', packageName);
+        if (!fs.existsSync(packagePath)) {
+          this.addDependencyIssue({
+            type: 'missing_package',
+            package: packageName,
+            severity: 'high',
+            message: `Package ${packageName} is missing from node_modules`,
+            recommendation: `Run npm install to install ${packageName}`
+          });
+        }
+      });
       }
       process.stdout.write(`\r[Missing Packages] Progress: ${depKeys.length}/${depKeys.length} checked\n`);
     } catch (error) {
@@ -287,19 +287,19 @@ export class DependencyAudit {
           const batch = peerKeys.slice(i, i + BATCH_SIZE);
           batch.forEach((peerDep, idx) => {
             process.stdout.write(`\r[Peer Dependencies] Progress: ${i + idx + 1}/${peerKeys.length} checked`);
-            const requiredVersion = packageJson.peerDependencies[peerDep];
-            const packagePath = path.join('node_modules', peerDep);
-            if (!fs.existsSync(packagePath)) {
-              this.addDependencyIssue({
-                type: 'missing_peer_dependency',
-                package: peerDep,
-                requiredVersion,
-                severity: 'high',
-                message: `Peer dependency ${peerDep}@${requiredVersion} is not installed`,
-                recommendation: `Install ${peerDep}@${requiredVersion}`
-              });
-            }
-          });
+          const requiredVersion = packageJson.peerDependencies[peerDep];
+          const packagePath = path.join('node_modules', peerDep);
+          if (!fs.existsSync(packagePath)) {
+            this.addDependencyIssue({
+              type: 'missing_peer_dependency',
+              package: peerDep,
+              requiredVersion,
+              severity: 'high',
+              message: `Peer dependency ${peerDep}@${requiredVersion} is not installed`,
+              recommendation: `Install ${peerDep}@${requiredVersion}`
+            });
+          }
+        });
         }
         process.stdout.write(`\r[Peer Dependencies] Progress: ${peerKeys.length}/${peerKeys.length} checked\n`);
       }
@@ -329,16 +329,16 @@ export class DependencyAudit {
         const batch = largePackages.slice(i, i + BATCH_SIZE);
         batch.forEach((pkg, idx) => {
           process.stdout.write(`\r[Large Dependencies] Progress: ${i + idx + 1}/${largePackages.length} checked`);
-          if (allDeps[pkg]) {
-            this.addDependencyIssue({
-              type: 'large_dependency',
-              package: pkg,
-              severity: 'low',
-              message: `Large dependency detected: ${pkg}`,
-              recommendation: 'Consider using lighter alternatives or tree-shaking'
-            });
-          }
-        });
+        if (allDeps[pkg]) {
+          this.addDependencyIssue({
+            type: 'large_dependency',
+            package: pkg,
+            severity: 'low',
+            message: `Large dependency detected: ${pkg}`,
+            recommendation: 'Consider using lighter alternatives or tree-shaking'
+          });
+        }
+      });
       }
       process.stdout.write(`\r[Large Dependencies] Progress: ${largePackages.length}/${largePackages.length} checked\n`);
     } catch (error) {
@@ -381,22 +381,22 @@ export class DependencyAudit {
           const batch = licenseKeys.slice(i, i + BATCH_SIZE);
           batch.forEach((packageName, idx) => {
             process.stdout.write(`\r[License Compliance] Progress: ${i + idx + 1}/${licenseKeys.length} checked`);
-            const packageInfo = licenseData[packageName];
-            if (packageInfo.licenses) {
-              problematicLicenses.forEach(license => {
-                if (packageInfo.licenses.includes(license)) {
-                  this.addDependencyIssue({
-                    type: 'problematic_license',
-                    package: packageName,
-                    license: packageInfo.licenses,
-                    severity: 'medium',
-                    message: `Package ${packageName} uses ${packageInfo.licenses} license`,
-                    recommendation: 'Review license compatibility with your project'
-                  });
-                }
-              });
-            }
-          });
+          const packageInfo = licenseData[packageName];
+          if (packageInfo.licenses) {
+            problematicLicenses.forEach(license => {
+              if (packageInfo.licenses.includes(license)) {
+                this.addDependencyIssue({
+                  type: 'problematic_license',
+                  package: packageName,
+                  license: packageInfo.licenses,
+                  severity: 'medium',
+                  message: `Package ${packageName} uses ${packageInfo.licenses} license`,
+                  recommendation: 'Review license compatibility with your project'
+                });
+              }
+            });
+          }
+        });
         }
         process.stdout.write(`\r[License Compliance] Progress: ${licenseKeys.length}/${licenseKeys.length} checked\n`);
       } catch (licenseError) {

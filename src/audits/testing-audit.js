@@ -149,30 +149,30 @@ export class TestingAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Test Patterns] Progress: ${processed}/${testFiles.length} files checked`);
-        try {
-          const content = fs.readFileSync(file, 'utf8');
-          const lines = content.split('\n');
-          
-          lines.forEach((line, index) => {
-            getConfigPattern('testPatterns').forEach(({ pattern, name, positive }) => {
-              if (pattern.test(line)) {
-                if (positive) {
-                  this.testingIssues.push({
-                    type: 'testing_pattern_found',
-                    file,
-                    line: index + 1,
-                    severity: 'info',
-                    message: `Testing ${name} detected`,
-                    code: line.trim(),
-                    positive: true
-                  });
-                }
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          getConfigPattern('testPatterns').forEach(({ pattern, name, positive }) => {
+            if (pattern.test(line)) {
+              if (positive) {
+                this.testingIssues.push({
+                  type: 'testing_pattern_found',
+                  file,
+                  line: index + 1,
+                  severity: 'info',
+                  message: `Testing ${name} detected`,
+                  code: line.trim(),
+                  positive: true
+                });
               }
-            });
+            }
           });
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
-        }
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
+      }
       }));
     }
     process.stdout.write(`\r[Test Patterns] Progress: ${testFiles.length}/${testFiles.length} files checked\n`);
@@ -191,30 +191,30 @@ export class TestingAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Mocking Patterns] Progress: ${processed}/${testFiles.length} files checked`);
-        try {
-          const content = fs.readFileSync(file, 'utf8');
-          const lines = content.split('\n');
-          
-          lines.forEach((line, index) => {
-            getConfigPattern('mockPatterns').forEach(({ pattern, name, positive }) => {
-              if (pattern.test(line)) {
-                if (positive) {
-                  this.testingIssues.push({
-                    type: 'mocking_pattern_found',
-                    file,
-                    line: index + 1,
-                    severity: 'info',
-                    message: `${name} detected`,
-                    code: line.trim(),
-                    positive: true
-                  });
-                }
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          getConfigPattern('mockPatterns').forEach(({ pattern, name, positive }) => {
+            if (pattern.test(line)) {
+              if (positive) {
+                this.testingIssues.push({
+                  type: 'mocking_pattern_found',
+                  file,
+                  line: index + 1,
+                  severity: 'info',
+                  message: `${name} detected`,
+                  code: line.trim(),
+                  positive: true
+                });
               }
-            });
+            }
           });
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
-        }
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
+      }
       }));
     }
     process.stdout.write(`\r[Mocking Patterns] Progress: ${testFiles.length}/${testFiles.length} files checked\n`);

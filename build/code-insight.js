@@ -6,6 +6,7 @@ import fsp, { mkdir, writeFile, readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { ESLint } from 'eslint';
 import { globby } from 'globby';
+import { createRequire } from 'module';
 import stylelint from 'stylelint';
 import fetch from 'node-fetch';
 import pLimit from 'p-limit';
@@ -220,8 +221,58 @@ const DEFAULT_ESLINT_EXCLUDE_RULES = [
   'react/prefer-es6-class', 'react/prefer-stateless-function', 'react/prop-types',
   'react/react-in-jsx-scope', 'react/require-default-props', 'react/require-optimization',
   'react/require-render-return', 'react/sort-comp', 'react/sort-prop-types',
-  'react/style-prop-object', 'react/void-dom-elements-no-children'
+  'react/style-prop-object', 'react/void-dom-elements-no-children', 'import/no-cycle', 
+  'max-len', 'no-param-reassign'
 ];
+
+// Helper to get all rules enabled by a config
+function getRulesForConfig(configName) {
+  const require = createRequire(import.meta.url);
+  let rules = {};
+  try {
+    if (configName === 'airbnb') {
+      // Airbnb base config aggregates these files
+      const airbnbRuleFiles = [
+        'eslint-config-airbnb-base/rules/best-practices',
+        'eslint-config-airbnb-base/rules/errors',
+        'eslint-config-airbnb-base/rules/node',
+        'eslint-config-airbnb-base/rules/style',
+        'eslint-config-airbnb-base/rules/variables',
+        'eslint-config-airbnb-base/rules/imports',
+        'eslint-config-airbnb-base/rules/strict',
+        'eslint-config-airbnb-base/rules/es6',
+      ];
+      airbnbRuleFiles.forEach(file => {
+        try {
+          const mod = require(file);
+          if (mod && mod.rules) {
+            rules = { ...rules, ...mod.rules };
+          }
+        } catch (e) {}
+      });
+    } else if (configName === 'eslint:recommended') {
+      // Try to load recommended config if available
+      try {
+        const recommended = require('eslint/conf/eslint-recommended');
+        if (recommended && recommended.rules) {
+          rules = { ...rules, ...recommended.rules };
+        }
+      } catch (e) {}
+    }
+    // Add more configs as needed
+  } catch (e) {}
+  return Object.keys(rules);
+}
+
+// Helper to get config extends from config file
+function getConfigExtends(configPath) {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    if (Array.isArray(config.extends)) return config.extends;
+    if (typeof config.extends === 'string') return [config.extends];
+  } catch (e) {}
+  return [];
+}
 
 // Constants for configuration files
 const CONFIG_FOLDER$3 = "config";
@@ -356,6 +407,23 @@ const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) =
   }
   process.stdout.write(`\r[ESLint] Progress: ${files.length}/${files.length} files checked\n`);
 
+  const lintConfigFile = getLintConfigFile$3(false, projectType); // Pass false for recommendedLintRules
+  const configExtends = getConfigExtends(lintConfigFile);
+  const configRuleMap = {};
+  configExtends.forEach(cfg => {
+    // Normalize config name
+    let name = cfg;
+    if (name.startsWith('plugin:')) name = name.split(':')[1].split('/')[0];
+    if (name.startsWith('eslint-config-')) name = name.replace('eslint-config-', '');
+    if (name === 'airbnb-base' || name === 'airbnb') name = 'airbnb';
+    if (name === 'recommended') name = 'eslint:recommended';
+    const rules = getRulesForConfig(name);
+    rules.forEach(rule => {
+      if (!configRuleMap[rule]) configRuleMap[rule] = [];
+      configRuleMap[rule].push(cfg);
+    });
+  });
+
   const jsonReport = {
     projectType,
     reports,
@@ -364,25 +432,41 @@ const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) =
       rules: excludeRules,
       count: excludeRules.length
     },
-    results: results.map((result) => ({
-      filePath: result?.filePath,
-      errorCount: result?.errorCount,
-      warningCount: result?.warningCount,
-      messages: result?.messages
-        .filter(message => !excludeRules.includes(message.ruleId))
-        .map((message) => ({
-          ruleId: message.ruleId,
-          severity: message.severity,
-          line: message.line,
-          column: message.column,
-          endLine: message.endLine,
-          endColumn: message.endColumn,
-          message: message.message,
-          fix: message.fix,
-          suggestions: message.suggestions,
-          fatal: message.fatal,
-        })),
-    })),
+    results: results
+      .map((result) => {
+        let filteredMessages = result?.messages
+          .filter(message => !excludeRules.includes(message.ruleId))
+          .map((message) => ({
+            ruleId: message.ruleId,
+            severity: message.severity,
+            line: message.line,
+            column: message.column,
+            endLine: message.endLine,
+            endColumn: message.endColumn,
+            message: message.message,
+            fix: message.fix,
+            suggestions: message.suggestions,
+            fatal: message.fatal,
+            ruleSource: message.ruleId
+              ? (message.ruleId.startsWith('react/') ? 'React Plugin'
+                : message.ruleId.startsWith('@typescript-eslint/') ? 'TypeScript ESLint Plugin'
+                : message.ruleId.startsWith('import/') ? 'Import Plugin'
+                : 'ESLint core')
+              : '',
+            configSource: message.ruleId && configRuleMap[message.ruleId] ? configRuleMap[message.ruleId] : [],
+          }));
+        // If errorCount > 0 but messages is empty, omit this file from the report
+        if ((result?.errorCount > 0) && (!filteredMessages || filteredMessages.length === 0)) {
+          return null;
+        }
+        return {
+          filePath: result?.filePath,
+          errorCount: filteredMessages.length,
+          warningCount: 0,
+          messages: filteredMessages,
+        };
+      })
+      .filter(Boolean),
   };
 
   await writeFile(
@@ -546,7 +630,12 @@ const DEFAULT_STYLELINT_EXCLUDE_RULES = [
   'scss/partial-no-import',
   'scss/percent-placeholder-pattern',
   'scss/selector-nest-combinators',
-  'scss/selector-no-union-class-name'
+  'scss/selector-no-union-class-name',
+  
+  // Prettier-related rules to exclude (since we removed Prettier config)
+  'prettier/prettier',
+  'stylelint-config-prettier',
+  'stylelint-config-prettier-scss'
 ];
 
 // Constants for configuration files
@@ -613,17 +702,37 @@ const lintFile = async (filePath, lintStyleConfigFile) => {
     });
 
     const output = JSON.parse(item.output);
-    // if (output[0].errored) {
-    //   logError(filePath);
-    // } else {
-    //   logSuccess(filePath);
+    
+    // Debug logging for files with errors but no messages
+    // if (output[0] && output[0].warnings && output[0].warnings.length > 0) {
+    //   console.log(`[Stylelint Debug] ${filePath}: ${output[0].warnings.length} warnings found`);
+    //   output[0].warnings.forEach((warning, index) => {
+    //     console.log(`[Stylelint Debug]   Warning ${index + 1}: ${warning.rule} - ${warning.text}`);
+    //   });
+    // } else if (output[0] && output[0].errored) {
+    //   console.log(`[Stylelint Debug] ${filePath}: File has errors but no warnings array`);
+    //   console.log(`[Stylelint Debug] Output structure:`, JSON.stringify(output[0], null, 2));
     // }
+
+    // Safeguard against malformed output
+    const warnings = output[0] && output[0].warnings ? output[0].warnings : [];
+    
+    // Determine friendly config source
+    let configSourceValue = path.basename(lintStyleConfigFile);
+    try {
+      const configContent = JSON.parse(fs.readFileSync(lintStyleConfigFile, 'utf8'));
+      if (Array.isArray(configContent.extends) && configContent.extends.length > 0) {
+        configSourceValue = configContent.extends[0];
+      } else if (typeof configContent.extends === 'string') {
+        configSourceValue = configContent.extends;
+      }
+    } catch (e) {}
 
     return {
       filePath,
-      errorCount: output[0].warnings.length,
+      errorCount: warnings.length,
       warningCount: 0,
-      messages: output[0].warnings.map((message) => ({
+      messages: warnings.map((message) => ({
         line: message.line,
         column: message.column,
         endLine: message.endLine,
@@ -633,6 +742,12 @@ const lintFile = async (filePath, lintStyleConfigFile) => {
         message: message.text,
         fix: message.fix,
         suggestions: message.suggestions,
+        ruleSource: message.rule
+          ? (message.rule.startsWith('scss/') ? 'SCSS Plugin'
+            : message.rule.startsWith('order/') ? 'Order Plugin'
+            : 'Stylelint core')
+          : '',
+        configSource: [configSourceValue],
       })),
     };
   } catch (err) {
@@ -671,6 +786,26 @@ const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType,
   }
   process.stdout.write(`\r[Stylelint] Progress: ${files.length}/${files.length} files checked\n`);
 
+  // Filter messages based on exclude rules and update error counts
+  const filteredResults = results.map(result => {
+    const filteredMessages = result.messages.filter(message => !excludeRules.includes(message.rule));
+    
+    // Ensure error count matches actual message count
+    const actualErrorCount = filteredMessages.length;
+    
+    // Log if there's a mismatch between error count and message count
+    if (result.errorCount > 0 && actualErrorCount === 0) {
+      console.log(`[Stylelint Warning] ${result.filePath}: Error count (${result.errorCount}) doesn't match message count (${actualErrorCount})`);
+    }
+    
+    return {
+      ...result,
+      errorCount: actualErrorCount,
+      warningCount: 0,
+      messages: filteredMessages
+    };
+  });
+
   const jsonReport = {
     projectType,
     reports,
@@ -679,10 +814,7 @@ const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType,
       rules: excludeRules,
       count: excludeRules.length
     },
-    results: results.map(result => ({
-      ...result,
-      messages: result.messages.filter(message => !excludeRules.includes(message.rule))
-    }))
+    results: filteredResults
   };
 
   await fs.promises.writeFile(
@@ -1383,12 +1515,22 @@ async checkDependencyVulnerabilities() {
     await this.checkForSecrets();
     await this.checkESLintSecurityIssues();
 
+    // Apply excludeRules from config
+    const excludeRules = getMergedExcludeRules('security', []);
+    this.securityIssues = this.securityIssues.filter(issue => {
+      // Exclude by ruleId
+      if (issue.ruleId && excludeRules.includes(issue.ruleId)) return false;
+      // Exclude by code pattern
+      if (issue.code && excludeRules.some(pattern => issue.code && issue.code.includes(pattern))) return false;
+      return true;
+    });
+
     // Deduplicate issues and mark source
     const uniqueIssues = [];
     const seen = new Set();
     for (const issue of this.securityIssues) {
       if (!issue.source) issue.source = 'custom';
-      const key = `${issue.file || ''}:${issue.line || ''}:${issue.ruleId || issue.type}:${issue.message}`;
+      const key = `${issue.file || ''}:${issue.line || issue.type}:${issue.ruleId || issue.type}:${issue.message}`;
       if (!seen.has(key)) {
         uniqueIssues.push(issue);
         seen.add(key);
@@ -2004,36 +2146,36 @@ class AccessibilityAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Image Accessibility] Progress: ${processed}/${files.length} files checked`);
-        try {
-          const content = await fsp.readFile(file, 'utf8');
-          const lines = content.split('\n');
-          
-          for (let index = 0; index < lines.length; index++) {
-            const line = lines[index];
-            for (const pattern of imagePatterns) {
-              const matches = line.match(pattern);
-              if (matches) {
-                for (const match of matches) {
-                  if (!match.includes('alt=') || match.includes('alt=""')) {
-                    const { code, context } = await this.getCodeContext(file, index + 1);
-                    await this.addAccessibilityIssue({
-                      type: 'missing_alt',
-                      file: path.relative(process.cwd(), file),
-                      line: index + 1,
-                      severity: 'high',
-                      message: 'Image missing alt attribute or has empty alt',
-                      code,
-                      context,
-                      source: 'custom'
-                    });
-                  }
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of imagePatterns) {
+            const matches = line.match(pattern);
+            if (matches) {
+              for (const match of matches) {
+                if (!match.includes('alt=') || match.includes('alt=""')) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
+                  await this.addAccessibilityIssue({
+                    type: 'missing_alt',
+                    file: path.relative(process.cwd(), file),
+                    line: index + 1,
+                    severity: 'high',
+                    message: 'Image missing alt attribute or has empty alt',
+                    code,
+                    context,
+                    source: 'custom'
+                  });
                 }
               }
             }
           }
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
         }
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
       }));
       // batch memory is released here
     }
@@ -2064,40 +2206,40 @@ class AccessibilityAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Heading Structure] Progress: ${processed}/${files.length} files checked`);
-        try {
-          const content = await fsp.readFile(file, 'utf8');
-          const lines = content.split('\n');
-          
-          for (let index = 0; index < lines.length; index++) {
-            const line = lines[index];
-            for (let level = 0; level < headingPatterns.length; level++) {
-              const pattern = headingPatterns[level];
-              if (pattern.test(line)) {
-                // Check for skipped heading levels
-                if (level > 0) {
-                  const prevHeadingPattern = new RegExp(`<h${level}[^>]*>`, 'gi');
-                  const hasPreviousHeading = content.substring(0, content.indexOf(line)).match(prevHeadingPattern);
-                  
-                  if (!hasPreviousHeading) {
-                    const { code, context } = await this.getCodeContext(file, index + 1);
-                    await this.addAccessibilityIssue({
-                      type: 'skipped_heading',
-                      file: path.relative(process.cwd(), file),
-                      line: index + 1,
-                      severity: 'medium',
-                      message: `Heading level ${level + 1} used without previous level ${level}`,
-                      code,
-                      context,
-                      source: 'custom'
-                    });
-                  }
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (let level = 0; level < headingPatterns.length; level++) {
+            const pattern = headingPatterns[level];
+            if (pattern.test(line)) {
+              // Check for skipped heading levels
+              if (level > 0) {
+                const prevHeadingPattern = new RegExp(`<h${level}[^>]*>`, 'gi');
+                const hasPreviousHeading = content.substring(0, content.indexOf(line)).match(prevHeadingPattern);
+                
+                if (!hasPreviousHeading) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
+                  await this.addAccessibilityIssue({
+                    type: 'skipped_heading',
+                    file: path.relative(process.cwd(), file),
+                    line: index + 1,
+                    severity: 'medium',
+                    message: `Heading level ${level + 1} used without previous level ${level}`,
+                    code,
+                    context,
+                    source: 'custom'
+                  });
                 }
               }
             }
           }
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
         }
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
       }));
     }
     process.stdout.write(`\r[Heading Structure] Progress: ${files.length}/${files.length} files checked\n`);
@@ -2124,41 +2266,41 @@ class AccessibilityAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Form Labels] Progress: ${processed}/${files.length} files checked`);
-        try {
-          const content = await fsp.readFile(file, 'utf8');
-          const lines = content.split('\n');
-          
-          for (let index = 0; index < lines.length; index++) {
-            const line = lines[index];
-            for (const pattern of formPatterns) {
-              const matches = line.match(pattern);
-              if (matches) {
-                for (const match of matches) {
-                  // Check if input has proper labeling
-                  const hasLabel = match.includes('aria-label=') || 
-                                 match.includes('aria-labelledby=') || 
-                                 match.includes('id=');
-                  
-                  if (!hasLabel && !match.includes('type="hidden"')) {
-                    const { code, context } = await this.getCodeContext(file, index + 1);
-                    await this.addAccessibilityIssue({
-                      type: 'missing_form_label',
-                      file: path.relative(process.cwd(), file),
-                      line: index + 1,
-                      severity: 'high',
-                      message: 'Form control missing proper labeling',
-                      code,
-                      context,
-                      source: 'custom'
-                    });
-                  }
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of formPatterns) {
+            const matches = line.match(pattern);
+            if (matches) {
+              for (const match of matches) {
+                // Check if input has proper labeling
+                const hasLabel = match.includes('aria-label=') || 
+                               match.includes('aria-labelledby=') || 
+                               match.includes('id=');
+                
+                if (!hasLabel && !match.includes('type="hidden"')) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
+                  await this.addAccessibilityIssue({
+                    type: 'missing_form_label',
+                    file: path.relative(process.cwd(), file),
+                    line: index + 1,
+                    severity: 'high',
+                    message: 'Form control missing proper labeling',
+                    code,
+                    context,
+                    source: 'custom'
+                  });
                 }
               }
             }
           }
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
         }
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
       }));
     }
     process.stdout.write(`\r[Form Labels] Progress: ${files.length}/${files.length} files checked\n`);
@@ -2186,34 +2328,34 @@ class AccessibilityAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Color Contrast] Progress: ${processed}/${files.length} files checked`);
-        try {
-          const content = await fsp.readFile(file, 'utf8');
-          const lines = content.split('\n');
-          
-          for (let index = 0; index < lines.length; index++) {
-            const line = lines[index];
-            for (const pattern of colorPatterns) {
-              if (pattern.test(line)) {
-                // This is a basic check - in a real implementation, you'd want to
-                // actually calculate contrast ratios
-                const { code, context } = await this.getCodeContext(file, index + 1);
-                await this.addAccessibilityIssue({
-                  type: 'color_contrast',
-                  file: path.relative(process.cwd(), file),
-                  line: index + 1,
-                  severity: 'medium',
-                  message: 'Color usage detected - verify contrast ratios meet WCAG guidelines',
-                  code,
-                  context,
-                  recommendation: 'Use tools like axe-core or Lighthouse to check actual contrast ratios',
-                  source: 'custom'
-                });
-              }
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of colorPatterns) {
+            if (pattern.test(line)) {
+              // This is a basic check - in a real implementation, you'd want to
+              // actually calculate contrast ratios
+              const { code, context } = await this.getCodeContext(file, index + 1);
+              await this.addAccessibilityIssue({
+                type: 'color_contrast',
+                file: path.relative(process.cwd(), file),
+                line: index + 1,
+                severity: 'medium',
+                message: 'Color usage detected - verify contrast ratios meet WCAG guidelines',
+                code,
+                context,
+                recommendation: 'Use tools like axe-core or Lighthouse to check actual contrast ratios',
+                source: 'custom'
+              });
             }
           }
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
         }
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
       }));
     }
     process.stdout.write(`\r[Color Contrast] Progress: ${files.length}/${files.length} files checked\n`);
@@ -2240,41 +2382,41 @@ class AccessibilityAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Keyboard Navigation] Progress: ${processed}/${files.length} files checked`);
-        try {
-          const content = await fsp.readFile(file, 'utf8');
-          const lines = content.split('\n');
-          
-          for (let index = 0; index < lines.length; index++) {
-            const line = lines[index];
-            for (const pattern of keyboardPatterns) {
-              if (pattern.test(line)) {
-                // Check if there's also keyboard event handling
-                const hasKeyboardSupport = line.includes('onKeyDown') || 
-                                         line.includes('onKeyUp') || 
-                                         line.includes('onKeyPress') ||
-                                         line.includes('addEventListener') && 
-                                         (line.includes('keydown') || line.includes('keyup') || line.includes('keypress'));
-                
-                if (!hasKeyboardSupport) {
-                  const { code, context } = await this.getCodeContext(file, index + 1);
-                  await this.addAccessibilityIssue({
-                    type: 'keyboard_navigation',
-                    file: path.relative(process.cwd(), file),
-                    line: index + 1,
-                    severity: 'medium',
-                    message: 'Click handler without keyboard support',
-                    code,
-                    context,
-                    recommendation: 'Add keyboard event handlers or use semantic HTML elements',
-                    source: 'custom'
-                  });
-                }
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of keyboardPatterns) {
+            if (pattern.test(line)) {
+              // Check if there's also keyboard event handling
+              const hasKeyboardSupport = line.includes('onKeyDown') || 
+                                       line.includes('onKeyUp') || 
+                                       line.includes('onKeyPress') ||
+                                       line.includes('addEventListener') && 
+                                       (line.includes('keydown') || line.includes('keyup') || line.includes('keypress'));
+              
+              if (!hasKeyboardSupport) {
+                const { code, context } = await this.getCodeContext(file, index + 1);
+                await this.addAccessibilityIssue({
+                  type: 'keyboard_navigation',
+                  file: path.relative(process.cwd(), file),
+                  line: index + 1,
+                  severity: 'medium',
+                  message: 'Click handler without keyboard support',
+                  code,
+                  context,
+                  recommendation: 'Add keyboard event handlers or use semantic HTML elements',
+                  source: 'custom'
+                });
               }
             }
           }
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
         }
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
       }));
     }
     process.stdout.write(`\r[Keyboard Navigation] Progress: ${files.length}/${files.length} files checked\n`);
@@ -2299,37 +2441,37 @@ class AccessibilityAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[ARIA Usage] Progress: ${processed}/${files.length} files checked`);
-        try {
-          const content = await fsp.readFile(file, 'utf8');
-          const lines = content.split('\n');
-          
-          for (let index = 0; index < lines.length; index++) {
-            const line = lines[index];
-            for (const pattern of ariaPatterns) {
-              const matches = line.match(pattern);
-              if (matches) {
-                for (const match of matches) {
-                  // Check for common ARIA mistakes
-                  if (match.includes('aria-label=""') || match.includes('aria-labelledby=""')) {
-                    const { code, context } = await this.getCodeContext(file, index + 1);
-                    await this.addAccessibilityIssue({
-                      type: 'empty_aria',
-                      file: path.relative(process.cwd(), file),
-                      line: index + 1,
-                      severity: 'medium',
-                      message: 'Empty ARIA attribute detected',
-                      code,
-                      context,
-                      source: 'custom'
-                    });
-                  }
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          for (const pattern of ariaPatterns) {
+            const matches = line.match(pattern);
+            if (matches) {
+              for (const match of matches) {
+                // Check for common ARIA mistakes
+                if (match.includes('aria-label=""') || match.includes('aria-labelledby=""')) {
+                  const { code, context } = await this.getCodeContext(file, index + 1);
+                  await this.addAccessibilityIssue({
+                    type: 'empty_aria',
+                    file: path.relative(process.cwd(), file),
+                    line: index + 1,
+                    severity: 'medium',
+                    message: 'Empty ARIA attribute detected',
+                    code,
+                    context,
+                    source: 'custom'
+                  });
                 }
               }
             }
           }
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
         }
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
       }));
     }
     process.stdout.write(`\r[ARIA Usage] Progress: ${files.length}/${files.length} files checked\n`);
@@ -2349,43 +2491,43 @@ class AccessibilityAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Tab Order/Focus] Progress: ${processed}/${files.length} files checked`);
-        try {
-          const content = await fsp.readFile(file, 'utf8');
-          const lines = content.split('\n');
-          for (let index = 0; index < lines.length; index++) {
-            const line = lines[index];
-            // Check for interactive elements without tabindex
-            if ((/<(button|a|input|select|textarea|div|span)[^>]*>/i.test(line) || /onClick=|onKeyDown=|onFocus=/.test(line)) && !/tabindex=/i.test(line)) {
-              const { code, context } = await this.getCodeContext(file, index + 1);
-              await this.addAccessibilityIssue({
-                type: 'tab_order_focus',
-                file: path.relative(process.cwd(), file),
-                line: index + 1,
-                severity: 'medium',
-                message: 'Interactive element may be missing tabindex or focus management',
-                code,
-                context,
-                source: 'custom'
-              });
-            }
-            // Check for modals/dialogs without focus trap
-            if (/<(dialog|Modal|modal)[^>]*>/i.test(line) && !/focusTrap|trapFocus|tabindex/i.test(line)) {
-              const { code, context } = await this.getCodeContext(file, index + 1);
-              await this.addAccessibilityIssue({
-                type: 'focus_management',
-                file: path.relative(process.cwd(), file),
-                line: index + 1,
-                severity: 'medium',
-                message: 'Modal/dialog may be missing focus trap or focus management',
-                code,
-                context,
-                source: 'custom'
-              });
-            }
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          // Check for interactive elements without tabindex
+          if ((/<(button|a|input|select|textarea|div|span)[^>]*>/i.test(line) || /onClick=|onKeyDown=|onFocus=/.test(line)) && !/tabindex=/i.test(line)) {
+            const { code, context } = await this.getCodeContext(file, index + 1);
+            await this.addAccessibilityIssue({
+              type: 'tab_order_focus',
+              file: path.relative(process.cwd(), file),
+              line: index + 1,
+              severity: 'medium',
+              message: 'Interactive element may be missing tabindex or focus management',
+              code,
+              context,
+              source: 'custom'
+            });
           }
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+          // Check for modals/dialogs without focus trap
+          if (/<(dialog|Modal|modal)[^>]*>/i.test(line) && !/focusTrap|trapFocus|tabindex/i.test(line)) {
+            const { code, context } = await this.getCodeContext(file, index + 1);
+            await this.addAccessibilityIssue({
+              type: 'focus_management',
+              file: path.relative(process.cwd(), file),
+              line: index + 1,
+              severity: 'medium',
+              message: 'Modal/dialog may be missing focus trap or focus management',
+              code,
+              context,
+              source: 'custom'
+            });
+          }
         }
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
       }));
     }
     process.stdout.write(`\r[Tab Order/Focus] Progress: ${files.length}/${files.length} files checked\n`);
@@ -2406,13 +2548,13 @@ class AccessibilityAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Landmarks/Skip Links] Progress: ${processed}/${files.length} files checked`);
-        try {
-          const content = await fsp.readFile(file, 'utf8');
-          if (/<(main|nav|aside|header|footer)[^>]*>/i.test(content)) foundLandmark = true;
-          if (/<a[^>]+href=["']#main-content["'][^>]*>.*skip to main content.*<\/a>/i.test(content)) foundSkipLink = true;
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
-        }
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        if (/<(main|nav|aside|header|footer)[^>]*>/i.test(content)) foundLandmark = true;
+        if (/<a[^>]+href=["']#main-content["'][^>]*>.*skip to main content.*<\/a>/i.test(content)) foundSkipLink = true;
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
+      }
       }));
     }
     process.stdout.write(`\r[Landmarks/Skip Links] Progress: ${files.length}/${files.length} files checked\n`);
@@ -2644,30 +2786,30 @@ class TestingAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Test Patterns] Progress: ${processed}/${testFiles.length} files checked`);
-        try {
-          const content = fs.readFileSync(file, 'utf8');
-          const lines = content.split('\n');
-          
-          lines.forEach((line, index) => {
-            getConfigPattern('testPatterns').forEach(({ pattern, name, positive }) => {
-              if (pattern.test(line)) {
-                if (positive) {
-                  this.testingIssues.push({
-                    type: 'testing_pattern_found',
-                    file,
-                    line: index + 1,
-                    severity: 'info',
-                    message: `Testing ${name} detected`,
-                    code: line.trim(),
-                    positive: true
-                  });
-                }
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          getConfigPattern('testPatterns').forEach(({ pattern, name, positive }) => {
+            if (pattern.test(line)) {
+              if (positive) {
+                this.testingIssues.push({
+                  type: 'testing_pattern_found',
+                  file,
+                  line: index + 1,
+                  severity: 'info',
+                  message: `Testing ${name} detected`,
+                  code: line.trim(),
+                  positive: true
+                });
               }
-            });
+            }
           });
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
-        }
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
+      }
       }));
     }
     process.stdout.write(`\r[Test Patterns] Progress: ${testFiles.length}/${testFiles.length} files checked\n`);
@@ -2686,30 +2828,30 @@ class TestingAudit {
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Mocking Patterns] Progress: ${processed}/${testFiles.length} files checked`);
-        try {
-          const content = fs.readFileSync(file, 'utf8');
-          const lines = content.split('\n');
-          
-          lines.forEach((line, index) => {
-            getConfigPattern('mockPatterns').forEach(({ pattern, name, positive }) => {
-              if (pattern.test(line)) {
-                if (positive) {
-                  this.testingIssues.push({
-                    type: 'mocking_pattern_found',
-                    file,
-                    line: index + 1,
-                    severity: 'info',
-                    message: `${name} detected`,
-                    code: line.trim(),
-                    positive: true
-                  });
-                }
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          getConfigPattern('mockPatterns').forEach(({ pattern, name, positive }) => {
+            if (pattern.test(line)) {
+              if (positive) {
+                this.testingIssues.push({
+                  type: 'mocking_pattern_found',
+                  file,
+                  line: index + 1,
+                  severity: 'info',
+                  message: `${name} detected`,
+                  code: line.trim(),
+                  positive: true
+                });
               }
-            });
+            }
           });
-        } catch (error) {
-          console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
-        }
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
+      }
       }));
     }
     process.stdout.write(`\r[Mocking Patterns] Progress: ${testFiles.length}/${testFiles.length} files checked\n`);
@@ -2941,18 +3083,18 @@ class DependencyAudit {
         const batch = keys.slice(i, i + BATCH_SIZE);
         batch.forEach((packageName, idx) => {
           process.stdout.write(`\r[Outdated Dependencies] Progress: ${i + idx + 1}/${keys.length} checked`);
-          const packageInfo = outdatedData[packageName];
-          this.addDependencyIssue({
-            type: 'outdated_dependency',
-            package: packageName,
-            current: packageInfo.current,
-            wanted: packageInfo.wanted,
-            latest: packageInfo.latest,
-            severity: packageInfo.latest !== packageInfo.wanted ? 'medium' : 'low',
-            message: `${packageName} is outdated (current: ${packageInfo.current}, latest: ${packageInfo.latest})`,
-            recommendation: `Update ${packageName} to version ${packageInfo.latest}`
-          });
+        const packageInfo = outdatedData[packageName];
+        this.addDependencyIssue({
+          type: 'outdated_dependency',
+          package: packageName,
+          current: packageInfo.current,
+          wanted: packageInfo.wanted,
+          latest: packageInfo.latest,
+          severity: packageInfo.latest !== packageInfo.wanted ? 'medium' : 'low',
+          message: `${packageName} is outdated (current: ${packageInfo.current}, latest: ${packageInfo.latest})`,
+          recommendation: `Update ${packageName} to version ${packageInfo.latest}`
         });
+      });
       }
       process.stdout.write(`\r[Outdated Dependencies] Progress: ${keys.length}/${keys.length} checked\n`);
     } catch (error) {
@@ -3006,13 +3148,13 @@ class DependencyAudit {
         batch.forEach((name, idx) => {
           process.stdout.write(`\r[Duplicate Dependencies] Progress: ${i + idx + 1}/${packageNames.length} checked`);
           if (packageNames.indexOf(name) !== i + idx) {
-            this.addDependencyIssue({
-              type: 'duplicate_dependency',
+          this.addDependencyIssue({
+            type: 'duplicate_dependency',
               package: name,
-              severity: 'medium',
+            severity: 'medium',
               message: `Duplicate dependency found: ${name}`,
-              recommendation: 'Remove duplicate entry from package.json'
-            });
+            recommendation: 'Remove duplicate entry from package.json'
+          });
           }
         });
       }
@@ -3082,15 +3224,15 @@ class DependencyAudit {
           const batch = depcheckData.dependencies.slice(i, i + BATCH_SIZE);
           batch.forEach((dep, idx) => {
             process.stdout.write(`\r[Unused Dependencies] Progress: ${i + idx + 1}/${depcheckData.dependencies.length} checked`);
-            this.addDependencyIssue({
-              type: 'unused_dependency',
-              package: dep,
-              file: dep || undefined, // Only set file to dep if no file info is present
-              severity: 'low',
-              message: `Unused dependency: ${dep}`,
-              recommendation: `Remove ${dep} from package.json if not needed`
-            });
+          this.addDependencyIssue({
+            type: 'unused_dependency',
+            package: dep,
+            file: dep || undefined, // Only set file to dep if no file info is present
+            severity: 'low',
+            message: `Unused dependency: ${dep}`,
+            recommendation: `Remove ${dep} from package.json if not needed`
           });
+        });
         }
         process.stdout.write(`\r[Unused Dependencies] Progress: ${depcheckData.dependencies.length}/${depcheckData.dependencies.length} checked\n`);
       }
@@ -3099,15 +3241,15 @@ class DependencyAudit {
           const batch = depcheckData.devDependencies.slice(i, i + BATCH_SIZE);
           batch.forEach((dep, idx) => {
             process.stdout.write(`\r[Unused Dev Dependencies] Progress: ${i + idx + 1}/${depcheckData.devDependencies.length} checked`);
-            this.addDependencyIssue({
-              type: 'unused_dev_dependency',
-              package: dep,
-              file: dep || undefined, // Only set file to dep if no file info is present
-              severity: 'low',
-              message: `Unused dev dependency: ${dep}`,
-              recommendation: `Remove ${dep} from devDependencies if not needed`
-            });
+          this.addDependencyIssue({
+            type: 'unused_dev_dependency',
+            package: dep,
+            file: dep || undefined, // Only set file to dep if no file info is present
+            severity: 'low',
+            message: `Unused dev dependency: ${dep}`,
+            recommendation: `Remove ${dep} from devDependencies if not needed`
           });
+        });
         }
         process.stdout.write(`\r[Unused Dev Dependencies] Progress: ${depcheckData.devDependencies.length}/${depcheckData.devDependencies.length} checked\n`);
       }
@@ -3152,17 +3294,17 @@ class DependencyAudit {
         const batch = depKeys.slice(i, i + BATCH_SIZE);
         batch.forEach((packageName, idx) => {
           process.stdout.write(`\r[Missing Packages] Progress: ${i + idx + 1}/${depKeys.length} checked`);
-          const packagePath = path.join('node_modules', packageName);
-          if (!fs.existsSync(packagePath)) {
-            this.addDependencyIssue({
-              type: 'missing_package',
-              package: packageName,
-              severity: 'high',
-              message: `Package ${packageName} is missing from node_modules`,
-              recommendation: `Run npm install to install ${packageName}`
-            });
-          }
-        });
+        const packagePath = path.join('node_modules', packageName);
+        if (!fs.existsSync(packagePath)) {
+          this.addDependencyIssue({
+            type: 'missing_package',
+            package: packageName,
+            severity: 'high',
+            message: `Package ${packageName} is missing from node_modules`,
+            recommendation: `Run npm install to install ${packageName}`
+          });
+        }
+      });
       }
       process.stdout.write(`\r[Missing Packages] Progress: ${depKeys.length}/${depKeys.length} checked\n`);
     } catch (error) {
@@ -3185,19 +3327,19 @@ class DependencyAudit {
           const batch = peerKeys.slice(i, i + BATCH_SIZE);
           batch.forEach((peerDep, idx) => {
             process.stdout.write(`\r[Peer Dependencies] Progress: ${i + idx + 1}/${peerKeys.length} checked`);
-            const requiredVersion = packageJson.peerDependencies[peerDep];
-            const packagePath = path.join('node_modules', peerDep);
-            if (!fs.existsSync(packagePath)) {
-              this.addDependencyIssue({
-                type: 'missing_peer_dependency',
-                package: peerDep,
-                requiredVersion,
-                severity: 'high',
-                message: `Peer dependency ${peerDep}@${requiredVersion} is not installed`,
-                recommendation: `Install ${peerDep}@${requiredVersion}`
-              });
-            }
-          });
+          const requiredVersion = packageJson.peerDependencies[peerDep];
+          const packagePath = path.join('node_modules', peerDep);
+          if (!fs.existsSync(packagePath)) {
+            this.addDependencyIssue({
+              type: 'missing_peer_dependency',
+              package: peerDep,
+              requiredVersion,
+              severity: 'high',
+              message: `Peer dependency ${peerDep}@${requiredVersion} is not installed`,
+              recommendation: `Install ${peerDep}@${requiredVersion}`
+            });
+          }
+        });
         }
         process.stdout.write(`\r[Peer Dependencies] Progress: ${peerKeys.length}/${peerKeys.length} checked\n`);
       }
@@ -3227,16 +3369,16 @@ class DependencyAudit {
         const batch = largePackages.slice(i, i + BATCH_SIZE);
         batch.forEach((pkg, idx) => {
           process.stdout.write(`\r[Large Dependencies] Progress: ${i + idx + 1}/${largePackages.length} checked`);
-          if (allDeps[pkg]) {
-            this.addDependencyIssue({
-              type: 'large_dependency',
-              package: pkg,
-              severity: 'low',
-              message: `Large dependency detected: ${pkg}`,
-              recommendation: 'Consider using lighter alternatives or tree-shaking'
-            });
-          }
-        });
+        if (allDeps[pkg]) {
+          this.addDependencyIssue({
+            type: 'large_dependency',
+            package: pkg,
+            severity: 'low',
+            message: `Large dependency detected: ${pkg}`,
+            recommendation: 'Consider using lighter alternatives or tree-shaking'
+          });
+        }
+      });
       }
       process.stdout.write(`\r[Large Dependencies] Progress: ${largePackages.length}/${largePackages.length} checked\n`);
     } catch (error) {
@@ -3279,22 +3421,22 @@ class DependencyAudit {
           const batch = licenseKeys.slice(i, i + BATCH_SIZE);
           batch.forEach((packageName, idx) => {
             process.stdout.write(`\r[License Compliance] Progress: ${i + idx + 1}/${licenseKeys.length} checked`);
-            const packageInfo = licenseData[packageName];
-            if (packageInfo.licenses) {
-              problematicLicenses.forEach(license => {
-                if (packageInfo.licenses.includes(license)) {
-                  this.addDependencyIssue({
-                    type: 'problematic_license',
-                    package: packageName,
-                    license: packageInfo.licenses,
-                    severity: 'medium',
-                    message: `Package ${packageName} uses ${packageInfo.licenses} license`,
-                    recommendation: 'Review license compatibility with your project'
-                  });
-                }
-              });
-            }
-          });
+          const packageInfo = licenseData[packageName];
+          if (packageInfo.licenses) {
+            problematicLicenses.forEach(license => {
+              if (packageInfo.licenses.includes(license)) {
+                this.addDependencyIssue({
+                  type: 'problematic_license',
+                  package: packageName,
+                  license: packageInfo.licenses,
+                  severity: 'medium',
+                  message: `Package ${packageName} uses ${packageInfo.licenses} license`,
+                  recommendation: 'Review license compatibility with your project'
+                });
+              }
+            });
+          }
+        });
         }
         process.stdout.write(`\r[License Compliance] Progress: ${licenseKeys.length}/${licenseKeys.length} checked\n`);
       } catch (licenseError) {

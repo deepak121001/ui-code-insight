@@ -7,6 +7,7 @@ import fs from "fs";
 import chalk from "chalk";
 import { getConfigPattern, getMergedExcludeRules } from '../config-loader.js';
 import { execSync } from 'child_process';
+import { createRequire } from 'module';
 
 // Default ESLint rules to exclude (commonly disabled by project architects)
 const DEFAULT_ESLINT_EXCLUDE_RULES = [
@@ -50,8 +51,58 @@ const DEFAULT_ESLINT_EXCLUDE_RULES = [
   'react/prefer-es6-class', 'react/prefer-stateless-function', 'react/prop-types',
   'react/react-in-jsx-scope', 'react/require-default-props', 'react/require-optimization',
   'react/require-render-return', 'react/sort-comp', 'react/sort-prop-types',
-  'react/style-prop-object', 'react/void-dom-elements-no-children'
+  'react/style-prop-object', 'react/void-dom-elements-no-children', 'import/no-cycle', 
+  'max-len', 'no-param-reassign'
 ];
+
+// Helper to get all rules enabled by a config
+function getRulesForConfig(configName) {
+  const require = createRequire(import.meta.url);
+  let rules = {};
+  try {
+    if (configName === 'airbnb') {
+      // Airbnb base config aggregates these files
+      const airbnbRuleFiles = [
+        'eslint-config-airbnb-base/rules/best-practices',
+        'eslint-config-airbnb-base/rules/errors',
+        'eslint-config-airbnb-base/rules/node',
+        'eslint-config-airbnb-base/rules/style',
+        'eslint-config-airbnb-base/rules/variables',
+        'eslint-config-airbnb-base/rules/imports',
+        'eslint-config-airbnb-base/rules/strict',
+        'eslint-config-airbnb-base/rules/es6',
+      ];
+      airbnbRuleFiles.forEach(file => {
+        try {
+          const mod = require(file);
+          if (mod && mod.rules) {
+            rules = { ...rules, ...mod.rules };
+          }
+        } catch (e) {}
+      });
+    } else if (configName === 'eslint:recommended') {
+      // Try to load recommended config if available
+      try {
+        const recommended = require('eslint/conf/eslint-recommended');
+        if (recommended && recommended.rules) {
+          rules = { ...rules, ...recommended.rules };
+        }
+      } catch (e) {}
+    }
+    // Add more configs as needed
+  } catch (e) {}
+  return Object.keys(rules);
+}
+
+// Helper to get config extends from config file
+function getConfigExtends(configPath) {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    if (Array.isArray(config.extends)) return config.extends;
+    if (typeof config.extends === 'string') return [config.extends];
+  } catch (e) {}
+  return [];
+}
 
 // Constants for configuration files
 const CONFIG_FOLDER = "config";
@@ -204,6 +255,23 @@ const lintAllFiles = async (files, folderPath, eslint, projectType, reports) => 
   }
   process.stdout.write(`\r[ESLint] Progress: ${files.length}/${files.length} files checked\n`);
 
+  const lintConfigFile = getLintConfigFile(false, projectType); // Pass false for recommendedLintRules
+  const configExtends = getConfigExtends(lintConfigFile);
+  const configRuleMap = {};
+  configExtends.forEach(cfg => {
+    // Normalize config name
+    let name = cfg;
+    if (name.startsWith('plugin:')) name = name.split(':')[1].split('/')[0];
+    if (name.startsWith('eslint-config-')) name = name.replace('eslint-config-', '');
+    if (name === 'airbnb-base' || name === 'airbnb') name = 'airbnb';
+    if (name === 'recommended') name = 'eslint:recommended';
+    const rules = getRulesForConfig(name);
+    rules.forEach(rule => {
+      if (!configRuleMap[rule]) configRuleMap[rule] = [];
+      configRuleMap[rule].push(cfg);
+    });
+  });
+
   const jsonReport = {
     projectType,
     reports,
@@ -212,25 +280,41 @@ const lintAllFiles = async (files, folderPath, eslint, projectType, reports) => 
       rules: excludeRules,
       count: excludeRules.length
     },
-    results: results.map((result) => ({
-      filePath: result?.filePath,
-      errorCount: result?.errorCount,
-      warningCount: result?.warningCount,
-      messages: result?.messages
-        .filter(message => !excludeRules.includes(message.ruleId))
-        .map((message) => ({
-          ruleId: message.ruleId,
-          severity: message.severity,
-          line: message.line,
-          column: message.column,
-          endLine: message.endLine,
-          endColumn: message.endColumn,
-          message: message.message,
-          fix: message.fix,
-          suggestions: message.suggestions,
-          fatal: message.fatal,
-        })),
-    })),
+    results: results
+      .map((result) => {
+        let filteredMessages = result?.messages
+          .filter(message => !excludeRules.includes(message.ruleId))
+          .map((message) => ({
+            ruleId: message.ruleId,
+            severity: message.severity,
+            line: message.line,
+            column: message.column,
+            endLine: message.endLine,
+            endColumn: message.endColumn,
+            message: message.message,
+            fix: message.fix,
+            suggestions: message.suggestions,
+            fatal: message.fatal,
+            ruleSource: message.ruleId
+              ? (message.ruleId.startsWith('react/') ? 'React Plugin'
+                : message.ruleId.startsWith('@typescript-eslint/') ? 'TypeScript ESLint Plugin'
+                : message.ruleId.startsWith('import/') ? 'Import Plugin'
+                : 'ESLint core')
+              : '',
+            configSource: message.ruleId && configRuleMap[message.ruleId] ? configRuleMap[message.ruleId] : [],
+          }));
+        // If errorCount > 0 but messages is empty, omit this file from the report
+        if ((result?.errorCount > 0) && (!filteredMessages || filteredMessages.length === 0)) {
+          return null;
+        }
+        return {
+          filePath: result?.filePath,
+          errorCount: filteredMessages.length,
+          warningCount: 0,
+          messages: filteredMessages,
+        };
+      })
+      .filter(Boolean),
   };
 
   await writeFile(

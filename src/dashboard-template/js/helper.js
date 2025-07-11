@@ -316,8 +316,8 @@ export const createAccordionItem = (
                           <span class="font-semibold text-gray-900">
                             ${rangeInfo || `Line ${message.line}, Column ${message.column}`}
                           </span>
-                          ${message.ruleId ? `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">${message.ruleId}</span>` : ''}
-                          ${message.rule ? `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">${message.rule}</span>` : ''}
+                          ${message.ruleId ? `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">${message.ruleId}${message.ruleSource ? ` <span class='text-xs text-blue-600'>(${message.ruleSource})</span>` : ''}${message.configSource && message.configSource.length > 0 ? ` <span class='text-xs text-green-600'>[${message.configSource.map(getFriendlyConfigName).join(', ')}]</span>` : ''}</span>` : ''}
+                          ${message.rule ? `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">${message.rule}${message.ruleSource ? ` <span class='text-xs text-blue-600'>(${message.ruleSource})</span>` : ''}${message.configSource && message.configSource.length > 0 ? ` <span class='text-xs text-green-600'>[${message.configSource.map(getFriendlyConfigName).join(', ')}]</span>` : ''}</span>` : ''}
                           ${message.fatal ? `<span class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">Fatal</span>` : ''}
                         </div>
                         <p class="text-gray-700 mb-2">${message.message}</p>
@@ -408,7 +408,7 @@ export const createAccordionItem = (
  * Renders an accordion of lint results.
  * @param {Array} data - Array of file lint result objects.
  */
-export const renderAccordion = (data) => {
+export const renderAccordion = (data, configSourceFilter = '', sortOption = 'file') => {
   const accordionContent = document.getElementById("accordionContent");
   const accordionContainer = document.getElementById("accordion");
 
@@ -417,7 +417,46 @@ export const renderAccordion = (data) => {
   }
   if (!accordionContainer) return;
   accordionContainer.innerHTML = "";
-  data.forEach((item) => {
+  // Flatten all messages for filter dropdown
+  const allMessages = data.flatMap(item => item.messages || []);
+  renderConfigSourceFilter(allMessages);
+  renderSortFilter();
+
+  // Filter data if filter is set
+  let filteredData = data;
+  if (configSourceFilter) {
+    filteredData = data.map(item => {
+      const filteredMessages = (item.messages || []).filter(msg => msg.configSource && msg.configSource.includes(configSourceFilter));
+      return { ...item, messages: filteredMessages, errorCount: filteredMessages.length };
+    }).filter(item => item.messages && item.messages.length > 0);
+  }
+
+  // Sort filtered data
+  let sortedData = [...filteredData];
+  switch (sortOption) {
+    case 'file':
+      sortedData.sort((a, b) => (a.filePath || '').localeCompare(b.filePath || ''));
+      break;
+    case 'file-desc':
+      sortedData.sort((a, b) => (b.filePath || '').localeCompare(a.filePath || ''));
+      break;
+    case 'errors':
+      sortedData.sort((a, b) => (b.errorCount || 0) - (a.errorCount || 0));
+      break;
+    case 'errors-asc':
+      sortedData.sort((a, b) => (a.errorCount || 0) - (b.errorCount || 0));
+      break;
+    case 'warnings':
+      sortedData.sort((a, b) => (b.warningCount || 0) - (a.warningCount || 0));
+      break;
+    case 'warnings-asc':
+      sortedData.sort((a, b) => (a.warningCount || 0) - (b.warningCount || 0));
+      break;
+    default:
+      break;
+  }
+
+  sortedData.forEach((item) => {
     const accordionItem = createAccordionItem(
       item.filePath,
       item.errorCount,
@@ -426,6 +465,21 @@ export const renderAccordion = (data) => {
     );
     accordionContainer.appendChild(accordionItem);
   });
+
+  // Add event listener for configSource filter
+  const filterSelect = document.getElementById('configSourceFilter');
+  if (filterSelect) {
+    filterSelect.onchange = (e) => {
+      renderAccordion(data, e.target.value, document.getElementById('sortFilter')?.value || 'file');
+    };
+  }
+  // Add event listener for sort filter
+  const sortSelect = document.getElementById('sortFilter');
+  if (sortSelect) {
+    sortSelect.onchange = (e) => {
+      renderAccordion(data, document.getElementById('configSourceFilter')?.value || '', e.target.value);
+    };
+  }
 };
 
 /**
@@ -484,3 +538,55 @@ export const showDashboardMessage = (message) => {
     msgDiv.classList.remove('hidden');
   }
 };
+
+function getFriendlyConfigName(configKey) {
+  if (configKey === 'airbnb') return 'Airbnb';
+  if (configKey === 'airbnb-base') return 'Airbnb Base';
+  if (configKey === 'eslint:recommended') return 'ESLint Recommended';
+  if (configKey === 'plugin:react/recommended') return 'React Recommended';
+  if (configKey === 'plugin:import/recommended') return 'Import Plugin Recommended';
+  // Add more as needed
+  return configKey.replace(/^plugin:/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+// Add a filter dropdown for configSource
+export function renderConfigSourceFilter(messages) {
+  const filterContainer = document.getElementById('configSourceFilterContainer');
+  if (!filterContainer) return;
+  // Collect all unique config sources from messages
+  const configSources = new Set();
+  messages.forEach(msg => {
+    if (msg.configSource && Array.isArray(msg.configSource)) {
+      msg.configSource.forEach(cfg => configSources.add(cfg));
+    }
+  });
+  if (configSources.size === 0) {
+    filterContainer.innerHTML = '';
+    return;
+  }
+  const options = Array.from(configSources).map(cfg => `<option value="${cfg}">${getFriendlyConfigName(cfg)}</option>`).join('');
+  filterContainer.innerHTML = `
+    <label for="configSourceFilter" class="mr-2 font-medium text-sm text-gray-700">Filter by Config:</label>
+    <select id="configSourceFilter" class="border rounded px-2 py-1 text-sm">
+      <option value="">All</option>
+      ${options}
+    </select>
+  `;
+}
+
+// Add a sort dropdown for the dashboard
+export function renderSortFilter() {
+  const sortContainer = document.getElementById('sortFilterContainer');
+  if (!sortContainer) return;
+  sortContainer.innerHTML = `
+    <label for="sortFilter" class="mr-2 font-medium text-sm text-gray-700">Sort by:</label>
+    <select id="sortFilter" class="border rounded px-2 py-1 text-sm">
+      <option value="file">File Name (A-Z)</option>
+      <option value="file-desc">File Name (Z-A)</option>
+      <option value="errors">Error Count (High-Low)</option>
+      <option value="errors-asc">Error Count (Low-High)</option>
+      <option value="warnings">Warning Count (High-Low)</option>
+      <option value="warnings-asc">Warning Count (Low-High)</option>
+    </select>
+  `;
+}

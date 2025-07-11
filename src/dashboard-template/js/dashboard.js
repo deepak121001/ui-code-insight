@@ -464,6 +464,9 @@ function renderComprehensiveOverview(comprehensiveData, individualAuditData = {}
     }
     // Fallback to individual audit data
     const data = individualAuditData[individualKey];
+    if (data && typeof data.totalIssues === 'number') {
+      return data.totalIssues;
+    }
     if (data && Array.isArray(data.issues)) {
       return data.issues.length;
     }

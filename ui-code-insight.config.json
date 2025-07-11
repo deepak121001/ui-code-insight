@@ -4,6 +4,9 @@
     "./src/**/*.ts",
     "./src/**/*.jsx",
     "./src/**/*.tsx",
+    "!**/webpack.config.js",
+    "!**/webpack.*.js",
+    "!**/webpack.config.*.js",
     "!**/report/**",
     "!./dist/**",
     "!./build/**",
@@ -11,7 +14,6 @@
     "!./cypress/**",
     "!./ui.frontend/dist/**",
     "!./ui.tests/test-module/cypress/**",
-    "!./ui.frontend/webpack.*.js",
     "!**/*.min.js"
   ],
   "htmlFilePathPattern": [
@@ -26,7 +28,10 @@
     "!.git/**",
     "!bin/**",
     "!**/__mocks__/**",
-    "!**/__dropins__/**"
+    "!**/__dropins__/**",
+    "!**/webpack.config.js",
+    "!**/webpack.*.js",
+    "!**/webpack.config.*.js"
   ],
   "scssFilePathPattern": [
     "**/*.{scss,css,less}",
@@ -40,7 +45,10 @@
     "!.git/**",
     "!bin/**",
     "!**/__mocks__/**",
-    "!**/__dropins__/**"
+    "!**/__dropins__/**",
+    "!**/webpack.config.js",
+    "!**/webpack.*.js",
+    "!**/webpack.config.*.js"
   ],
   "excludeRules": {
     "eslint": {

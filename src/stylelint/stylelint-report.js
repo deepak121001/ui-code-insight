@@ -103,7 +103,12 @@ const DEFAULT_STYLELINT_EXCLUDE_RULES = [
   'scss/partial-no-import',
   'scss/percent-placeholder-pattern',
   'scss/selector-nest-combinators',
-  'scss/selector-no-union-class-name'
+  'scss/selector-no-union-class-name',
+  
+  // Prettier-related rules to exclude (since we removed Prettier config)
+  'prettier/prettier',
+  'stylelint-config-prettier',
+  'stylelint-config-prettier-scss'
 ];
 
 // Constants for configuration files
@@ -182,17 +187,37 @@ const lintFile = async (filePath, lintStyleConfigFile) => {
     });
 
     const output = JSON.parse(item.output);
-    // if (output[0].errored) {
-    //   logError(filePath);
-    // } else {
-    //   logSuccess(filePath);
+    
+    // Debug logging for files with errors but no messages
+    // if (output[0] && output[0].warnings && output[0].warnings.length > 0) {
+    //   console.log(`[Stylelint Debug] ${filePath}: ${output[0].warnings.length} warnings found`);
+    //   output[0].warnings.forEach((warning, index) => {
+    //     console.log(`[Stylelint Debug]   Warning ${index + 1}: ${warning.rule} - ${warning.text}`);
+    //   });
+    // } else if (output[0] && output[0].errored) {
+    //   console.log(`[Stylelint Debug] ${filePath}: File has errors but no warnings array`);
+    //   console.log(`[Stylelint Debug] Output structure:`, JSON.stringify(output[0], null, 2));
     // }
+
+    // Safeguard against malformed output
+    const warnings = output[0] && output[0].warnings ? output[0].warnings : [];
+    
+    // Determine friendly config source
+    let configSourceValue = path.basename(lintStyleConfigFile);
+    try {
+      const configContent = JSON.parse(fs.readFileSync(lintStyleConfigFile, 'utf8'));
+      if (Array.isArray(configContent.extends) && configContent.extends.length > 0) {
+        configSourceValue = configContent.extends[0];
+      } else if (typeof configContent.extends === 'string') {
+        configSourceValue = configContent.extends;
+      }
+    } catch (e) {}
 
     return {
       filePath,
-      errorCount: output[0].warnings.length,
+      errorCount: warnings.length,
       warningCount: 0,
-      messages: output[0].warnings.map((message) => ({
+      messages: warnings.map((message) => ({
         line: message.line,
         column: message.column,
         endLine: message.endLine,
@@ -202,6 +227,12 @@ const lintFile = async (filePath, lintStyleConfigFile) => {
         message: message.text,
         fix: message.fix,
         suggestions: message.suggestions,
+        ruleSource: message.rule
+          ? (message.rule.startsWith('scss/') ? 'SCSS Plugin'
+            : message.rule.startsWith('order/') ? 'Order Plugin'
+            : 'Stylelint core')
+          : '',
+        configSource: [configSourceValue],
       })),
     };
   } catch (err) {
@@ -240,6 +271,26 @@ const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType,
   }
   process.stdout.write(`\r[Stylelint] Progress: ${files.length}/${files.length} files checked\n`);
 
+  // Filter messages based on exclude rules and update error counts
+  const filteredResults = results.map(result => {
+    const filteredMessages = result.messages.filter(message => !excludeRules.includes(message.rule));
+    
+    // Ensure error count matches actual message count
+    const actualErrorCount = filteredMessages.length;
+    
+    // Log if there's a mismatch between error count and message count
+    if (result.errorCount > 0 && actualErrorCount === 0) {
+      console.log(`[Stylelint Warning] ${result.filePath}: Error count (${result.errorCount}) doesn't match message count (${actualErrorCount})`);
+    }
+    
+    return {
+      ...result,
+      errorCount: actualErrorCount,
+      warningCount: 0,
+      messages: filteredMessages
+    };
+  });
+
   const jsonReport = {
     projectType,
     reports,
@@ -248,10 +299,7 @@ const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType,
       rules: excludeRules,
       count: excludeRules.length
     },
-    results: results.map(result => ({
-      ...result,
-      messages: result.messages.filter(message => !excludeRules.includes(message.rule))
-    }))
+    results: filteredResults
   };
 
   await fs.promises.writeFile(
