@@ -6,6 +6,8 @@ import { writeFile } from 'fs/promises';
 import { getConfigPattern } from '../config-loader.js';
 import fsp from 'fs/promises';
 
+const BATCH_SIZE = 5;
+
 /**
  * Accessibility audit module for detecting accessibility issues
  */
@@ -74,9 +76,8 @@ export class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
-    const BATCH_SIZE = 5;
     let processed = 0;
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
@@ -135,7 +136,7 @@ export class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
@@ -195,7 +196,7 @@ export class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
@@ -257,7 +258,7 @@ export class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
@@ -311,7 +312,7 @@ export class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
@@ -370,7 +371,7 @@ export class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
@@ -420,7 +421,7 @@ export class AccessibilityAudit {
   async checkTabOrderAndFocus() {
     console.log(chalk.blue('♿ Checking tab order and focus management...'));
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
@@ -476,8 +477,9 @@ export class AccessibilityAudit {
   async checkLandmarksAndSkipLinks() {
     console.log(chalk.blue('♿ Checking for landmark roles and skip links...'));
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
+    let foundLandmark = false, foundSkipLink = false;
     let processed = 0;
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);

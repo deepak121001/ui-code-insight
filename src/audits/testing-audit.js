@@ -6,6 +6,8 @@ import { globby } from 'globby';
 import { writeFile } from 'fs/promises';
 import { getConfigPattern } from '../config-loader.js';
 
+const BATCH_SIZE = 5;
+
 /**
  * Testing audit module for detecting testing practices and coverage
  */
@@ -141,7 +143,6 @@ export class TestingAudit {
     console.log(chalk.blue('🧪 Checking testing patterns...'));
     
     const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    const BATCH_SIZE = 5;
     let processed = 0;
     for (let i = 0; i < testFiles.length; i += BATCH_SIZE) {
       const batch = testFiles.slice(i, i + BATCH_SIZE);
@@ -184,7 +185,6 @@ export class TestingAudit {
     console.log(chalk.blue('🧪 Checking mocking patterns...'));
     
     const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    const BATCH_SIZE = 5;
     let processed = 0;
     for (let i = 0; i < testFiles.length; i += BATCH_SIZE) {
       const batch = testFiles.slice(i, i + BATCH_SIZE);

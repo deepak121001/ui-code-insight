@@ -11,6 +11,9 @@ npx ui-code-insight
 ```
 > _No install, no config, instant insights._
 
+### 📊 Live Demo
+Check out the [Audit Sample Dashboard](https://deepak121001.github.io/Audit-Sample/) to see the tool in action with sample projects!
+
 ---
 
 ## 🌟 Why Use UI Code Insight?
@@ -22,10 +25,14 @@ npx ui-code-insight
 | **Comprehensive audits**   | Security, Performance, Accessibility... |
 | **Smart dependency mgmt**  | Installs only what you need             |
 | **Visual dashboard**       | See all issues in one place             |
+| **Live demo available**    | [Try it now](https://deepak121001.github.io/Audit-Sample/) |
 
 ---
 
 ## 📦 Usage Examples
+
+### 🎯 Live Demo
+Experience the full UI Code Insight dashboard with sample projects: **[Audit Sample Dashboard](https://deepak121001.github.io/Audit-Sample/)**
 
 ### CLI Prompt Example
 ```
@@ -193,6 +200,12 @@ A: In the `report/` directory at your project root.
 ## Repository
 
 GitHub: [https://github.com/deepak121001/ui-code-insight.git](https://github.com/deepak121001/ui-code-insight.git)
+
+## 📊 Live Demo & Samples
+
+- **Audit Sample Dashboard**: [https://deepak121001.github.io/Audit-Sample/](https://deepak121001.github.io/Audit-Sample/)
+- **Sample Projects**: Explore React, Node.js, and Vanilla JavaScript projects with intentional issues for testing
+- **Interactive Reports**: View ESLint, Stylelint, Security, Accessibility, and Performance audits in action
 
 ---
 

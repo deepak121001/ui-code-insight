@@ -1,6 +1,6 @@
 {
   "name": "ui-code-insight",
-  "version": "2.0.8",
+  "version": "2.1.1",
   "description": "Interactive CLI for generating code quality, style, and package analysis reports for JavaScript, TypeScript, CSS, and modern web projects.",
   "author": "Deepak Sharma",
   "main": "index.js",

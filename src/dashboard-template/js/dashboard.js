@@ -481,11 +481,17 @@ function renderComprehensiveOverview(comprehensiveData, individualAuditData = {}
 function renderOverviewCharts(eslintData, stylelintData, npmData, comprehensiveData, individualAuditData = {}) {
   // ESLint Pie
   const eslintTotalEl = document.getElementById('overviewEslintTotal');
+  const eslintCountsEl = document.getElementById('overviewEslintCounts');
   if (eslintData && Array.isArray(eslintData.results) && document.querySelector('#overviewEslintChart')) {
     const totalFiles = eslintData.results.length;
     const errorFiles = Array.isArray(eslintData.results) ? eslintData.results.filter(f => f.errorCount > 0).length : 0;
     const warningFiles = Array.isArray(eslintData.results) ? eslintData.results.filter(f => f.errorCount === 0 && f.warningCount > 0).length : 0;
     const passFiles = Array.isArray(eslintData.results) ? eslintData.results.filter(f => f.errorCount === 0 && f.warningCount === 0).length : 0;
+    
+    // Calculate total errors and warnings
+    const totalErrors = eslintData.results.reduce((sum, file) => sum + file.errorCount, 0);
+    const totalWarnings = eslintData.results.reduce((sum, file) => sum + file.warningCount, 0);
+    
     const options = {
       chart: { type: 'pie', height: 250 },
       labels: ['Files with Errors', 'Files with Warnings', 'Files Passed'],
@@ -494,16 +500,24 @@ function renderOverviewCharts(eslintData, stylelintData, npmData, comprehensiveD
     };
     new ApexCharts(document.querySelector('#overviewEslintChart'), options).render();
     if (eslintTotalEl) eslintTotalEl.textContent = `Total JS files: ${totalFiles}`;
+    if (eslintCountsEl) eslintCountsEl.innerHTML = `<span class="text-red-500">${totalErrors} errors</span> • <span class="text-yellow-500">${totalWarnings} warnings</span>`;
   } else if (eslintTotalEl) {
     eslintTotalEl.textContent = '';
+    if (eslintCountsEl) eslintCountsEl.textContent = '';
   }
   // Stylelint Pie
   const stylelintTotalEl = document.getElementById('overviewStylelintTotal');
+  const stylelintCountsEl = document.getElementById('overviewStylelintCounts');
   if (stylelintData && Array.isArray(stylelintData.results) && document.querySelector('#overviewStylelintChart')) {
     const totalFiles = stylelintData.results.length;
     const errorFiles = stylelintData.results.filter(f => f.errorCount > 0).length;
     const warningFiles = stylelintData.results.filter(f => f.errorCount === 0 && f.warningCount > 0).length;
     const passFiles = stylelintData.results.filter(f => f.errorCount === 0 && f.warningCount === 0).length;
+    
+    // Calculate total errors and warnings
+    const totalErrors = stylelintData.results.reduce((sum, file) => sum + file.errorCount, 0);
+    const totalWarnings = stylelintData.results.reduce((sum, file) => sum + file.warningCount, 0);
+    
     const options = {
       chart: { type: 'pie', height: 250 },
       labels: ['Files with Errors', 'Files with Warnings', 'Files Passed'],
@@ -512,8 +526,10 @@ function renderOverviewCharts(eslintData, stylelintData, npmData, comprehensiveD
     };
     new ApexCharts(document.querySelector('#overviewStylelintChart'), options).render();
     if (stylelintTotalEl) stylelintTotalEl.textContent = `Total CSS files: ${totalFiles}`;
+    if (stylelintCountsEl) stylelintCountsEl.innerHTML = `<span class="text-red-500">${totalErrors} errors</span> • <span class="text-yellow-500">${totalWarnings} warnings</span>`;
   } else if (stylelintTotalEl) {
     stylelintTotalEl.textContent = '';
+    if (stylelintCountsEl) stylelintCountsEl.textContent = '';
   }
   // NPM Packages Overview Card (Stylelint-style)
   const npmTotalPackagesEl = document.getElementById('npmTotalPackages');

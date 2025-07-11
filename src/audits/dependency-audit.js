@@ -4,6 +4,8 @@ import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { writeFile } from 'fs/promises';
 
+const BATCH_SIZE = 5;
+
 /**
  * Dependency audit module for detecting dependency issues
  */
@@ -36,7 +38,6 @@ export class DependencyAudit {
       
       const outdatedData = JSON.parse(outdatedResult);
       
-      const BATCH_SIZE = 5;
       const keys = Object.keys(outdatedData);
       for (let i = 0; i < keys.length; i += BATCH_SIZE) {
         const batch = keys.slice(i, i + BATCH_SIZE);
@@ -102,7 +103,6 @@ export class DependencyAudit {
       const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
       
       const packageNames = Object.keys(allDeps);
-      const BATCH_SIZE = 5;
       for (let i = 0; i < packageNames.length; i += BATCH_SIZE) {
         const batch = packageNames.slice(i, i + BATCH_SIZE);
         batch.forEach((name, idx) => {
@@ -179,7 +179,6 @@ export class DependencyAudit {
         });
         return;
       }
-      const BATCH_SIZE = 5;
       if (depcheckData.dependencies && depcheckData.dependencies.length > 0) {
         for (let i = 0; i < depcheckData.dependencies.length; i += BATCH_SIZE) {
           const batch = depcheckData.dependencies.slice(i, i + BATCH_SIZE);

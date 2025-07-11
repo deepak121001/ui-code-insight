@@ -323,7 +323,7 @@ const lintFile$1 = async (filePath, eslint) => {
   }
 };
 
-const BATCH_SIZE$2 = 5;
+const BATCH_SIZE$4 = 5;
 
 /**
  * Function to lint all files
@@ -345,8 +345,8 @@ const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) =
 
   let results = [];
   let processed = 0;
-  for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
-    const batch = files.slice(i, i + BATCH_SIZE$2);
+  for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
+    const batch = files.slice(i, i + BATCH_SIZE$4);
     const batchResults = await Promise.all(batch.map(async (filePath) => {
       processed++;
       process.stdout.write(`\r[ESLint] Progress: ${processed}/${files.length} files checked`);
@@ -640,7 +640,7 @@ const lintFile = async (filePath, lintStyleConfigFile) => {
   }
 };
 
-const BATCH_SIZE$1 = 5;
+const BATCH_SIZE$3 = 5;
 
 /**
  * Function to lint all files
@@ -660,8 +660,8 @@ const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType,
 
   let results = [];
   let processed = 0;
-  for (let i = 0; i < files.length; i += BATCH_SIZE$1) {
-    const batch = files.slice(i, i + BATCH_SIZE$1);
+  for (let i = 0; i < files.length; i += BATCH_SIZE$3) {
+    const batch = files.slice(i, i + BATCH_SIZE$3);
     const batchResults = await Promise.all(batch.map(async (filePath) => {
       processed++;
       process.stdout.write(`\r[Stylelint] Progress: ${processed}/${files.length} files checked`);
@@ -1926,6 +1926,8 @@ class PerformanceAudit {
   }
 }
 
+const BATCH_SIZE$2 = 5;
+
 /**
  * Accessibility audit module for detecting accessibility issues
  */
@@ -1994,12 +1996,11 @@ class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
-    const BATCH_SIZE = 5;
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
+      const batch = files.slice(i, i + BATCH_SIZE$2);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Image Accessibility] Progress: ${processed}/${files.length} files checked`);
@@ -2055,11 +2056,11 @@ class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
+      const batch = files.slice(i, i + BATCH_SIZE$2);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Heading Structure] Progress: ${processed}/${files.length} files checked`);
@@ -2115,11 +2116,11 @@ class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
+      const batch = files.slice(i, i + BATCH_SIZE$2);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Form Labels] Progress: ${processed}/${files.length} files checked`);
@@ -2177,11 +2178,11 @@ class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
+      const batch = files.slice(i, i + BATCH_SIZE$2);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Color Contrast] Progress: ${processed}/${files.length} files checked`);
@@ -2231,11 +2232,11 @@ class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
+      const batch = files.slice(i, i + BATCH_SIZE$2);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Keyboard Navigation] Progress: ${processed}/${files.length} files checked`);
@@ -2290,11 +2291,11 @@ class AccessibilityAudit {
     ];
 
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
+      const batch = files.slice(i, i + BATCH_SIZE$2);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[ARIA Usage] Progress: ${processed}/${files.length} files checked`);
@@ -2340,11 +2341,11 @@ class AccessibilityAudit {
   async checkTabOrderAndFocus() {
     console.log(chalk.blue('♿ Checking tab order and focus management...'));
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
+      const batch = files.slice(i, i + BATCH_SIZE$2);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Tab Order/Focus] Progress: ${processed}/${files.length} files checked`);
@@ -2396,11 +2397,12 @@ class AccessibilityAudit {
   async checkLandmarksAndSkipLinks() {
     console.log(chalk.blue('♿ Checking for landmark roles and skip links...'));
     const files = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
+    let foundLandmark = false, foundSkipLink = false;
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
+      const batch = files.slice(i, i + BATCH_SIZE$2);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Landmarks/Skip Links] Progress: ${processed}/${files.length} files checked`);
@@ -2498,6 +2500,8 @@ class AccessibilityAudit {
     return results;
   }
 }
+
+const BATCH_SIZE$1 = 5;
 
 /**
  * Testing audit module for detecting testing practices and coverage
@@ -2634,10 +2638,9 @@ class TestingAudit {
     console.log(chalk.blue('🧪 Checking testing patterns...'));
     
     const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    const BATCH_SIZE = 5;
     let processed = 0;
-    for (let i = 0; i < testFiles.length; i += BATCH_SIZE) {
-      const batch = testFiles.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < testFiles.length; i += BATCH_SIZE$1) {
+      const batch = testFiles.slice(i, i + BATCH_SIZE$1);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Test Patterns] Progress: ${processed}/${testFiles.length} files checked`);
@@ -2677,10 +2680,9 @@ class TestingAudit {
     console.log(chalk.blue('🧪 Checking mocking patterns...'));
     
     const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    const BATCH_SIZE = 5;
     let processed = 0;
-    for (let i = 0; i < testFiles.length; i += BATCH_SIZE) {
-      const batch = testFiles.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < testFiles.length; i += BATCH_SIZE$1) {
+      const batch = testFiles.slice(i, i + BATCH_SIZE$1);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Mocking Patterns] Progress: ${processed}/${testFiles.length} files checked`);
@@ -2900,6 +2902,8 @@ class TestingAudit {
   }
 }
 
+const BATCH_SIZE = 5;
+
 /**
  * Dependency audit module for detecting dependency issues
  */
@@ -2932,7 +2936,6 @@ class DependencyAudit {
       
       const outdatedData = JSON.parse(outdatedResult);
       
-      const BATCH_SIZE = 5;
       const keys = Object.keys(outdatedData);
       for (let i = 0; i < keys.length; i += BATCH_SIZE) {
         const batch = keys.slice(i, i + BATCH_SIZE);
@@ -2998,7 +3001,6 @@ class DependencyAudit {
       const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
       
       const packageNames = Object.keys(allDeps);
-      const BATCH_SIZE = 5;
       for (let i = 0; i < packageNames.length; i += BATCH_SIZE) {
         const batch = packageNames.slice(i, i + BATCH_SIZE);
         batch.forEach((name, idx) => {
@@ -3075,7 +3077,6 @@ class DependencyAudit {
         });
         return;
       }
-      const BATCH_SIZE = 5;
       if (depcheckData.dependencies && depcheckData.dependencies.length > 0) {
         for (let i = 0; i < depcheckData.dependencies.length; i += BATCH_SIZE) {
           const batch = depcheckData.dependencies.slice(i, i + BATCH_SIZE);
