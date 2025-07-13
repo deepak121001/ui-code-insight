@@ -21,3 +21,5 @@ node_modules/
 # Exclude markdown docs except README
 *.md
 !README.md
+
+src/audits/checklist-audit.js
