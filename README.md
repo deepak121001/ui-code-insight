@@ -97,6 +97,88 @@ Installing missing dependencies: eslint-plugin-jsx-a11y eslint-config-airbnb
 
 ---
 
+## 🔒 Security Audit Coverage
+
+Our comprehensive security audit covers multiple layers of security vulnerabilities and best practices:
+
+### 🔐 **Hardcoded Secrets Detection**
+- **API Keys & Tokens**: Detects exposed API keys, access tokens, refresh tokens
+- **Passwords & Credentials**: Finds hardcoded passwords and authentication secrets
+- **Private Keys**: Identifies exposed private keys and certificates
+- **Connection Strings**: Spots database and service connection strings
+- **Pattern Matching**: Uses advanced regex patterns to catch various secret formats
+
+### 🛡️ **Input Validation & XSS Prevention**
+- **HTML Input Validation**: Checks for missing validation attributes (`required`, `pattern`, `maxlength`)
+- **Unsafe DOM Insertion**: Detects dangerous `innerHTML` and `dangerouslySetInnerHTML` usage
+- **Line-by-Line Analysis**: Processes each line individually for precise issue detection
+- **Context-Aware Reporting**: Provides exact line numbers and surrounding code context
+- **Real-time Progress**: Shows scanning progress for better user experience
+
+### 📁 **File Upload Security**
+- **Type Restrictions**: Ensures file inputs have `accept` attributes for type validation
+- **Size Limits**: Checks for file size restrictions (`max` attributes)
+- **Filename Sanitization**: Detects unsafe direct usage of `file.name` without sanitization
+- **Upload Logic Analysis**: Scans JavaScript files for proper file handling practices
+- **Precise Detection**: Line-by-line analysis with exact line numbers and code context
+- **HTML & JS Coverage**: Scans both HTML file inputs and JavaScript upload logic
+
+### 🔍 **Code Injection & Execution Vulnerabilities**
+- **eval() Usage**: Flags dangerous `eval()` function calls
+- **Function Constructor**: Detects `new Function()` usage
+- **Dynamic Code Execution**: Identifies patterns that could lead to code injection
+- **Enhanced Pattern Scanning**: Line-by-line analysis with precise location reporting
+- **Context-Aware Detection**: Provides surrounding code for better issue understanding
+
+### 🌐 **Network & Transport Security**
+- **Insecure HTTP**: Detects non-HTTPS requests (`http://` URLs)
+- **Development URLs**: Flags localhost and development URLs in production code
+- **Token Exposure**: Identifies exposed Bearer tokens in code
+
+### 🎯 **Content Security Policy (CSP) - HTML Files Only**
+- **HTML-Only Scanning**: Exclusively scans HTML files (`.html`, `.htm`, `.jsp`, `.htl`, `.xhtml`, `.shtml`) for CSP
+- **Missing CSP Headers**: Detects absence of Content-Security-Policy meta tags
+- **Weak CSP Configurations**: Identifies unsafe CSP settings like `'unsafe-inline'`
+- **Security Headers**: Checks for missing HSTS and X-Frame-Options headers
+- **Precise Location**: Provides exact line numbers and code context for CSP issues
+- **JavaScript Exclusion**: Never scans JS files for CSP (as they don't contain CSP headers)
+
+### 📦 **Dependency Vulnerability Scanning**
+- **npm audit Integration**: Runs `npm audit` to check for known vulnerabilities
+- **Package Analysis**: Identifies outdated or vulnerable dependencies
+- **Security Recommendations**: Provides specific update recommendations
+
+### 🔧 **ESLint Security Plugin Integration**
+- **Security Rules**: Leverages ESLint security plugins for additional checks
+- **Custom Security Patterns**: Implements project-specific security rule detection
+- **Rule-Based Analysis**: Uses established security linting rules
+
+### 📊 **Comprehensive Reporting**
+- **Severity Levels**: Categorizes issues as High, Medium, or Low priority
+- **Line-by-Line Analysis**: Provides exact file locations and line numbers
+- **Code Context**: Shows surrounding code for better issue understanding
+- **Deduplication**: Removes duplicate findings for cleaner reports
+- **JSON Export**: Generates structured reports for integration with other tools
+
+### 🎛️ **Configurable Exclusions**
+- **Custom Rules**: Allow project-specific security rule exclusions
+- **Pattern Filtering**: Exclude specific code patterns from security checks
+- **Flexible Configuration**: Adapt security scanning to project requirements
+
+### 🔄 **Continuous Security Monitoring**
+- **Automated Scanning**: Integrate security checks into CI/CD pipelines
+- **Regular Audits**: Schedule periodic security assessments
+- **Trend Analysis**: Track security improvements over time
+
+### 🚀 **Technical Enhancements**
+- **Async File Processing**: Improved performance with non-blocking file operations
+- **Memory Optimization**: Efficient line-by-line processing with garbage collection
+- **Error Resilience**: Graceful handling of file read errors and malformed content
+- **Progress Tracking**: Real-time progress indicators for better user experience
+- **Smart File Filtering**: Intelligent exclusion of build artifacts and dependencies
+
+---
+
 ## 🛡️ How It Works
 
 1. **Select audits via CLI**: Choose which audits to run.

@@ -358,12 +358,304 @@ async checkDependencyVulnerabilities() {
       }
     }
   }
+
+  async checkFileUploadSecurity() {
+    console.log(chalk.blue('🔒 Checking file upload security (UI)...'));
+    const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'));
+    for (const file of htmlFiles) {
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          
+          // File input without accept attribute
+          const fileInputMatches = [...trimmed.matchAll(/<input[^>]+type=["']file["'][^>]*>/gi)];
+          for (const match of fileInputMatches) {
+            if (!/accept=/.test(match[0])) {
+              this.securityIssues.push({
+                type: 'file_upload_no_type_restriction',
+                file,
+                line: index + 1,
+                severity: 'medium',
+                message: 'File input without file type restriction (accept attribute missing)',
+                code: trimmed,
+                context: this.printContext(lines, index)
+              });
+            }
+          }
+          
+          // File input without size validation (look for max attribute)
+          for (const match of fileInputMatches) {
+            if (!/max/.test(match[0])) {
+              this.securityIssues.push({
+                type: 'file_upload_no_size_limit',
+                file,
+                line: index + 1,
+                severity: 'medium',
+                message: 'File input without file size limit (max attribute missing)',
+                code: trimmed,
+                context: this.printContext(lines, index)
+              });
+            }
+          }
+        });
+      } catch (err) {
+        console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+      }
+    }
+    
+    // JS: look for direct use of file.name (no sanitization)
+    const jsFiles = await globby(getConfigPattern('jsFilePathPattern'));
+    for (const file of jsFiles) {
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          
+          if (/\.name\b/.test(trimmed) && !/sanitize|replace|slugify/.test(trimmed)) {
+            this.securityIssues.push({
+              type: 'file_upload_filename_no_sanitization',
+              file,
+              line: index + 1,
+              severity: 'medium',
+              message: 'File name used directly in upload logic (no sanitization/renaming detected)',
+              code: trimmed,
+              context: this.printContext(lines, index)
+            });
+          }
+        });
+      } catch (err) {
+        console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+      }
+    }
+  }
+
+  async checkInputValidation() {
+    console.log(chalk.blue('🔒 Checking input validation (UI)...'));
+    const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'));
+    for (const file of htmlFiles) {
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        
+        lines.forEach((line, index) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          
+          // Check for inputs without validation attributes
+          const inputMatches = [...trimmed.matchAll(/<input[^>]+>/gi)];
+          for (const match of inputMatches) {
+            if (!/required|pattern|maxlength/.test(match[0])) {
+              this.securityIssues.push({
+                type: 'input_no_validation',
+                file,
+                line: index + 1,
+                severity: 'medium',
+                message: 'Input field missing validation attributes (required, pattern, maxlength)',
+                code: trimmed,
+                context: this.printContext(lines, index)
+              });
+            }
+          }
+          
+          // Check for unsafe DOM insertion
+          if (/innerHTML|dangerouslySetInnerHTML/.test(trimmed)) {
+            this.securityIssues.push({
+              type: 'input_unsafe_dom_insertion',
+              file,
+              line: index + 1,
+              severity: 'high',
+              message: 'Potential unsafe DOM insertion (innerHTML or dangerouslySetInnerHTML)',
+              code: trimmed,
+              context: this.printContext(lines, index)
+            });
+          }
+        });
+      } catch (err) {
+        console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+      }
+    }
+  }
+
+  async checkSecurityHeaders() {
+    console.log(chalk.blue('🔒 Checking for security headers in HTML files only...'));
+    
+    // Explicitly target only HTML files - never scan JS files for CSP
+    const htmlFiles = await globby([
+      '**/*.html',
+      '**/*.htm', 
+      '**/*.jsp',
+      '**/*.htl',
+      '**/*.xhtml',
+      '**/*.shtml',
+      '!**/node_modules/**',
+      '!**/dist/**',
+      '!**/build/**',
+      '!**/.git/**'
+    ]);
+    
+    console.log(chalk.gray(`📁 Scanning ${htmlFiles.length} HTML files for CSP and security headers...`));
+    
+    for (const file of htmlFiles) {
+      try {
+        // Double-check: ensure we're only processing HTML files
+        if (!/\.(html|htm|jsp|htl|xhtml|shtml)$/i.test(file)) {
+          console.warn(chalk.yellow(`⚠️ Skipping non-HTML file: ${file}`));
+          continue;
+        }
+        
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        
+        // Check if any security headers are present in the file
+        const hasCSP = /<meta[^>]+http-equiv=["']Content-Security-Policy["']/i.test(content);
+        const hasHSTS = /<meta[^>]+http-equiv=["']Strict-Transport-Security["']/i.test(content);
+        const hasXFO = /<meta[^>]+http-equiv=["']X-Frame-Options["']/i.test(content);
+        
+        // If no security headers found, report the first line of the file
+        if (!hasCSP || !hasHSTS || !hasXFO) {
+          const firstNonEmptyLine = lines.findIndex(line => line.trim() && !line.trim().startsWith('<!DOCTYPE') && !line.trim().startsWith('<html'));
+          const reportLine = firstNonEmptyLine >= 0 ? firstNonEmptyLine : 0;
+          
+          if (!hasCSP) {
+            this.securityIssues.push({
+              type: 'missing_csp_header',
+              file,
+              line: reportLine + 1,
+              severity: 'high',
+              message: 'Missing Content-Security-Policy (CSP) header in HTML',
+              code: lines[reportLine] || '<html>',
+              context: this.printContext(lines, reportLine)
+            });
+          }
+          
+          if (!hasHSTS) {
+            this.securityIssues.push({
+              type: 'missing_hsts_header',
+              file,
+              line: reportLine + 1,
+              severity: 'medium',
+              message: 'Missing Strict-Transport-Security (HSTS) header in HTML',
+              code: lines[reportLine] || '<html>',
+              context: this.printContext(lines, reportLine)
+            });
+          }
+          
+          if (!hasXFO) {
+            this.securityIssues.push({
+              type: 'missing_xfo_header',
+              file,
+              line: reportLine + 1,
+              severity: 'medium',
+              message: 'Missing X-Frame-Options header in HTML',
+              code: lines[reportLine] || '<html>',
+              context: this.printContext(lines, reportLine)
+            });
+          }
+        }
+        
+        // Also check for weak CSP configurations on each line
+        lines.forEach((line, index) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          
+          // Check for weak CSP configurations
+          if (/Content-Security-Policy.*'unsafe-inline'/.test(trimmed)) {
+            this.securityIssues.push({
+              type: 'weak_csp_configuration',
+              file,
+              line: index + 1,
+              severity: 'high',
+              message: 'Weak Content-Security-Policy: unsafe-inline detected',
+              code: trimmed,
+              context: this.printContext(lines, index)
+            });
+          }
+          
+          // Check for missing or weak security headers
+          if (/<meta[^>]+http-equiv=["']Content-Security-Policy["'][^>]*content=["'][^"']*["']/.test(trimmed)) {
+            const cspContent = trimmed.match(/content=["']([^"']*)["']/);
+            if (cspContent && cspContent[1].includes("'unsafe-inline'")) {
+              this.securityIssues.push({
+                type: 'weak_csp_inline',
+                file,
+                line: index + 1,
+                severity: 'high',
+                message: 'Content-Security-Policy allows unsafe-inline',
+                code: trimmed,
+                context: this.printContext(lines, index)
+              });
+            }
+          }
+        });
+        
+      } catch (err) {
+        console.warn(chalk.yellow(`⚠️ Could not read HTML file ${file}: ${err.message}`));
+      }
+    }
+    
+    console.log(chalk.green(`✅ CSP scanning completed - ${htmlFiles.length} HTML files processed`));
+  }
+
+  
+
+  async runEnhancedPatternChecks() {
+    console.log(chalk.blue('🔍 Running enhanced pattern checks...'));
+
+    const SUSPICIOUS_PATTERNS = [
+      { type: 'eval_usage', pattern: /\beval\s*\(/, message: 'Avoid using eval()', severity: 'high' },
+      { type: 'function_constructor', pattern: /new Function\s*\(/, message: 'Avoid using Function constructor', severity: 'high' },
+      { type: 'insecure_transport', pattern: /fetch\(['"]http:\/\//, message: 'Insecure HTTP request detected', severity: 'high' },
+      { type: 'token_exposure', pattern: /Authorization:\s*Bearer\s+[\w\-]+\.[\w\-]+\.[\w\-]+/, message: 'Bearer token might be exposed in code', severity: 'high' },
+      { type: 'dev_url', pattern: /['"]http:\/\/localhost[:\/]/, message: 'Dev/localhost URL found in code', severity: 'medium' },
+      { type: 'xss_dom', pattern: /\.innerHTML\s*=|\.outerHTML\s*=|\.insertAdjacentHTML\s*\(/, message: 'Potential DOM XSS with innerHTML or related API', severity: 'high' },
+    ];
+    
+    const jsFiles = await globby(getConfigPattern('jsFilePathPattern'));
+    for (const file of jsFiles) {
+      try {
+        const content = await fsp.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        lines.forEach((line, index) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          
+          for (const rule of SUSPICIOUS_PATTERNS) {
+            if (rule.pattern.test(trimmed)) {
+              this.securityIssues.push({
+                type: rule.type,
+                file,
+                line: index + 1,
+                severity: rule.severity,
+                message: rule.message,
+                code: trimmed,
+                context: this.printContext(lines, index)
+              });
+            }
+          }
+        });
+      } catch (err) {
+        console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+      }
+    }
+  }
+    
   
   async runSecurityAudit() {
     console.log(chalk.cyan.bold('\n🔍 Running Full Security Audit...'));
     //await this.checkDependencyVulnerabilities();
     await this.checkForSecrets();
     await this.checkESLintSecurityIssues();
+    await this.checkFileUploadSecurity();
+    await this.checkInputValidation();
+    await this.checkSecurityHeaders();
+    await this.runEnhancedPatternChecks();
 
     // Apply excludeRules from config
     const excludeRules = getMergedExcludeRules('security', []);

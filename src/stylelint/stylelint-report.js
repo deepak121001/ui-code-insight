@@ -291,6 +291,21 @@ const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType,
     };
   });
 
+  // BEM naming convention check
+  let bemFound = false;
+  for (const file of files) {
+    const content = fs.readFileSync(file, 'utf8');
+    if (/\.[a-z]+__[a-z]+(--[a-z]+)?/.test(content)) {
+      bemFound = true;
+      break;
+    }
+  }
+  const bemNaming = {
+    type: 'bem-naming',
+    passed: bemFound,
+    message: bemFound ? 'BEM naming convention detected.' : 'No BEM naming convention detected.'
+  };
+
   const jsonReport = {
     projectType,
     reports,
@@ -299,7 +314,8 @@ const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType,
       rules: excludeRules,
       count: excludeRules.length
     },
-    results: filteredResults
+    results: filteredResults,
+    bemNaming // <-- add BEM naming result
   };
 
   await fs.promises.writeFile(
