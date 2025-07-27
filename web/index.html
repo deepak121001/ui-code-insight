@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI Code Insight - Comprehensive Code Quality & Security Audit Tool</title>
+    <meta name="description" content="Your all-in-one CLI for auditing, visualizing, and improving code quality, security, accessibility, and performance in modern JavaScript, TypeScript, and CSS projects.">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <i class="fas fa-code"></i>
+                <span>UI Code Insight</span>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                                    <a href="#audits">Audits</a>
+                    <a href="#technical-details">Technical Details</a>
+                    <a href="#demo">Demo</a>
+                    <a href="#installation">Installation</a>
+                <a href="https://github.com/deepak121001/ui-code-insight" target="_blank" class="github-link">
+                    <i class="fab fa-github"></i>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    Comprehensive Code Quality & Security Audit Tool
+                </h1>
+                <p class="hero-subtitle">
+                    Your all-in-one CLI for auditing, visualizing, and improving code quality, security, accessibility, and performance in modern JavaScript, TypeScript, and CSS projects.
+                </p>
+                <div class="hero-buttons">
+                    <a href="#installation" class="btn btn-primary">
+                        <i class="fas fa-rocket"></i>
+                        Get Started
+                    </a>
+                    <a href="https://deepak121001.github.io/Audit-Sample/" target="_blank" class="btn btn-secondary">
+                        <i class="fas fa-eye"></i>
+                        Live Demo
+                    </a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <span class="stat-number">7</span>
+                        <span class="stat-label">Audit Categories</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">80+</span>
+                        <span class="stat-label">Accessibility Rules</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">0</span>
+                        <span class="stat-label">Configuration</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="code-window">
+                    <div class="window-header">
+                        <div class="window-buttons">
+                            <span class="btn-red"></span>
+                            <span class="btn-yellow"></span>
+                            <span class="btn-green"></span>
+                        </div>
+                        <div class="window-title">Terminal</div>
+                    </div>
+                    <div class="window-content">
+                        <div class="terminal-line">
+                            <span class="prompt">$</span>
+                            <span class="command">npx ui-code-insight</span>
+                        </div>
+                        <div class="terminal-line">
+                            <span class="output">🚀 UI Code Insight Tool Starting...</span>
+                        </div>
+                        <div class="terminal-line">
+                            <span class="output">✅ Config loaded from: ./ui-code-insight.config.json</span>
+                        </div>
+                        <div class="terminal-line">
+                            <span class="output">🔍 Running all audits...</span>
+                        </div>
+                        <div class="terminal-line">
+                            <span class="output success">✨ All audits completed successfully!</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <h2 class="section-title">Why Choose UI Code Insight?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <h3>Zero Configuration</h3>
+                    <p>Works out of the box with smart defaults. No setup required, just run and go.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3>Industry Standards</h3>
+                    <p>Uses ESLint, Stylelint, Lighthouse, and axe-core for reliable, trusted results.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-globe"></i>
+                    </div>
+                    <h3>Live URL Testing</h3>
+                    <p>Test real websites for accessibility, security & performance with browser automation.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <h3>Interactive Dashboard</h3>
+                    <p>Beautiful visual reports with actionable insights and detailed recommendations.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <h3>Fast & Efficient</h3>
+                    <p>Optimized for large projects with batch processing and async operations.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-code"></i>
+                    </div>
+                    <h3>Framework Agnostic</h3>
+                    <p>Works with React, Node, TypeScript, Vanilla JS and any JavaScript project.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Audits Section -->
+    <section id="audits" class="audits">
+        <div class="container">
+            <h2 class="section-title">Comprehensive Audit Categories</h2>
+            <p class="section-subtitle">7 powerful audit categories covering every aspect of code quality</p>
+            
+            <div class="audits-grid">
+                <!-- Security Audit -->
+                <div class="audit-card security">
+                    <div class="audit-header">
+                        <div class="audit-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <h3>Security Audit</h3>
+                        <span class="audit-badge">Code + Live URL</span>
+                    </div>
+                    <div class="audit-content">
+                        <h4>What We Check:</h4>
+                        <ul>
+                            <li><i class="fas fa-key"></i> Hardcoded secrets (API keys, passwords, tokens)</li>
+                            <li><i class="fas fa-edit"></i> Input validation and sanitization</li>
+                            <li><i class="fas fa-upload"></i> File upload security vulnerabilities</li>
+                            <li><i class="fas fa-code"></i> Code injection patterns (eval, Function)</li>
+                            <li><i class="fas fa-network-wired"></i> Network security (HTTP, development URLs)</li>
+                            <li><i class="fas fa-globe"></i> Live URL security headers and CSP</li>
+                        </ul>
+                        
+
+                        
+                        <div class="audit-stats">
+                            <span class="stat"><i class="fas fa-search"></i> Pattern Analysis</span>
+                            <span class="stat"><i class="fas fa-bug"></i> Vulnerability Detection</span>
+                            <span class="stat"><i class="fas fa-shield-virus"></i> Security Headers</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Audit -->
+                <div class="audit-card performance">
+                    <div class="audit-header">
+                        <div class="audit-icon">
+                            <i class="fas fa-tachometer-alt"></i>
+                        </div>
+                        <h3>Performance Audit</h3>
+                        <span class="audit-badge">Code + Bundle</span>
+                    </div>
+                    <div class="audit-content">
+                        <h4>What We Check:</h4>
+                        <ul>
+                            <li><i class="fas fa-memory"></i> Memory leaks and inefficient operations</li>
+                            <li><i class="fas fa-weight"></i> Large dependencies and bundle size</li>
+                            <li><i class="fas fa-image"></i> Asset optimization (images, resources)</li>
+                            <li><i class="fas fa-code-branch"></i> Code splitting opportunities</li>
+                            <li><i class="fas fa-chart-line"></i> Performance anti-patterns</li>
+                            <li><i class="fas fa-box"></i> Bundle analysis and optimization</li>
+                        </ul>
+                        
+
+                        
+                        <div class="audit-stats">
+                            <span class="stat"><i class="fas fa-analytics"></i> Bundle Analysis</span>
+                            <span class="stat"><i class="fas fa-optimize"></i> Performance Patterns</span>
+                            <span class="stat"><i class="fas fa-chart-bar"></i> Size Optimization</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Accessibility Audit -->
+                <div class="audit-card accessibility">
+                    <div class="audit-header">
+                        <div class="audit-icon">
+                            <i class="fas fa-universal-access"></i>
+                        </div>
+                        <h3>Accessibility Audit</h3>
+                        <span class="audit-badge">Code + Live URL</span>
+                    </div>
+                    <div class="audit-content">
+                        <h4>What We Check:</h4>
+                        <ul>
+                            <li><i class="fas fa-image"></i> Image accessibility (alt attributes)</li>
+                            <li><i class="fas fa-heading"></i> Heading structure and hierarchy</li>
+                            <li><i class="fas fa-keyboard"></i> Keyboard navigation and focus management</li>
+                            <li><i class="fas fa-palette"></i> Color contrast and WCAG compliance</li>
+                            <li><i class="fas fa-tags"></i> ARIA usage and semantic HTML</li>
+                            <li><i class="fas fa-globe"></i> Live URL testing with axe-core</li>
+                        </ul>
+                        
+
+                        
+                        <div class="audit-stats">
+                            <span class="stat"><i class="fas fa-eye"></i> WCAG 2.1 AA</span>
+                            <span class="stat"><i class="fas fa-axe"></i> 80+ Rules</span>
+                            <span class="stat"><i class="fas fa-browser"></i> Live Testing</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lighthouse Audit -->
+                <div class="audit-card lighthouse">
+                    <div class="audit-header">
+                        <div class="audit-icon">
+                            <i class="fas fa-lighthouse"></i>
+                        </div>
+                        <h3>Lighthouse Audit</h3>
+                        <span class="audit-badge">Live URL Only</span>
+                    </div>
+                    <div class="audit-content">
+                        <h4>What We Check:</h4>
+                        <ul>
+                            <li><i class="fas fa-tachometer-alt"></i> Core Web Vitals (LCP, FCP, CLS)</li>
+                            <li><i class="fas fa-universal-access"></i> Accessibility scoring and compliance</li>
+                            <li><i class="fas fa-star"></i> Best practices and modern standards</li>
+                            <li><i class="fas fa-search"></i> SEO optimization and meta tags</li>
+                            <li><i class="fas fa-mobile-alt"></i> Mobile and desktop performance</li>
+                            <li><i class="fas fa-file-alt"></i> PageSpeed Insights-like reports</li>
+                        </ul>
+                        
+
+                        
+                        <div class="audit-stats">
+                            <span class="stat"><i class="fas fa-chart-line"></i> Web Vitals</span>
+                            <span class="stat"><i class="fas fa-mobile"></i> Multi-Device</span>
+                            <span class="stat"><i class="fas fa-file-pdf"></i> Detailed Reports</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Testing Audit -->
+                <div class="audit-card testing">
+                    <div class="audit-header">
+                        <div class="audit-icon">
+                            <i class="fas fa-vial"></i>
+                        </div>
+                        <h3>Testing Audit</h3>
+                        <span class="audit-badge">Code Analysis</span>
+                    </div>
+                    <div class="audit-content">
+                        <h4>What We Check:</h4>
+                        <ul>
+                            <li><i class="fas fa-file-code"></i> Test file detection and organization</li>
+                            <li><i class="fas fa-cogs"></i> Testing framework usage patterns</li>
+                            <li><i class="fas fa-mock"></i> Mocking and stubbing practices</li>
+                            <li><i class="fas fa-percentage"></i> Test coverage analysis</li>
+                            <li><i class="fas fa-check-circle"></i> Testing best practices</li>
+                            <li><i class="fas fa-code-branch"></i> Test isolation and quality</li>
+                        </ul>
+                        
+
+                        
+                        <div class="audit-stats">
+                            <span class="stat"><i class="fas fa-search"></i> Coverage Analysis</span>
+                            <span class="stat"><i class="fas fa-pattern"></i> Best Practices</span>
+                            <span class="stat"><i class="fas fa-framework"></i> Framework Support</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dependency Audit -->
+                <div class="audit-card dependency">
+                    <div class="audit-header">
+                        <div class="audit-icon">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <h3>Dependency Audit</h3>
+                        <span class="audit-badge">Package Analysis</span>
+                    </div>
+                    <div class="audit-content">
+                        <h4>What We Check:</h4>
+                        <ul>
+                            <li><i class="fas fa-clock"></i> Outdated dependencies and security patches</li>
+                            <li><i class="fas fa-copy"></i> Duplicate dependencies and version conflicts</li>
+                            <li><i class="fas fa-trash"></i> Unused dependencies and dead code</li>
+                            <li><i class="fas fa-exclamation-triangle"></i> Missing runtime dependencies</li>
+                            <li><i class="fas fa-gavel"></i> License compliance and legal issues</li>
+                            <li><i class="fas fa-shield-virus"></i> Vulnerability scanning with npm audit</li>
+                        </ul>
+                        <div class="audit-stats">
+                            <span class="stat"><i class="fas fa-security"></i> Vulnerability Scan</span>
+                            <span class="stat"><i class="fas fa-license"></i> License Check</span>
+                            <span class="stat"><i class="fas fa-cleanup"></i> Cleanup Analysis</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ESLint & Stylelint -->
+                <div class="audit-card linting">
+                    <div class="audit-header">
+                        <div class="audit-icon">
+                            <i class="fas fa-check-double"></i>
+                        </div>
+                        <h3>ESLint & Stylelint</h3>
+                        <span class="audit-badge">Code Quality</span>
+                    </div>
+                    <div class="audit-content">
+                        <h4>What We Check:</h4>
+                        <ul>
+                            <li><i class="fab fa-js"></i> JavaScript/TypeScript code quality</li>
+                            <li><i class="fab fa-css3"></i> CSS/SCSS style enforcement</li>
+                            <li><i class="fab fa-react"></i> Framework-specific rules (React, Node)</li>
+                            <li><i class="fas fa-cog"></i> Custom configurations and rule sets</li>
+                            <li><i class="fas fa-filter"></i> Configurable rule exclusion</li>
+                            <li><i class="fas fa-chart-bar"></i> Detailed linting reports</li>
+                        </ul>
+                        
+
+                        
+                        <div class="audit-stats">
+                            <span class="stat"><i class="fas fa-js"></i> ESLint</span>
+                            <span class="stat"><i class="fas fa-css3"></i> Stylelint</span>
+                            <span class="stat"><i class="fas fa-config"></i> Custom Rules</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+            </section>
+
+        <!-- Technical Details Section -->
+        <section id="technical-details" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <h2><i class="fas fa-cogs"></i> Technical Implementation Details</h2>
+                    <p>Deep dive into the tools, packages, patterns, and technologies powering each audit</p>
+                </div>
+
+                <div class="tech-overview">
+                    <div class="tech-stats">
+                        <div class="tech-stat">
+                            <div class="stat-icon">
+                                <i class="fas fa-package"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3>25+</h3>
+                                <p>Key Packages</p>
+                            </div>
+                        </div>
+                        <div class="tech-stat">
+                            <div class="stat-icon">
+                                <i class="fas fa-code"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3>50+</h3>
+                                <p>File Patterns</p>
+                            </div>
+                        </div>
+                        <div class="tech-stat">
+                            <div class="stat-icon">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3>15+</h3>
+                                <p>Security Rules</p>
+                            </div>
+                        </div>
+                        <div class="tech-stat">
+                            <div class="stat-icon">
+                                <i class="fas fa-universal-access"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3>80+</h3>
+                                <p>Accessibility Rules</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tech-grid-container">
+                    <!-- ESLint & Stylelint Technical Details -->
+                    <div class="tech-card">
+                        <div class="tech-header">
+                            <i class="fas fa-check-double"></i>
+                            <h3>ESLint & Stylelint</h3>
+                            <span class="tech-badge">Code Quality</span>
+                        </div>
+                        <div class="tech-content">
+                            <div class="tech-description">
+                                <p>Advanced code linting with industry-standard configurations and custom rule sets for JavaScript, TypeScript, React, and CSS/SCSS.</p>
+                            </div>
+                            
+                            <div class="tech-specs">
+                                <div class="spec-item">
+                                    <strong>ESLint Version:</strong> 8.57.1
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Stylelint Version:</strong> 16.21.1
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Default Config:</strong> Airbnb + Standard
+                                </div>
+                                <div class="spec-item">
+                                    <strong>File Patterns:</strong> **/*.{js,ts,jsx,tsx}
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Rule Categories:</strong> 200+ Rules
+                                </div>
+                            </div>
+                            
+                            <div class="package-section">
+                                <h4><i class="fas fa-box"></i> Key Packages</h4>
+                                <div class="package-tags">
+                                    <span class="package-tag">@typescript-eslint/eslint-plugin</span>
+                                    <span class="package-tag">eslint-config-airbnb</span>
+                                    <span class="package-tag">eslint-plugin-react</span>
+                                    <span class="package-tag">eslint-plugin-security</span>
+                                    <span class="package-tag">stylelint-config-standard-scss</span>
+                                    <span class="package-tag">eslint-plugin-jsx-a11y</span>
+                                </div>
+                            </div>
+                            
+                            <div class="tech-features">
+                                <h4><i class="fas fa-star"></i> Key Features</h4>
+                                <div class="feature-list">
+                                    <span class="feature-item"><i class="fas fa-check"></i> TypeScript Support</span>
+                                    <span class="feature-item"><i class="fas fa-check"></i> React Best Practices</span>
+                                    <span class="feature-item"><i class="fas fa-check"></i> Accessibility Rules</span>
+                                    <span class="feature-item"><i class="fas fa-check"></i> Security Scanning</span>
+                                    <span class="feature-item"><i class="fas fa-check"></i> SCSS/Sass Support</span>
+                                    <span class="feature-item"><i class="fas fa-check"></i> Custom Configurations</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Security Audit Technical Details -->
+                    <div class="tech-card">
+                        <div class="tech-header">
+                            <i class="fas fa-shield-alt"></i>
+                            <h3>Security Audit</h3>
+                            <span class="tech-badge">Code + Live URL</span>
+                        </div>
+                        <div class="tech-content">
+                            <div class="tech-description">
+                                <p>Comprehensive security analysis combining static code scanning with live URL testing to detect vulnerabilities, hardcoded secrets, and security misconfigurations.</p>
+                            </div>
+                            
+                            <div class="tech-specs">
+                                <div class="spec-item">
+                                    <strong>Pattern Matching:</strong> 15+ Security Patterns
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Live URL Testing:</strong> Puppeteer + Security Headers
+                                </div>
+                                <div class="spec-item">
+                                    <strong>File Patterns:</strong> **/*.{js,ts,jsx,tsx,html}
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Browser Automation:</strong> Chrome/Chromium
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Security Headers:</strong> 10+ Headers Checked
+                                </div>
+                            </div>
+                            
+                            <div class="package-section">
+                                <h4><i class="fas fa-box"></i> Key Packages</h4>
+                                <div class="package-tags">
+                                    <span class="package-tag">puppeteer</span>
+                                    <span class="package-tag">eslint-plugin-security</span>
+                                    <span class="package-tag">eslint-plugin-no-unsanitized</span>
+                                    <span class="package-tag">p-limit</span>
+                                </div>
+                            </div>
+                            
+                            <div class="pattern-section">
+                                <h4><i class="fas fa-search"></i> Security Patterns Detected</h4>
+                                <div class="pattern-list">
+                                    <span class="pattern-item">API Keys & Tokens</span>
+                                    <span class="pattern-item">Hardcoded Passwords</span>
+                                    <span class="pattern-item">SQL Injection</span>
+                                    <span class="pattern-item">XSS Vulnerabilities</span>
+                                    <span class="pattern-item">Code Injection</span>
+                                    <span class="pattern-item">Insecure HTTP</span>
+                                </div>
+                            </div>
+                            
+                            <div class="tech-features">
+                                <h4><i class="fas fa-star"></i> Key Features</h4>
+                                <div class="feature-list">
+                                    <span class="feature-item"><i class="fas fa-check"></i> Static Code Analysis</span>
+                                    <span class="feature-item"><i class="fas fa-check"></i> Live URL Testing</span>
+                                    <span class="feature-item"><i class="fas fa-check"></i> Security Headers</span>
+                                    <span class="feature-item"><i class="fas fa-check"></i> CSP Analysis</span>
+                                    <span class="feature-item"><i class="fas fa-check"></i> Vulnerability Detection</span>
+                                    <span class="feature-item"><i class="fas fa-check"></i> Real-time Scanning</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Audit Technical Details -->
+                    <div class="tech-card">
+                        <div class="tech-header">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <h3>Performance Audit</h3>
+                        </div>
+                        <div class="tech-content">
+                            <div class="tech-specs">
+                                <div class="spec-item">
+                                    <strong>Bundle Analysis:</strong> Webpack Bundle Analyzer
+                                </div>
+                                <div class="spec-item">
+                                    <strong>File Patterns:</strong> **/*.{js,ts,jsx,tsx,css,scss}
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Asset Analysis:</strong> Images, Fonts, Resources
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Performance Rules:</strong> ESLint Performance Plugin
+                                </div>
+                            </div>
+                            
+                            <div class="package-section">
+                                <h4>Key Packages:</h4>
+                                <div class="package-tags">
+                                    <span class="package-tag">webpack</span>
+                                    <span class="package-tag">webpack-bundle-analyzer</span>
+                                    <span class="package-tag">eslint-plugin-promise</span>
+                                    <span class="package-tag">globby</span>
+                                </div>
+                            </div>
+                            
+                            <div class="pattern-section">
+                                <h4>Performance Metrics:</h4>
+                                <div class="pattern-list">
+                                    <span class="pattern-item">Bundle Size Analysis</span>
+                                    <span class="pattern-item">Memory Leak Detection</span>
+                                    <span class="pattern-item">Asset Optimization</span>
+                                    <span class="pattern-item">Code Splitting</span>
+                                    <span class="pattern-item">Dependency Analysis</span>
+                                    <span class="pattern-item">Performance Anti-patterns</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Accessibility Audit Technical Details -->
+                    <div class="tech-card">
+                        <div class="tech-header">
+                            <i class="fas fa-universal-access"></i>
+                            <h3>Accessibility Audit</h3>
+                        </div>
+                        <div class="tech-content">
+                            <div class="tech-specs">
+                                <div class="spec-item">
+                                    <strong>Axe-Core Version:</strong> 4.7.0 (CDN)
+                                </div>
+                                <div class="spec-item">
+                                    <strong>WCAG Compliance:</strong> 2.1 AA Standards
+                                </div>
+                                <div class="spec-item">
+                                    <strong>File Patterns:</strong> **/*.{js,ts,jsx,tsx,html,css,scss}
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Browser Testing:</strong> Puppeteer + Chrome
+                                </div>
+                            </div>
+                            
+                            <div class="package-section">
+                                <h4>Key Packages:</h4>
+                                <div class="package-tags">
+                                    <span class="package-tag">puppeteer</span>
+                                    <span class="package-tag">axe-core</span>
+                                    <span class="package-tag">eslint-plugin-jsx-a11y</span>
+                                    <span class="package-tag">globby</span>
+                                </div>
+                            </div>
+                            
+                            <div class="pattern-section">
+                                <h4>Axe-Core Rule Categories:</h4>
+                                <div class="pattern-list">
+                                    <span class="pattern-item">wcag2a (Level A)</span>
+                                    <span class="pattern-item">wcag2aa (Level AA)</span>
+                                    <span class="pattern-item">best-practice</span>
+                                    <span class="pattern-item">Color Contrast</span>
+                                    <span class="pattern-item">Keyboard Navigation</span>
+                                    <span class="pattern-item">Screen Reader Support</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lighthouse Audit Technical Details -->
+                    <div class="tech-card">
+                        <div class="tech-header">
+                            <i class="fas fa-lighthouse"></i>
+                            <h3>Lighthouse Audit</h3>
+                        </div>
+                        <div class="tech-content">
+                            <div class="tech-specs">
+                                <div class="spec-item">
+                                    <strong>Lighthouse Version:</strong> 11.7.1
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Browser Engine:</strong> Chrome DevTools Protocol
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Device Emulation:</strong> Mobile & Desktop
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Network Throttling:</strong> Real-world simulation
+                                </div>
+                            </div>
+                            
+                            <div class="package-section">
+                                <h4>Key Packages:</h4>
+                                <div class="package-tags">
+                                    <span class="package-tag">lighthouse</span>
+                                    <span class="package-tag">puppeteer</span>
+                                    <span class="package-tag">chrome-launcher</span>
+                                </div>
+                            </div>
+                            
+                            <div class="pattern-section">
+                                <h4>Lighthouse Categories:</h4>
+                                <div class="pattern-list">
+                                    <span class="pattern-item">Performance (Core Web Vitals)</span>
+                                    <span class="pattern-item">Accessibility (WCAG Compliance)</span>
+                                    <span class="pattern-item">Best Practices (Modern Standards)</span>
+                                    <span class="pattern-item">SEO (Search Optimization)</span>
+                                    <span class="pattern-item">Progressive Web App (PWA)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Testing Audit Technical Details -->
+                    <div class="tech-card">
+                        <div class="tech-header">
+                            <i class="fas fa-vial"></i>
+                            <h3>Testing Audit</h3>
+                        </div>
+                        <div class="tech-content">
+                            <div class="tech-specs">
+                                <div class="spec-item">
+                                    <strong>Test Detection:</strong> Pattern-based file scanning
+                                </div>
+                                <div class="spec-item">
+                                    <strong>File Patterns:</strong> **/*.{test,spec}.{js,ts,jsx,tsx}
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Framework Support:</strong> Jest, Mocha, Vitest, Cypress
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Coverage Analysis:</strong> Istanbul/nyc integration
+                                </div>
+                            </div>
+                            
+                            <div class="package-section">
+                                <h4>Key Packages:</h4>
+                                <div class="package-tags">
+                                    <span class="package-tag">globby</span>
+                                    <span class="package-tag">eslint-plugin-jest</span>
+                                    <span class="package-tag">eslint-plugin-testing-library</span>
+                                </div>
+                            </div>
+                            
+                            <div class="pattern-section">
+                                <h4>Testing Patterns Detected:</h4>
+                                <div class="pattern-list">
+                                    <span class="pattern-item">Unit Tests</span>
+                                    <span class="pattern-item">Integration Tests</span>
+                                    <span class="pattern-item">E2E Tests</span>
+                                    <span class="pattern-item">Mock/Stub Usage</span>
+                                    <span class="pattern-item">Test Coverage</span>
+                                    <span class="pattern-item">Testing Best Practices</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dependency Audit Technical Details -->
+                    <div class="tech-card">
+                        <div class="tech-header">
+                            <i class="fas fa-boxes"></i>
+                            <h3>Dependency Audit</h3>
+                        </div>
+                        <div class="tech-content">
+                            <div class="tech-specs">
+                                <div class="spec-item">
+                                    <strong>Package Analysis:</strong> npm audit + custom checks
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Vulnerability Scanning:</strong> Security advisories
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Dependency Types:</strong> Production & Development
+                                </div>
+                                <div class="spec-item">
+                                    <strong>Update Analysis:</strong> Outdated packages detection
+                                </div>
+                            </div>
+                            
+                            <div class="package-section">
+                                <h4>Key Packages:</h4>
+                                <div class="package-tags">
+                                    <span class="package-tag">npm</span>
+                                    <span class="package-tag">npm-check-updates</span>
+                                    <span class="package-tag">audit-ci</span>
+                                </div>
+                            </div>
+                            
+                            <div class="pattern-section">
+                                <h4>Dependency Checks:</h4>
+                                <div class="pattern-list">
+                                    <span class="pattern-item">Security Vulnerabilities</span>
+                                    <span class="pattern-item">Outdated Packages</span>
+                                    <span class="pattern-item">Duplicate Dependencies</span>
+                                    <span class="pattern-item">Unused Dependencies</span>
+                                    <span class="pattern-item">License Compliance</span>
+                                    <span class="pattern-item">Bundle Impact Analysis</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Demo Section -->
+    <section id="demo" class="demo">
+        <div class="container">
+            <h2 class="section-title">See It In Action</h2>
+            <div class="demo-content">
+                <div class="demo-text">
+                    <h3>Interactive Dashboard</h3>
+                    <p>Experience the power of UI Code Insight with our live demo dashboard. See how comprehensive audit results are presented in a beautiful, interactive interface.</p>
+                    <ul class="demo-features">
+                        <li><i class="fas fa-chart-pie"></i> Visual charts and statistics</li>
+                        <li><i class="fas fa-filter"></i> Advanced filtering and search</li>
+                        <li><i class="fas fa-mobile-alt"></i> Responsive design for all devices</li>
+                        <li><i class="fas fa-download"></i> Export reports in multiple formats</li>
+                    </ul>
+                    <a href="https://deepak121001.github.io/Audit-Sample/" target="_blank" class="btn btn-primary">
+                        <i class="fas fa-external-link-alt"></i>
+                        View Live Demo
+                    </a>
+                </div>
+                <div class="demo-visual">
+                    <div class="dashboard-preview">
+                        <div class="dashboard-header">
+                            <div class="dashboard-tabs">
+                                <span class="tab active">Overview</span>
+                                <span class="tab">Security</span>
+                                <span class="tab">Performance</span>
+                                <span class="tab">Accessibility</span>
+                            </div>
+                        </div>
+                        <div class="dashboard-content">
+                            <div class="chart-container">
+                                <div class="chart">
+                                    <div class="chart-segment security" style="--percentage: 25%"></div>
+                                    <div class="chart-segment performance" style="--percentage: 35%"></div>
+                                    <div class="chart-segment accessibility" style="--percentage: 40%"></div>
+                                </div>
+                                <div class="chart-labels">
+                                    <span>Security: 25%</span>
+                                    <span>Performance: 35%</span>
+                                    <span>Accessibility: 40%</span>
+                                </div>
+                            </div>
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <span class="stat-number">156</span>
+                                    <span class="stat-label">Total Issues</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-number">23</span>
+                                    <span class="stat-label">High Priority</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-number">89</span>
+                                    <span class="stat-label">Medium Priority</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-number">44</span>
+                                    <span class="stat-label">Low Priority</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation Section -->
+    <section id="installation" class="installation">
+        <div class="container">
+            <h2 class="section-title">Get Started in Seconds</h2>
+            <div class="installation-content">
+                <div class="installation-steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>Run the Tool</h3>
+                            <p>No installation required. Just run the command in your project directory.</p>
+                            <div class="code-block">
+                                <code>npx ui-code-insight</code>
+                                <button class="copy-btn" onclick="copyToClipboard('npx ui-code-insight')">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>Select Your Project</h3>
+                            <p>Choose your project type and the audits you want to run.</p>
+                            <div class="code-block">
+                                <code>? What type of project is this?<br>
+❯ React<br>
+  Node.js<br>
+  TypeScript<br>
+  Vanilla JavaScript</code>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>Get Your Results</h3>
+                            <p>View comprehensive reports in the interactive dashboard.</p>
+                            <div class="code-block">
+                                <code>✅ All audits completed!<br>
+📊 Reports saved to: ./report/<br>
+🌐 Open: ./report/index.html</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="installation-options">
+                    <h3>Installation Options</h3>
+                    <div class="option-cards">
+                        <div class="option-card">
+                            <h4><i class="fas fa-bolt"></i> Quick Start</h4>
+                            <p>Run without installation</p>
+                            <div class="code-block small">
+                                <code>npx ui-code-insight</code>
+                            </div>
+                        </div>
+                        <div class="option-card">
+                            <h4><i class="fas fa-download"></i> Global Install</h4>
+                            <p>Install globally for frequent use</p>
+                            <div class="code-block small">
+                                <code>npm install -g ui-code-insight</code>
+                            </div>
+                        </div>
+                        <div class="option-card">
+                            <h4><i class="fas fa-cog"></i> Custom Config</h4>
+                            <p>Add configuration for advanced users</p>
+                            <div class="code-block small">
+                                <code>ui-code-insight.config.json</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>UI Code Insight</h3>
+                    <p>Your all-in-one CLI for comprehensive code quality and security auditing.</p>
+                    <div class="social-links">
+                        <a href="https://github.com/deepak121001/ui-code-insight" target="_blank">
+                            <i class="fab fa-github"></i>
+                        </a>
+                        <a href="https://www.npmjs.com/package/ui-code-insight" target="_blank">
+                            <i class="fab fa-npm"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="footer-section">
+                    <h4>Features</h4>
+                    <ul>
+                        <li><a href="#features">Zero Configuration</a></li>
+                        <li><a href="#audits">7 Audit Categories</a></li>
+                        <li><a href="#demo">Interactive Dashboard</a></li>
+                        <li><a href="#installation">Live URL Testing</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Audits</h4>
+                    <ul>
+                        <li><a href="#audits">Security Audit</a></li>
+                        <li><a href="#audits">Performance Audit</a></li>
+                        <li><a href="#audits">Accessibility Audit</a></li>
+                        <li><a href="#audits">Lighthouse Audit</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="https://deepak121001.github.io/Audit-Sample/" target="_blank">Live Demo</a></li>
+                        <li><a href="https://github.com/deepak121001/ui-code-insight" target="_blank">Documentation</a></li>
+                        <li><a href="https://github.com/deepak121001/ui-code-insight/issues" target="_blank">Issues</a></li>
+                        <li><a href="https://github.com/deepak121001/ui-code-insight/blob/main/LICENSE" target="_blank">License</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 UI Code Insight. Made with ❤️ by Deepak Sharma.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html> 
