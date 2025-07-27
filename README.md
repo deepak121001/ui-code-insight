@@ -14,6 +14,8 @@ npx ui-code-insight
 ### 📊 Live Demo
 Check out the [Audit Sample Dashboard](https://deepak121001.github.io/Audit-Sample/) to see the tool in action with sample projects!
 
+
+
 ---
 
 ## 🌟 Why Use UI Code Insight?
@@ -266,6 +268,8 @@ A: No! Defaults work for most users. Advanced users can add a config file.
 
 **Q: Where are reports saved?**  
 A: In the `report/` directory at your project root.
+
+
 
 ---
 

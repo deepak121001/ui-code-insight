@@ -1,35 +1,17 @@
-import path from 'path';
 import fs from 'fs';
+import path from 'path';
 import chalk from 'chalk';
+import fsp, { writeFile, mkdir, readFile } from 'fs/promises';
 import { execSync } from 'child_process';
-import fsp, { mkdir, writeFile, readFile } from 'fs/promises';
+import { globby } from 'globby';
 import { fileURLToPath } from 'url';
 import { ESLint } from 'eslint';
-import { globby } from 'globby';
+import pLimit from 'p-limit';
+import lighthouse from 'lighthouse';
+import puppeteer from 'puppeteer';
 import { createRequire } from 'module';
 import stylelint from 'stylelint';
 import fetch from 'node-fetch';
-import pLimit from 'p-limit';
-
-const copyFile = (sourcePath, targetPath) => {
-  fs.copyFileSync(sourcePath, targetPath);
-};
-
-const copyStaticFiles = async (folderPath) => {
-  const dist = "../build";
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  await mkdir(folderPath, { recursive: true });
-  const sourcePath = path.join(__dirname, dist, "index.html");
-  const targetPath = path.join(folderPath, "index.html");
-  copyFile(sourcePath, targetPath);
-  const mainJsSourcePath = path.join(__dirname, dist, "bundle.js");
-  const mainJsTargetPath = path.join(folderPath, "bundle.js");
-  copyFile(mainJsSourcePath, mainJsTargetPath);
-  const mainCssSourcePath = path.join(__dirname, dist, "bundle.css");
-  const mainCssTargetPath = path.join(folderPath, "bundle.css");
-  copyFile(mainCssSourcePath, mainCssTargetPath);
-};
 
 // Centralized globby file patterns for all audits
 
@@ -179,102 +161,9 @@ function getMergedExcludeRules(auditType, defaultRules) {
   return [...defaultRules, ...excludeConfig.additionalRules];
 }
 
-// Default ESLint rules to exclude (commonly disabled by project architects)
-const DEFAULT_ESLINT_EXCLUDE_RULES = [
-  // Formatting and style rules
-  'indent', 'quotes', 'semi', 'comma-dangle', 'no-trailing-spaces', 'eol-last',
-  'no-multiple-empty-lines', 'space-before-function-paren', 'space-before-blocks',
-  'keyword-spacing', 'space-infix-ops', 'object-curly-spacing', 'array-bracket-spacing',
-  'comma-spacing', 'key-spacing', 'brace-style', 'camelcase', 'new-cap',
-  'no-underscore-dangle', 'no-unused-vars', 'no-console', 'no-debugger',
-  'prefer-const', 'no-var', 'arrow-spacing', 'no-spaced-func', 'func-call-spacing',
-  'no-multi-spaces', 'no-trailing-spaces', 'no-mixed-spaces-and-tabs',
-  'no-tabs', 'no-mixed-operators', 'operator-linebreak', 'nonblock-statement-body-position',
-  'no-else-return', 'no-nested-ternary', 'no-unneeded-ternary', 'object-shorthand',
-  'prefer-template', 'template-curly-spacing', 'prefer-arrow-callback', 'arrow-body-style',
-  'no-duplicate-imports', 'import/order', 'import/no-unresolved', 'import/extensions',
-  'import/no-extraneous-dependencies', 'import/prefer-default-export',
-  'react/jsx-indent', 'react/jsx-indent-props', 'react/jsx-closing-bracket-location',
-  'react/jsx-closing-tag-location', 'react/jsx-curly-spacing', 'react/jsx-equals-spacing',
-  'react/jsx-first-prop-new-line', 'react/jsx-max-props-per-line', 'react/jsx-one-expression-per-line',
-  'react/jsx-props-no-multi-spaces', 'react/jsx-tag-spacing', 'react/jsx-wrap-multilines',
-  'react/self-closing-comp', 'react/jsx-boolean-value', 'react/jsx-curly-brace-presence',
-  'react/jsx-no-bind', 'react/jsx-no-literals', 'react/jsx-pascal-case',
-  'react/jsx-sort-default-props', 'react/jsx-sort-props', 'react/no-array-index-key',
-  'react/no-danger', 'react/no-deprecated', 'react/no-did-mount-set-state',
-  'react/no-did-update-set-state', 'react/no-direct-mutation-state',
-  'react/no-find-dom-node', 'react/no-is-mounted', 'react/no-multi-comp',
-  'react/no-render-return-value', 'react/no-set-state', 'react/no-string-refs',
-  'react/no-unescaped-entities', 'react/no-unknown-property', 'react/no-unsafe',
-  'react/no-unused-prop-types', 'react/no-unused-state', 'react/prefer-es6-class',
-  'react/prefer-stateless-function', 'react/prop-types', 'react/react-in-jsx-scope',
-  'react/require-default-props', 'react/require-optimization', 'react/require-render-return',
-  'react/sort-comp', 'react/sort-prop-types', 'react/style-prop-object',
-  'react/void-dom-elements-no-children', 'react/jsx-key', 'react/jsx-no-duplicate-props',
-  'react/jsx-no-undef', 'react/jsx-uses-react', 'react/jsx-uses-vars',
-  'react/no-array-index-key', 'react/no-danger', 'react/no-deprecated',
-  'react/no-did-mount-set-state', 'react/no-did-update-set-state',
-  'react/no-direct-mutation-state', 'react/no-find-dom-node', 'react/no-is-mounted',
-  'react/no-multi-comp', 'react/no-render-return-value', 'react/no-set-state',
-  'react/no-string-refs', 'react/no-unescaped-entities', 'react/no-unknown-property',
-  'react/no-unsafe', 'react/no-unused-prop-types', 'react/no-unused-state',
-  'react/prefer-es6-class', 'react/prefer-stateless-function', 'react/prop-types',
-  'react/react-in-jsx-scope', 'react/require-default-props', 'react/require-optimization',
-  'react/require-render-return', 'react/sort-comp', 'react/sort-prop-types',
-  'react/style-prop-object', 'react/void-dom-elements-no-children', 'import/no-cycle', 
-  'max-len', 'no-param-reassign'
-];
+const __filename$1 = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename$1);
 
-// Helper to get all rules enabled by a config
-function getRulesForConfig(configName) {
-  const require = createRequire(import.meta.url);
-  let rules = {};
-  try {
-    if (configName === 'airbnb') {
-      // Airbnb base config aggregates these files
-      const airbnbRuleFiles = [
-        'eslint-config-airbnb-base/rules/best-practices',
-        'eslint-config-airbnb-base/rules/errors',
-        'eslint-config-airbnb-base/rules/node',
-        'eslint-config-airbnb-base/rules/style',
-        'eslint-config-airbnb-base/rules/variables',
-        'eslint-config-airbnb-base/rules/imports',
-        'eslint-config-airbnb-base/rules/strict',
-        'eslint-config-airbnb-base/rules/es6',
-      ];
-      airbnbRuleFiles.forEach(file => {
-        try {
-          const mod = require(file);
-          if (mod && mod.rules) {
-            rules = { ...rules, ...mod.rules };
-          }
-        } catch (e) {}
-      });
-    } else if (configName === 'eslint:recommended') {
-      // Try to load recommended config if available
-      try {
-        const recommended = require('eslint/conf/eslint-recommended');
-        if (recommended && recommended.rules) {
-          rules = { ...rules, ...recommended.rules };
-        }
-      } catch (e) {}
-    }
-    // Add more configs as needed
-  } catch (e) {}
-  return Object.keys(rules);
-}
-
-// Helper to get config extends from config file
-function getConfigExtends(configPath) {
-  try {
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    if (Array.isArray(config.extends)) return config.extends;
-    if (typeof config.extends === 'string') return [config.extends];
-  } catch (e) {}
-  return [];
-}
-
-// Constants for configuration files
 const CONFIG_FOLDER$3 = "config";
 const ESLINTRC_JSON$2 = ".eslintrc.json";
 const ESLINTRC_JS$1 = ".eslintrc.js";
@@ -286,27 +175,16 @@ const ESLINTRC_VANILLA$1 = "eslintrc.vanilla.json";
 const ESLINTRC_TS$1 = "eslintrc.typescript.json";
 const ESLINTRC_TSREACT$1 = "eslintrc.tsreact.json";
 
-/**
- * Function to determine ESLint configuration file path
- * @param {boolean} recommendedLintRules
- * @param {string} projectType
- * @returns {string} lintConfigFile
- */
-const getLintConfigFile$3 = (recommendedLintRules, projectType = '') => {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
+const getLintConfigFile$3 = (recommendedLintRules = false, projectType = '') => {
   let configFileName = ESLINTRC_JSON$2;
 
-  if (projectType.toLowerCase() === 'react') {
-    configFileName = ESLINTRC_REACT$1;
-  } else if (projectType.toLowerCase() === 'node') {
-    configFileName = ESLINTRC_NODE$1;
-  } else if (projectType.toLowerCase() === 'vanilla') {
-    configFileName = ESLINTRC_VANILLA$1;
-  } else if (projectType.toLowerCase() === 'typescript') {
-    configFileName = ESLINTRC_TS$1;
-  } else if (projectType.toLowerCase() === 'typescript + react' || projectType.toLowerCase() === 'tsreact') {
-    configFileName = ESLINTRC_TSREACT$1;
+  if (projectType && typeof projectType === 'string') {
+    const type = projectType.toLowerCase();
+    if (type === 'react') configFileName = ESLINTRC_REACT$1;
+    else if (type === 'node') configFileName = ESLINTRC_NODE$1;
+    else if (type === 'vanilla') configFileName = ESLINTRC_VANILLA$1;
+    else if (type === 'typescript') configFileName = ESLINTRC_TS$1;
+    else if (type === 'typescript + react' || type === 'tsreact') configFileName = ESLINTRC_TSREACT$1;
   }
 
   const configFilePath = path.join(__dirname, CONFIG_FOLDER$3, configFileName);
@@ -315,11 +193,7 @@ const getLintConfigFile$3 = (recommendedLintRules, projectType = '') => {
   }
 
   // fallback to default logic
-  const recommendedLintRulesConfigFile = path.join(
-    __dirname,
-    CONFIG_FOLDER$3,
-    ESLINTRC_JSON$2
-  );
+  const recommendedLintRulesConfigFile = path.join(__dirname, CONFIG_FOLDER$3, ESLINTRC_JSON$2);
   const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
   const eslintLintFilePathFromModule = path.join(moduleDir, ESLINTRC_JSON$2);
 
@@ -332,895 +206,6 @@ const getLintConfigFile$3 = (recommendedLintRules, projectType = '') => {
     ESLINTRC_JS$1,
     ESLINTRC_YML$1,
     ESLINTRC_JSON$2,
-    eslintLintFilePathFromModule,
-  ];
-
-  return configFiles.find((file) => fs.existsSync(file));
-};
-
-/**
- * Function to lint a single file
- * @param {string} filePath
- * @param {ESLint} eslint
- * @returns {Promise<Object|null>} lint result
- */
-const lintFile$1 = async (filePath, eslint) => {
-  try {
-    // Read file content
-    const data = await readFile(filePath, "utf8");
-
-    // Lint the file
-    const messages = await eslint.lintText(data, {
-      filePath,
-    });
-
-    // if (messages[0].errorCount) {
-    //   logError(filePath);
-    // } else if (messages[0].warningCount) {
-    //   logWarning(filePath);
-    // } else {
-    //   logSuccess(filePath);
-    // }
-
-    return {
-      filePath,
-      errorCount: messages[0].errorCount,
-      warningCount: messages[0].warningCount,
-      messages: messages[0].messages,
-    };
-  } catch (err) {
-    console.error(chalk.red(`Error reading file ${filePath}: ${err}`));
-    return null;
-  }
-};
-
-const BATCH_SIZE$4 = 5;
-
-/**
- * Function to lint all files
- * @param {Array<string>} files
- * @param {string} folderPath
- * @param {ESLint} eslint
- * @param {string} projectType
- * @param {Array<string>} reports
- */
-const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) => {
-  console.log(
-    chalk.green(
-      `Total files count is ${files.length} This linting task will take some time.`
-    )
-  );
-
-  // Get merged exclude rules from config
-  const excludeRules = getMergedExcludeRules('eslint', DEFAULT_ESLINT_EXCLUDE_RULES);
-
-  let results = [];
-  let processed = 0;
-  for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
-    const batch = files.slice(i, i + BATCH_SIZE$4);
-    const batchResults = await Promise.all(batch.map(async (filePath) => {
-      processed++;
-      process.stdout.write(`\r[ESLint] Progress: ${processed}/${files.length} files checked`);
-      return await lintFile$1(filePath, eslint);
-    }));
-    results.push(...batchResults);
-  }
-  process.stdout.write(`\r[ESLint] Progress: ${files.length}/${files.length} files checked\n`);
-
-  const lintConfigFile = getLintConfigFile$3(false, projectType); // Pass false for recommendedLintRules
-  const configExtends = getConfigExtends(lintConfigFile);
-  const configRuleMap = {};
-  configExtends.forEach(cfg => {
-    // Normalize config name
-    let name = cfg;
-    if (name.startsWith('plugin:')) name = name.split(':')[1].split('/')[0];
-    if (name.startsWith('eslint-config-')) name = name.replace('eslint-config-', '');
-    if (name === 'airbnb-base' || name === 'airbnb') name = 'airbnb';
-    if (name === 'recommended') name = 'eslint:recommended';
-    const rules = getRulesForConfig(name);
-    rules.forEach(rule => {
-      if (!configRuleMap[rule]) configRuleMap[rule] = [];
-      configRuleMap[rule].push(cfg);
-    });
-  });
-
-  const jsonReport = {
-    projectType,
-    reports,
-    excludeRules: {
-      enabled: excludeRules.length > 0,
-      rules: excludeRules,
-      count: excludeRules.length
-    },
-    results: results
-      .map((result) => {
-        let filteredMessages = result?.messages
-          .filter(message => !excludeRules.includes(message.ruleId))
-          .map((message) => ({
-            ruleId: message.ruleId,
-            severity: message.severity,
-            line: message.line,
-            column: message.column,
-            endLine: message.endLine,
-            endColumn: message.endColumn,
-            message: message.message,
-            fix: message.fix,
-            suggestions: message.suggestions,
-            fatal: message.fatal,
-            ruleSource: message.ruleId
-              ? (message.ruleId.startsWith('react/') ? 'React Plugin'
-                : message.ruleId.startsWith('@typescript-eslint/') ? 'TypeScript ESLint Plugin'
-                : message.ruleId.startsWith('import/') ? 'Import Plugin'
-                : 'ESLint core')
-              : '',
-            configSource: message.ruleId && configRuleMap[message.ruleId] ? configRuleMap[message.ruleId] : [],
-          }));
-        // If errorCount > 0 but messages is empty, omit this file from the report
-        if ((result?.errorCount > 0) && (!filteredMessages || filteredMessages.length === 0)) {
-          return null;
-        }
-        return {
-          filePath: result?.filePath,
-          errorCount: filteredMessages.length,
-          warningCount: 0,
-          messages: filteredMessages,
-        };
-      })
-      .filter(Boolean),
-  };
-
-  await writeFile(
-    path.join(folderPath, "eslint-report.json"),
-    JSON.stringify(jsonReport, null, 2)
-  );
-};
-
-/**
- * Function for linting all matched files
- * @param {String} folderPath
- * @param {String} jsFilePathPattern
- * @param {Boolean} recommendedLintRules
- * @param {String} projectType
- * @param {Array<string>} reports
- */
-const generateESLintReport = async (
-  folderPath,
-  recommendedLintRules,
-  projectType = '',
-  reports = []
-) => {
-  const lintConfigFile = getLintConfigFile$3(recommendedLintRules, projectType);
-  if (!lintConfigFile) {
-    throw new Error(".eslintrc file is missing");
-  }
-
-  console.log(chalk.blue(`Using ESLint config: ${lintConfigFile}`));
-
-  const eslint = new ESLint({
-    useEslintrc: false,
-    overrideConfigFile: lintConfigFile,
-  });
-
-  const files = await globby(getConfigPattern('jsFilePathPattern'));
-  console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${getConfigPattern('jsFilePathPattern').join(', ')}`));
-  // console.log(chalk.gray(`Files being processed:`));
-  // files.slice(0, 10).forEach(file => console.log(chalk.gray(`  - ${file}`)));
-  // if (files.length > 10) {
-  //   console.log(chalk.gray(`  ... and ${files.length - 10} more files`));
-  // }
-  await lintAllFiles$1(files, folderPath, eslint, projectType, reports);
-
-  try {
-    const auditOutput = execSync('npm audit --json', {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-      stdio: 'pipe'
-    });
-    try {
-      // Only try to parse if output looks like JSON
-      if (auditOutput.trim().startsWith('{')) {
-        const audit = JSON.parse(auditOutput);
-        // ... process audit ...
-      } else {
-        console.warn(chalk.yellow('npm audit did not return JSON output.'));
-        console.warn(auditOutput);
-      }
-    } catch (parseErr) {
-      console.warn(chalk.yellow('⚠️ Could not parse audit JSON. Output was:'));
-      console.warn(auditOutput);
-    }
-  } catch (error) {
-    // ... existing error handling ...
-  }
-};
-
-const { lint } = stylelint;
-
-// Default Stylelint rules to exclude (commonly disabled by project architects)
-const DEFAULT_STYLELINT_EXCLUDE_RULES = [
-  // Formatting and style rules
-  'indentation', 'string-quotes', 'color-hex-case', 'color-hex-length',
-  'color-named', 'color-no-invalid-hex', 'font-family-name-quotes',
-  'font-weight-notation', 'function-calc-no-unspaced-operator',
-  'function-comma-newline-after', 'function-comma-newline-before',
-  'function-comma-space-after', 'function-comma-space-before',
-  'function-max-empty-lines', 'function-name-case', 'function-parentheses-newline-inside',
-  'function-parentheses-space-inside', 'function-url-quotes', 'function-whitespace-after',
-  'number-leading-zero', 'number-max-precision', 'number-no-trailing-zeros',
-  'string-no-newline', 'unit-case', 'unit-no-unknown', 'value-keyword-case',
-  'value-list-comma-newline-after', 'value-list-comma-newline-before',
-  'value-list-comma-space-after', 'value-list-comma-space-before',
-  'value-list-max-empty-lines', 'value-no-vendor-prefix', 'property-case',
-  'property-no-vendor-prefix', 'declaration-bang-space-after',
-  'declaration-bang-space-before', 'declaration-colon-newline-after',
-  'declaration-colon-space-after', 'declaration-colon-space-before',
-  'declaration-block-no-duplicate-properties', 'declaration-block-no-redundant-longhand-properties',
-  'declaration-block-no-shorthand-property-overrides', 'declaration-block-semicolon-newline-after',
-  'declaration-block-semicolon-newline-before', 'declaration-block-semicolon-space-after',
-  'declaration-block-semicolon-space-before', 'declaration-block-trailing-semicolon',
-  'block-closing-brace-empty-line-before', 'block-closing-brace-newline-after',
-  'block-closing-brace-newline-before', 'block-closing-brace-space-after',
-  'block-closing-brace-space-before', 'block-no-empty', 'block-opening-brace-newline-after',
-  'block-opening-brace-newline-before', 'block-opening-brace-space-after',
-  'block-opening-brace-space-before', 'selector-attribute-brackets-space-inside',
-  'selector-attribute-operator-space-after', 'selector-attribute-operator-space-before',
-  'selector-attribute-quotes', 'selector-combinator-space-after',
-  'selector-combinator-space-before', 'selector-descendant-combinator-no-non-space',
-  'selector-max-compound-selectors', 'selector-max-specificity', 'selector-no-qualifying-type',
-  'selector-pseudo-class-case', 'selector-pseudo-class-no-unknown',
-  'selector-pseudo-class-parentheses-space-inside', 'selector-pseudo-element-case',
-  'selector-pseudo-element-colon-notation', 'selector-pseudo-element-no-unknown',
-  'selector-type-case', 'selector-type-no-unknown', 'selector-max-empty-lines',
-  'rule-empty-line-before', 'at-rule-empty-line-before', 'at-rule-name-case',
-  'at-rule-name-newline-after', 'at-rule-name-space-after', 'at-rule-no-unknown',
-  'at-rule-semicolon-newline-after', 'at-rule-semicolon-space-before',
-  'comment-empty-line-before', 'comment-no-empty', 'comment-whitespace-inside',
-  'comment-word-blacklist', 'max-empty-lines', 'max-line-length', 'max-nesting-depth',
-  'no-browser-hacks', 'no-descending-specificity', 'no-duplicate-selectors',
-  'no-empty-source', 'no-eol-whitespace', 'no-extra-semicolons', 'no-invalid-double-slash-comments',
-  'no-missing-end-of-source-newline', 'no-unknown-animations', 'alpha-value-notation',
-  'color-function-notation', 'hue-degree-notation', 'import-notation',
-  'keyframe-selector-notation', 'media-feature-name-value-allowed-list',
-  'media-feature-range-notation', 'selector-not-notation', 'shorthand-property-no-redundant-values',
-  
-  // Naming convention rules commonly disabled
-  'selector-class-pattern',
-  'selector-id-pattern',
-  'selector-nested-pattern',
-  'custom-property-pattern',
-  'keyframes-name-pattern',
-  'class-name-pattern',
-  'id-pattern',
-  
-  // SCSS specific rules commonly disabled
-  'scss/selector-no-redundant-nesting-selector',
-  'scss/at-rule-no-unknown',
-  'scss/at-import-partial-extension',
-  'scss/at-import-no-partial-leading-underscore',
-  'scss/at-import-partial-extension-blacklist',
-  'scss/at-import-partial-extension-whitelist',
-  'scss/at-rule-conditional-no-parentheses',
-  'scss/at-rule-no-vendor-prefix',
-  'scss/comment-no-empty',
-  'scss/comment-no-loud',
-  'scss/declaration-nested-properties',
-  'scss/declaration-nested-properties-no-divided-groups',
-  'scss/dollar-variable-colon-newline-after',
-  'scss/dollar-variable-colon-space-after',
-  'scss/dollar-variable-colon-space-before',
-  'scss/dollar-variable-default',
-  'scss/dollar-variable-empty-line-after',
-  'scss/dollar-variable-empty-line-before',
-  'scss/dollar-variable-first-in-block',
-  'scss/dollar-variable-no-missing-interpolation',
-  'scss/dollar-variable-pattern',
-  'scss/double-slash-comment-whitespace-inside',
-  'scss/function-color-relative',
-  'scss/function-no-unknown',
-  'scss/function-quote-no-quoted-strings-inside',
-  'scss/function-unquote-no-unquoted-strings-inside',
-  'scss/map-keys-quotes',
-  'scss/media-feature-value-dollar-variable',
-  'scss/no-duplicate-dollar-variables',
-  'scss/no-duplicate-mixins',
-  'scss/no-global-function-names',
-  'scss/operator-no-newline-after',
-  'scss/operator-no-newline-before',
-  'scss/operator-no-unspaced',
-  'scss/partial-no-import',
-  'scss/percent-placeholder-pattern',
-  'scss/selector-nest-combinators',
-  'scss/selector-no-union-class-name',
-  
-  // Prettier-related rules to exclude (since we removed Prettier config)
-  'prettier/prettier',
-  'stylelint-config-prettier',
-  'stylelint-config-prettier-scss'
-];
-
-// Constants for configuration files
-const CONFIG_FOLDER$2 = "config";
-const STYLELINTRC_JSON = ".stylelintrc.json";
-const STYLELINTRC_JS = ".stylelintrc.js";
-const STYLELINTRC_YML = ".stylelintrc.yml";
-const STYLELINTRC_CONFIG = "stylelint.config.js";
-
-/**
- * Function to determine Stylelint configuration file path
- * @param {boolean} recommendedLintRules
- * @returns {string} lintStyleConfigFile
- */
-const getLintConfigFile$2 = (recommendedLintRules) => {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  const recommendedLintRulesConfigFile = path.join(
-    __dirname,
-    CONFIG_FOLDER$2,
-    STYLELINTRC_JSON
-  );
-  const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
-  const styleLintFilePathFromModule = path.join(moduleDir, STYLELINTRC_JSON);
-
-  const configFiles = [
-    STYLELINTRC_CONFIG,
-    STYLELINTRC_JS,
-    STYLELINTRC_YML,
-    STYLELINTRC_JSON,
-    styleLintFilePathFromModule,
-  ];
-
-  return recommendedLintRules
-    ? recommendedLintRulesConfigFile
-    : configFiles.find((file) => fs.existsSync(file));
-};
-
-/**
- * Function to handle errors during file reading
- * @param {string} filePath
- * @param {Error} error
- * @returns {null}
- */
-const handleFileReadError = (filePath, error) => {
-  console.error(chalk.red(`Error reading file ${filePath}: ${error}`));
-  return null;
-};
-
-/**
- * Function to lint a single file
- * @param {string} filePath
- * @param {string} lintStyleConfigFile
- * @returns {Promise<Object|null>} lint result
- */
-const lintFile = async (filePath, lintStyleConfigFile) => {
-  try {
-    // Read file content
-    const data = await readFile(filePath, "utf8");
-    // Lint the file
-    const item = await lint({
-      code: data,
-      configFile: lintStyleConfigFile,
-    });
-
-    const output = JSON.parse(item.output);
-    
-    // Debug logging for files with errors but no messages
-    // if (output[0] && output[0].warnings && output[0].warnings.length > 0) {
-    //   console.log(`[Stylelint Debug] ${filePath}: ${output[0].warnings.length} warnings found`);
-    //   output[0].warnings.forEach((warning, index) => {
-    //     console.log(`[Stylelint Debug]   Warning ${index + 1}: ${warning.rule} - ${warning.text}`);
-    //   });
-    // } else if (output[0] && output[0].errored) {
-    //   console.log(`[Stylelint Debug] ${filePath}: File has errors but no warnings array`);
-    //   console.log(`[Stylelint Debug] Output structure:`, JSON.stringify(output[0], null, 2));
-    // }
-
-    // Safeguard against malformed output
-    const warnings = output[0] && output[0].warnings ? output[0].warnings : [];
-    
-    // Determine friendly config source
-    let configSourceValue = path.basename(lintStyleConfigFile);
-    try {
-      const configContent = JSON.parse(fs.readFileSync(lintStyleConfigFile, 'utf8'));
-      if (Array.isArray(configContent.extends) && configContent.extends.length > 0) {
-        configSourceValue = configContent.extends[0];
-      } else if (typeof configContent.extends === 'string') {
-        configSourceValue = configContent.extends;
-      }
-    } catch (e) {}
-
-    return {
-      filePath,
-      errorCount: warnings.length,
-      warningCount: 0,
-      messages: warnings.map((message) => ({
-        line: message.line,
-        column: message.column,
-        endLine: message.endLine,
-        endColumn: message.endColumn,
-        severity: message.severity,
-        rule: message.rule,
-        message: message.text,
-        fix: message.fix,
-        suggestions: message.suggestions,
-        ruleSource: message.rule
-          ? (message.rule.startsWith('scss/') ? 'SCSS Plugin'
-            : message.rule.startsWith('order/') ? 'Order Plugin'
-            : 'Stylelint core')
-          : '',
-        configSource: [configSourceValue],
-      })),
-    };
-  } catch (err) {
-    return handleFileReadError(filePath, err);
-  }
-};
-
-const BATCH_SIZE$3 = 5;
-
-/**
- * Function to lint all files
- * @param {Array<string>} files
- * @param {string} folderPath
- * @param {string} lintStyleConfigFile
- */
-const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType, reports) => {
-  console.log(
-    chalk.green(
-      `Total files count is ${files.length} This linting task will take some time.`
-    )
-  );
-
-  // Get merged exclude rules from config
-  const excludeRules = getMergedExcludeRules('stylelint', DEFAULT_STYLELINT_EXCLUDE_RULES);
-
-  let results = [];
-  let processed = 0;
-  for (let i = 0; i < files.length; i += BATCH_SIZE$3) {
-    const batch = files.slice(i, i + BATCH_SIZE$3);
-    const batchResults = await Promise.all(batch.map(async (filePath) => {
-      processed++;
-      process.stdout.write(`\r[Stylelint] Progress: ${processed}/${files.length} files checked`);
-      return await lintFile(filePath, lintStyleConfigFile);
-    }));
-    results.push(...batchResults);
-  }
-  process.stdout.write(`\r[Stylelint] Progress: ${files.length}/${files.length} files checked\n`);
-
-  // Filter messages based on exclude rules and update error counts
-  const filteredResults = results.map(result => {
-    const filteredMessages = result.messages.filter(message => !excludeRules.includes(message.rule));
-    
-    // Ensure error count matches actual message count
-    const actualErrorCount = filteredMessages.length;
-    
-    // Log if there's a mismatch between error count and message count
-    if (result.errorCount > 0 && actualErrorCount === 0) {
-      console.log(`[Stylelint Warning] ${result.filePath}: Error count (${result.errorCount}) doesn't match message count (${actualErrorCount})`);
-    }
-    
-    return {
-      ...result,
-      errorCount: actualErrorCount,
-      warningCount: 0,
-      messages: filteredMessages
-    };
-  });
-
-  // BEM naming convention check
-  let bemFound = false;
-  for (const file of files) {
-    const content = fs.readFileSync(file, 'utf8');
-    if (/\.[a-z]+__[a-z]+(--[a-z]+)?/.test(content)) {
-      bemFound = true;
-      break;
-    }
-  }
-  const bemNaming = {
-    type: 'bem-naming',
-    passed: bemFound,
-    message: bemFound ? 'BEM naming convention detected.' : 'No BEM naming convention detected.'
-  };
-
-  const jsonReport = {
-    projectType,
-    reports,
-    excludeRules: {
-      enabled: excludeRules.length > 0,
-      rules: excludeRules,
-      count: excludeRules.length
-    },
-    results: filteredResults,
-    bemNaming // <-- add BEM naming result
-  };
-
-  await fs.promises.writeFile(
-    path.join(folderPath, "stylelint-report.json"),
-    JSON.stringify(jsonReport, null, 2)
-  );
-};
-
-/**
- * Function for linting all matched files
- * @param {String} folderPath
- * @param {Boolean} recommendedLintRules
- * @param {String} projectType
- * @param {Array<string>} reports
- */
-const generateStyleLintReport = async (
-  folderPath,
-  recommendedLintRules,
-  projectType = '',
-  reports = []
-) => {
-  const lintStyleConfigFile = getLintConfigFile$2(recommendedLintRules);
-  if (!lintStyleConfigFile) {
-    throw new Error(".stylelintrc.json file is missing");
-  }
-
-  // Use config-driven pattern for SCSS/CSS/LESS files
-  const files = await globby(getConfigPattern('scssFilePathPattern'));
-
-  await lintAllFiles(files, folderPath, lintStyleConfigFile, projectType, reports);
-};
-
-const kbToMb = (kilobytes) => kilobytes / 1024;
-
-const generateNpmPackageReport = async () => {
-  const folderPath = path.resolve(process.cwd(), "report");
-  try {
-    const data = await readFile("package.json", "utf8");
-    const packageJson = JSON.parse(data);
-    const dependencies = packageJson?.dependencies || {};
-    const devDependencies = packageJson?.devDependencies || {};
-    let npmPackagesData = {
-      dependencies: [],
-      devDependencies: [],
-    };
-
-    const processPackage = async (packageName, isDevDependency = false) => {
-      // console.log(chalk.green(`Validating ${packageName}`));
-      try {
-        const response = await fetch(
-          `https://registry.npmjs.org/${packageName}`
-        );
-
-        const packageInfo = await response.json();
-        const {
-          name,
-          version,
-          dist: { tarball, unpackedSize },
-          license,
-          bugs,
-          description,
-          deprecated,
-        } = packageInfo?.versions[packageInfo["dist-tags"]?.latest];
-
-        const packageData = {
-          name,
-          version,
-          license,
-          download: tarball,
-          description,
-          unpackedSize: unpackedSize
-            ? `${kbToMb(unpackedSize).toFixed(2)} MB`
-            : "Not available", // Convert to MB
-          deprecated: deprecated ? "Deprecated" : "Not deprecated",
-        };
-
-        if (isDevDependency) {
-          npmPackagesData.devDependencies.push(packageData);
-        } else {
-          npmPackagesData.dependencies.push(packageData);
-        }
-      } catch (err) {
-        console.log(
-          chalk.red(`Something went wrong with ${packageName} package`)
-        );
-      }
-    };
-
-    const depNames = Object.keys(dependencies);
-    let processed = 0;
-    for (const packageName of depNames) {
-      processed++;
-      process.stdout.write(`\r[NPM Packages] Progress: ${processed}/${depNames.length} dependencies checked`);
-      await processPackage(packageName);
-    }
-    process.stdout.write(`\r[NPM Packages] Progress: ${depNames.length}/${depNames.length} dependencies checked\n`);
-
-    // Process devDependencies
-    const devDepNames = Object.keys(devDependencies);
-    let devProcessed = 0;
-    for (const packageName of devDepNames) {
-      devProcessed++;
-      process.stdout.write(`\r[NPM Dev Packages] Progress: ${devProcessed}/${devDepNames.length} devDependencies checked`);
-      await processPackage(packageName, true);
-    }
-    process.stdout.write(`\r[NPM Dev Packages] Progress: ${devDepNames.length}/${devDepNames.length} devDependencies checked\n`);
-
-    await writeFile(
-      `${folderPath}/npm-report.json`,
-      JSON.stringify(npmPackagesData, null, 2)
-    );
-  } catch (error) {
-    console.error("Error:", error);
-  }
-};
-
-// Function to make the API request
-async function makeAPIRequest(
-  accessToken,
-  aemBasePath,
-  aemContentPath,
-  aemAppsPath,
-  slingResourceTypeBase
-) {
-  const componentListQuery = new URLSearchParams();
-  componentListQuery.append("p.limit", "-1");
-  componentListQuery.append("path", aemAppsPath);
-  componentListQuery.append("type", "cq:Component");
-
-  // API endpoint URL
-  const componentQueryURL = `${aemBasePath}/bin/querybuilder.json?${componentListQuery.toString()}`;
-
-  // Create the headers object
-  const headers = {
-    Cookie: `login-token=${accessToken}`, // Set the access token as a cookie
-  };
-
-  // Make the API request
-  const response = await fetch(componentQueryURL, { headers });
-
-  // Parse the response
-  const data = await response.json();
-
-  let result = [];
-  for (const component of data.hits) {
-    const componentPropertiesQuery = new URLSearchParams();
-    componentPropertiesQuery.append("p.limit", "5");
-    componentPropertiesQuery.append("path", aemContentPath);
-    componentPropertiesQuery.append("property", "sling:resourceType");
-    componentPropertiesQuery.append(
-      "property.value",
-      `${slingResourceTypeBase}${component.name}`
-    );
-    componentPropertiesQuery.append("type", "nt:unstructured");
-
-    // API endpoint URL
-    const componentPropertiesURL = `${aemBasePath}/bin/querybuilder.json?${componentPropertiesQuery.toString()}`;
-    const resp = await fetch(componentPropertiesURL, { headers });
-    const json = await resp.json();
-    result.push(Object.assign({}, component, { usageCount: await json.total }));
-  }
-
-  return result;
-}
-
-const generateComponentUsageReport = async (
-  reportFolderPath,
-  accessToken,
-  aemBasePath,
-  aemContentPath,
-  aemAppsPath,
-  slingResourceTypeBase
-) => {
-  const data = await makeAPIRequest(
-    accessToken,
-    aemBasePath,
-    aemContentPath,
-    aemAppsPath,
-    slingResourceTypeBase
-  );
-
-  await writeFile(
-    path.join(reportFolderPath, "component-usage-report.json"),
-    JSON.stringify(data, null, 2)
-  );
-
-  return data;
-};
-
-/* eslint-disable no-console */
-
-const folderName = "report";
-const folderPath = path.resolve(process.cwd(), folderName);
-
-const handleReportError = (message, error) => {
-  console.error(chalk.red(`${message}: ${error}`));
-};
-
-/**
- * Copies static files to the report folder.
- * @async
- * @returns {Promise<void>}
- */
-const createReportFolder = async () => {
-  try {
-    console.log(chalk.blue("Copying static files..."));
-    await copyStaticFiles(folderPath);
-    console.log(chalk.green("Static files copied successfully!"));
-  } catch (err) {
-    handleReportError("Error in copy Static Files", err);
-  }
-};
-
-/**
- * Generates a component usage report.
- * @async
- * @param {string} authToken
- * @param {string} aemBasePath
- * @param {string} aemContentPath
- * @param {string} aemAppsPath
- * @param {string} slingResourceTypeBase
- * @returns {Promise<void>}
- */
-const generateComponentUsageReportWrapper = async (
-  authToken,
-  aemBasePath,
-  aemContentPath,
-  aemAppsPath,
-  slingResourceTypeBase
-) => {
-  try {
-    if (authToken) {
-      console.log(chalk.blue("Generating Component Usage report..."));
-      await generateComponentUsageReport(
-        folderPath,
-        authToken,
-        aemBasePath,
-        aemContentPath,
-        aemAppsPath,
-        slingResourceTypeBase
-      );
-      console.log(
-        chalk.green("Component Usage report generated successfully!")
-      );
-    } else {
-      console.log(chalk.bold.yellow("AEM Auth Token is missing!"));
-    }
-  } catch (err) {
-    handleReportError("Error generating Component Usage report", err);
-  }
-};
-
-/**
- * Generates an ESLint report.
- * @async
- * @param {boolean} recommendedLintRules
- * @param {string} projectType
- * @param {Array<string>} reports
- * @returns {Promise<void>}
- */
-const generateESLintReportWrapper = async (
-  recommendedLintRules,
-  projectType = '',
-  reports = []
-) => {
-  try {
-    console.log(chalk.blue("Generating ESLint report..."));
-    await generateESLintReport(
-      folderPath,
-      recommendedLintRules,
-      projectType,
-      reports
-    );
-    console.log(chalk.green("ESLint report generated successfully!"));
-  } catch (err) {
-    handleReportError("Error generating ESLint report", err);
-  }
-};
-
-/**
- * Generates a Stylelint report.
- * @async
- * @param {boolean} recommendedLintRules
- * @param {string} projectType
- * @param {Array<string>} reports
- * @returns {Promise<void>}
- */
-const generateStyleLintReportWrapper = async (
-  recommendedLintRules,
-  projectType = '',
-  reports = []
-) => {
-  try {
-    console.log(chalk.blue("Generating Stylelint report..."));
-    await generateStyleLintReport(
-      folderPath,
-      recommendedLintRules,
-      projectType,
-      reports
-    );
-    console.log(chalk.green("Stylelint report generated successfully!"));
-  } catch (err) {
-    handleReportError("Error generating Stylelint report", err);
-  }
-};
-
-/**
- * Generates an npm package report.
- * @param {string} projectType
- * @param {Array<string>} reports
- * @returns {void}
- */
-const generateNpmPackageReportWrapper = (projectType, reports) => {
-  try {
-    console.log(chalk.blue("Generating npm packages report..."));
-    generateNpmPackageReport();
-  } catch (err) {
-    handleReportError("Error generating npm packages report", err);
-  }
-};
-
-// Utility to copy config file to report directory if it exists
-function copyConfigToReportFolder() {
-  const src = path.resolve(process.cwd(), 'ui-code-insight.config.json');
-  const dest = path.resolve(folderPath, 'ui-code-insight.config.json');
-  if (fs.existsSync(src)) {
-    fs.copyFileSync(src, dest);
-    console.log('[ui-code-insight] Copied config to report directory for dashboard.');
-  }
-}
-
-var audit = {
-  createReportFolder,
-  generateESLintReport: generateESLintReportWrapper,
-  generateStyleLintReport: generateStyleLintReportWrapper,
-  generateComponentUsageReport: generateComponentUsageReportWrapper,
-  generateNpmPackageReport: generateNpmPackageReportWrapper,
-  copyConfigToReportFolder, // Export for manual use if needed
-};
-
-// If this is the main module, run the copy after all reports are generated
-if (import.meta.url === `file://${process.argv[1]}`) {
-  copyConfigToReportFolder();
-}
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const CONFIG_FOLDER$1 = "config";
-const ESLINTRC_JSON$1 = ".eslintrc.json";
-const ESLINTRC_JS = ".eslintrc.js";
-const ESLINTRC_YML = ".eslintrc.yml";
-const ESLINTRC = ".eslintrc";
-const ESLINTRC_REACT = "eslintrc.react.json";
-const ESLINTRC_NODE = "eslintrc.node.json";
-const ESLINTRC_VANILLA = "eslintrc.vanilla.json";
-const ESLINTRC_TS = "eslintrc.typescript.json";
-const ESLINTRC_TSREACT = "eslintrc.tsreact.json";
-
-const getLintConfigFile$1 = (recommendedLintRules = false, projectType = '') => {
-  let configFileName = ESLINTRC_JSON$1;
-
-  if (projectType && typeof projectType === 'string') {
-    const type = projectType.toLowerCase();
-    if (type === 'react') configFileName = ESLINTRC_REACT;
-    else if (type === 'node') configFileName = ESLINTRC_NODE;
-    else if (type === 'vanilla') configFileName = ESLINTRC_VANILLA;
-    else if (type === 'typescript') configFileName = ESLINTRC_TS;
-    else if (type === 'typescript + react' || type === 'tsreact') configFileName = ESLINTRC_TSREACT;
-  }
-
-  const configFilePath = path.join(__dirname, CONFIG_FOLDER$1, configFileName);
-  if (fs.existsSync(configFilePath)) {
-    return configFilePath;
-  }
-
-  // fallback to default logic
-  const recommendedLintRulesConfigFile = path.join(__dirname, CONFIG_FOLDER$1, ESLINTRC_JSON$1);
-  const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
-  const eslintLintFilePathFromModule = path.join(moduleDir, ESLINTRC_JSON$1);
-
-  if (recommendedLintRules) {
-    return recommendedLintRulesConfigFile;
-  }
-
-  const configFiles = [
-    ESLINTRC,
-    ESLINTRC_JS,
-    ESLINTRC_YML,
-    ESLINTRC_JSON$1,
     eslintLintFilePathFromModule,
   ];
 
@@ -1456,7 +441,7 @@ async checkDependencyVulnerabilities() {
     if (fs.existsSync(issuesFile)) fs.unlinkSync(issuesFile);
     const stream = fs.createWriteStream(issuesFile, { flags: 'a' });
     try {
-      const eslintConfig = getLintConfigFile$1();
+      const eslintConfig = getLintConfigFile$3();
       if (!eslintConfig) {
         throw new Error(".eslintrc file is missing");
       }
@@ -1868,13 +853,13 @@ async checkDependencyVulnerabilities() {
   }
 }
 
-const CONFIG_FOLDER = "config";
-const ESLINTRC_JSON = ".eslintrc.json";
-const getLintConfigFile = (recommendedLintRules = false, projectType = '') => {
+const CONFIG_FOLDER$2 = "config";
+const ESLINTRC_JSON$1 = ".eslintrc.json";
+const getLintConfigFile$2 = (recommendedLintRules = false, projectType = '') => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  let configFileName = ESLINTRC_JSON;
-  const configFilePath = path.join(__dirname, CONFIG_FOLDER, configFileName);
+  let configFileName = ESLINTRC_JSON$1;
+  const configFilePath = path.join(__dirname, CONFIG_FOLDER$2, configFileName);
   if (fs.existsSync(configFilePath)) return configFilePath;
   return null;
 };
@@ -2130,7 +1115,7 @@ class PerformanceAudit {
   async checkUnusedCode() {
     console.log(chalk.blue('⚡ Checking for unused code...'));
     try {
-      const eslintConfig = getLintConfigFile();
+      const eslintConfig = getLintConfigFile$2();
       if (!eslintConfig) {
         throw new Error(".eslintrc file is missing");
       }
@@ -2262,7 +1247,7 @@ class PerformanceAudit {
     console.log(chalk.blue('⚡ Checking for promise/async issues with ESLint plugins...'));
     console.log(chalk.gray('🔌 Using ESLint plugin: eslint-plugin-promise'));
     try {
-      const eslintConfig = getLintConfigFile();
+      const eslintConfig = getLintConfigFile$2();
       if (!eslintConfig) {
         throw new Error(".eslintrc file is missing");
       }
@@ -2376,7 +1361,7 @@ class PerformanceAudit {
   }
 }
 
-const BATCH_SIZE$2 = 5;
+const BATCH_SIZE$4 = 5;
 
 /**
  * Accessibility audit module for detecting accessibility issues
@@ -2449,8 +1434,8 @@ class AccessibilityAudit {
       ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
-      const batch = files.slice(i, i + BATCH_SIZE$2);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
+      const batch = files.slice(i, i + BATCH_SIZE$4);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Image Accessibility] Progress: ${processed}/${files.length} files checked`);
@@ -2509,8 +1494,8 @@ class AccessibilityAudit {
       ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
-      const batch = files.slice(i, i + BATCH_SIZE$2);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
+      const batch = files.slice(i, i + BATCH_SIZE$4);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Heading Structure] Progress: ${processed}/${files.length} files checked`);
@@ -2569,8 +1554,8 @@ class AccessibilityAudit {
       ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
-      const batch = files.slice(i, i + BATCH_SIZE$2);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
+      const batch = files.slice(i, i + BATCH_SIZE$4);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Form Labels] Progress: ${processed}/${files.length} files checked`);
@@ -2631,8 +1616,8 @@ class AccessibilityAudit {
       ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
-      const batch = files.slice(i, i + BATCH_SIZE$2);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
+      const batch = files.slice(i, i + BATCH_SIZE$4);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Color Contrast] Progress: ${processed}/${files.length} files checked`);
@@ -2685,8 +1670,8 @@ class AccessibilityAudit {
       ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
-      const batch = files.slice(i, i + BATCH_SIZE$2);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
+      const batch = files.slice(i, i + BATCH_SIZE$4);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Keyboard Navigation] Progress: ${processed}/${files.length} files checked`);
@@ -2744,8 +1729,8 @@ class AccessibilityAudit {
       ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
-      const batch = files.slice(i, i + BATCH_SIZE$2);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
+      const batch = files.slice(i, i + BATCH_SIZE$4);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[ARIA Usage] Progress: ${processed}/${files.length} files checked`);
@@ -2794,8 +1779,8 @@ class AccessibilityAudit {
       ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
     });
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
-      const batch = files.slice(i, i + BATCH_SIZE$2);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
+      const batch = files.slice(i, i + BATCH_SIZE$4);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Tab Order/Focus] Progress: ${processed}/${files.length} files checked`);
@@ -2851,8 +1836,8 @@ class AccessibilityAudit {
     });
     let foundLandmark = false, foundSkipLink = false;
     let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$2) {
-      const batch = files.slice(i, i + BATCH_SIZE$2);
+    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
+      const batch = files.slice(i, i + BATCH_SIZE$4);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Landmarks/Skip Links] Progress: ${processed}/${files.length} files checked`);
@@ -2951,7 +1936,351 @@ class AccessibilityAudit {
   }
 }
 
-const BATCH_SIZE$1 = 5;
+const __filename = fileURLToPath(import.meta.url);
+path.dirname(__filename);
+
+/**
+ * Lighthouse Audit Module
+ * Tests live websites for performance, accessibility, best practices, and SEO
+ */
+class LighthouseAudit {
+  constructor(folderPath) {
+    this.folderPath = folderPath;
+    this.lighthouseResults = [];
+  }
+
+  /**
+   * Combine Lighthouse data from multiple URLs into a single report
+   */
+  async combineLightHouseData(urls) {
+    const folderPath = path.resolve(process.cwd(), "report");
+    const lightHouseResult = await Promise.all(
+      urls.map(async (url) => {
+        try {
+          const outputName = url.replace(/^https?:\/\//, "").replace(/\//g, "");
+          const reportPath = path.join(folderPath, `${outputName}.report.json`);
+          
+          // Check if report file exists
+          if (!fs.existsSync(reportPath)) {
+            console.log(chalk.yellow(`  ⚠️  No existing report found for ${url}, skipping combination`));
+            return {
+              url: url,
+              fileName: `${outputName}.report.html`,
+              performance: null,
+              accessibility: null,
+              bestPractices: null,
+              seo: null,
+              timestamp: new Date().toISOString(),
+              issues: [],
+              error: 'Report file not found'
+            };
+          }
+          
+          const reportData = await fsp.readFile(reportPath, "utf8");
+          const report = JSON.parse(reportData);
+          return {
+            url: url,
+            fileName: `${outputName}.report.html`,
+            performance: report.categories?.performance?.score * 100,
+            accessibility: report.categories?.accessibility?.score * 100,
+            bestPractices: report.categories?.["best-practices"]?.score * 100,
+            seo: report.categories?.seo?.score * 100,
+            timestamp: new Date().toISOString(),
+            issues: this.extractLighthouseIssues(report)
+          };
+        } catch (error) {
+          console.error(chalk.red(`Error processing report for ${url}:`, error.message));
+          const outputName = url.replace(/^https?:\/\//, "").replace(/\//g, "");
+          return {
+            url: url,
+            fileName: `${outputName}.report.html`,
+            performance: null,
+            accessibility: null,
+            bestPractices: null,
+            seo: null,
+            timestamp: new Date().toISOString(),
+            issues: [],
+            error: error.message
+          };
+        }
+      })
+    );
+    
+    await fsp.writeFile(
+      `${folderPath}/lightHouseCombine-report.json`,
+      JSON.stringify(lightHouseResult, null, 2)
+    );
+    
+    return lightHouseResult;
+  }
+
+  /**
+   * Extract issues from Lighthouse report
+   */
+  extractLighthouseIssues(report) {
+    const issues = [];
+    
+    // Process each category
+    Object.entries(report.categories || {}).forEach(([categoryName, category]) => {
+      if (category.auditRefs) {
+        category.auditRefs.forEach(auditRef => {
+          const audit = report.audits[auditRef.id];
+          if (audit && audit.score !== null && audit.score < 1) {
+            issues.push({
+              type: `${categoryName}_${auditRef.id}`,
+              severity: audit.score < 0.5 ? 'high' : audit.score < 0.8 ? 'medium' : 'low',
+              message: audit.title,
+              description: audit.description,
+              category: categoryName,
+              score: audit.score,
+              recommendation: audit.details?.type === 'opportunity' ? audit.details?.summary : null
+            });
+          }
+        });
+      }
+    });
+    
+    return issues;
+  }
+
+  /**
+   * Generate Lighthouse reports using programmatic API
+   */
+  async generateLightHouseReport(urls) {
+    if (!urls || urls.length === 0) {
+      console.log(chalk.yellow('No URLs provided for Lighthouse audit.'));
+      return [];
+    }
+
+    const folderPath = path.resolve(process.cwd(), "report");
+    await fsp.mkdir(folderPath, { recursive: true });
+
+    console.log(chalk.blue(`🚀 Running Lighthouse audit on ${urls.length} URL(s)...`));
+
+    // Launch browser for Lighthouse
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor'
+      ]
+    });
+
+    const generateReport = async (url) => {
+      try {
+        const outputName = url.replace(/^https?:\/\//, "").replace(/\//g, "");
+        const htmlOutputPath = path.join(folderPath, `${outputName}.report.html`);
+        const jsonOutputPath = path.join(folderPath, `${outputName}.report.json`);
+        
+        // Check if reports already exist
+        const reportsExist = fs.existsSync(jsonOutputPath) && fs.existsSync(htmlOutputPath);
+        const actionText = reportsExist ? 'Updating existing' : 'Creating new';
+        
+        console.log(chalk.blue(`  📊 Testing: ${url}`));
+        console.log(chalk.blue(`  📝 ${actionText} reports for: ${outputName}`));
+        
+        // Lighthouse configuration - optimized to match PageSpeed Insights
+        const options = {
+          port: (new URL(browser.wsEndpoint())).port,
+          output: ['json', 'html'],
+          onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
+          formFactor: 'desktop',
+          throttling: {
+            // Use more realistic throttling to match PageSpeed Insights
+            cpuSlowdownMultiplier: 1,
+            networkRttMs: 40,
+            networkThroughputKbps: 10240,
+            requestLatencyMs: 0
+          },
+          maxWaitForLoad: 45000,
+          screenEmulation: {
+            mobile: false,
+            width: 1350,
+            height: 940,
+            deviceScaleFactor: 1,
+            disabled: false
+          },
+          // Additional settings to match PageSpeed Insights
+          disableStorageReset: false,
+          disableDeviceEmulation: false,
+          emulatedUserAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        };
+
+        // Run Lighthouse
+        const runnerResult = await lighthouse(url, options);
+        const report = runnerResult.lhr;
+        
+        // Save JSON report (overwrite if exists)
+        await fsp.writeFile(jsonOutputPath, JSON.stringify(report, null, 2));
+        
+        // Save HTML report (overwrite if exists)
+        await fsp.writeFile(htmlOutputPath, runnerResult.report);
+        
+        console.log(chalk.blue(`  📄 Reports saved: ${outputName}.report.json & ${outputName}.report.html`));
+        
+        const successText = reportsExist ? 'Updated' : 'Generated';
+        console.log(chalk.green(`  ✅ ${successText} report for: ${url}`));
+        
+        return {
+          url: url,
+          performance: report.categories?.performance?.score * 100,
+          accessibility: report.categories?.accessibility?.score * 100,
+          bestPractices: report.categories?.["best-practices"]?.score * 100,
+          seo: report.categories?.seo?.score * 100,
+          issues: this.extractLighthouseIssues(report)
+        };
+      } catch (err) {
+        console.error(chalk.red(`  ❌ Error generating report for ${url}: ${err.message}`));
+        return {
+          url: url,
+          error: err.message,
+          performance: null,
+          accessibility: null,
+          bestPractices: null,
+          seo: null,
+          issues: [],
+          timestamp: new Date().toISOString()
+        };
+      }
+    };
+
+    try {
+      const reportPromises = urls.map(generateReport);
+      const results = await Promise.all(reportPromises);
+      
+      console.log(chalk.blue('📋 Combining Lighthouse results...'));
+      const combinedResults = await this.combineLightHouseData(urls);
+      
+      return combinedResults;
+    } finally {
+      await browser.close();
+    }
+  }
+
+  /**
+   * Run Lighthouse audit and return structured results
+   */
+  async runLighthouseAudit(urls) {
+    console.log(chalk.blue('🚀 Starting Lighthouse Audit...'));
+    
+    if (!urls || urls.length === 0) {
+      console.log(chalk.yellow('No URLs provided. Skipping Lighthouse audit.'));
+      return {
+        totalIssues: 0,
+        highSeverity: 0,
+        mediumSeverity: 0,
+        lowSeverity: 0,
+        issues: [],
+        scores: {},
+        urls: []
+      };
+    }
+
+    try {
+      const results = await this.generateLightHouseReport(urls);
+      
+      // Calculate summary statistics
+      let totalIssues = 0;
+      let highSeverity = 0;
+      let mediumSeverity = 0;
+      let lowSeverity = 0;
+      const allIssues = [];
+      const scores = {};
+
+      results.forEach(result => {
+        if (result.issues) {
+          result.issues.forEach(issue => {
+            totalIssues++;
+            allIssues.push(issue);
+            if (issue.severity === 'high') highSeverity++;
+            else if (issue.severity === 'medium') mediumSeverity++;
+            else lowSeverity++;
+          });
+        }
+
+        // Store scores
+        if (result.url) {
+          scores[result.url] = {
+            performance: result.performance,
+            accessibility: result.accessibility,
+            bestPractices: result.bestPractices,
+            seo: result.seo
+          };
+        }
+      });
+
+      // Display summary
+      this.displayLighthouseSummary(results, scores);
+
+      return {
+        totalIssues,
+        highSeverity,
+        mediumSeverity,
+        lowSeverity,
+        issues: allIssues,
+        scores,
+        urls: urls,
+        timestamp: new Date().toISOString(),
+        results
+      };
+
+    } catch (error) {
+      console.error(chalk.red('Error running Lighthouse audit:', error.message));
+      return {
+        totalIssues: 0,
+        highSeverity: 0,
+        mediumSeverity: 0,
+        lowSeverity: 0,
+        issues: [],
+        scores: {},
+        urls: urls,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Display Lighthouse audit summary
+   */
+  displayLighthouseSummary(results, scores) {
+    console.log(chalk.blue('\n📊 Lighthouse Audit Summary:'));
+    console.log(chalk.blue('='.repeat(50)));
+    
+    results.forEach(result => {
+      if (result.error) {
+        console.log(chalk.red(`❌ ${result.url}: ${result.error}`));
+        return;
+      }
+      
+      console.log(chalk.cyan(`\n🌐 ${result.url}:`));
+      console.log(`  Performance: ${this.getScoreDisplay(result.performance)}`);
+      console.log(`  Accessibility: ${this.getScoreDisplay(result.accessibility)}`);
+      console.log(`  Best Practices: ${this.getScoreDisplay(result.bestPractices)}`);
+      console.log(`  SEO: ${this.getScoreDisplay(result.seo)}`);
+      
+      if (result.issues && result.issues.length > 0) {
+        console.log(chalk.yellow(`  Issues found: ${result.issues.length}`));
+      } else {
+        console.log(chalk.green('  ✅ No issues found'));
+      }
+    });
+  }
+
+  /**
+   * Get formatted score display
+   */
+  getScoreDisplay(score) {
+    if (score === null || score === undefined) return chalk.gray('N/A');
+    if (score >= 90) return chalk.green(`${score.toFixed(0)}%`);
+    if (score >= 50) return chalk.yellow(`${score.toFixed(0)}%`);
+    return chalk.red(`${score.toFixed(0)}%`);
+  }
+}
+
+const BATCH_SIZE$3 = 5;
 
 /**
  * Testing audit module for detecting testing practices and coverage
@@ -3089,8 +2418,8 @@ class TestingAudit {
     
     const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
     let processed = 0;
-    for (let i = 0; i < testFiles.length; i += BATCH_SIZE$1) {
-      const batch = testFiles.slice(i, i + BATCH_SIZE$1);
+    for (let i = 0; i < testFiles.length; i += BATCH_SIZE$3) {
+      const batch = testFiles.slice(i, i + BATCH_SIZE$3);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Test Patterns] Progress: ${processed}/${testFiles.length} files checked`);
@@ -3131,8 +2460,8 @@ class TestingAudit {
     
     const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
     let processed = 0;
-    for (let i = 0; i < testFiles.length; i += BATCH_SIZE$1) {
-      const batch = testFiles.slice(i, i + BATCH_SIZE$1);
+    for (let i = 0; i < testFiles.length; i += BATCH_SIZE$3) {
+      const batch = testFiles.slice(i, i + BATCH_SIZE$3);
       await Promise.all(batch.map(async (file) => {
         processed++;
         process.stdout.write(`\r[Mocking Patterns] Progress: ${processed}/${testFiles.length} files checked`);
@@ -3352,7 +2681,7 @@ class TestingAudit {
   }
 }
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE$2 = 5;
 
 /**
  * Dependency audit module for detecting dependency issues
@@ -3387,8 +2716,8 @@ class DependencyAudit {
       const outdatedData = JSON.parse(outdatedResult);
       
       const keys = Object.keys(outdatedData);
-      for (let i = 0; i < keys.length; i += BATCH_SIZE) {
-        const batch = keys.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < keys.length; i += BATCH_SIZE$2) {
+        const batch = keys.slice(i, i + BATCH_SIZE$2);
         batch.forEach((packageName, idx) => {
           process.stdout.write(`\r[Outdated Dependencies] Progress: ${i + idx + 1}/${keys.length} checked`);
         const packageInfo = outdatedData[packageName];
@@ -3451,8 +2780,8 @@ class DependencyAudit {
       const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
       
       const packageNames = Object.keys(allDeps);
-      for (let i = 0; i < packageNames.length; i += BATCH_SIZE) {
-        const batch = packageNames.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < packageNames.length; i += BATCH_SIZE$2) {
+        const batch = packageNames.slice(i, i + BATCH_SIZE$2);
         batch.forEach((name, idx) => {
           process.stdout.write(`\r[Duplicate Dependencies] Progress: ${i + idx + 1}/${packageNames.length} checked`);
           if (packageNames.indexOf(name) !== i + idx) {
@@ -3528,8 +2857,8 @@ class DependencyAudit {
         return;
       }
       if (depcheckData.dependencies && depcheckData.dependencies.length > 0) {
-        for (let i = 0; i < depcheckData.dependencies.length; i += BATCH_SIZE) {
-          const batch = depcheckData.dependencies.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < depcheckData.dependencies.length; i += BATCH_SIZE$2) {
+          const batch = depcheckData.dependencies.slice(i, i + BATCH_SIZE$2);
           batch.forEach((dep, idx) => {
             process.stdout.write(`\r[Unused Dependencies] Progress: ${i + idx + 1}/${depcheckData.dependencies.length} checked`);
           this.addDependencyIssue({
@@ -3545,8 +2874,8 @@ class DependencyAudit {
         process.stdout.write(`\r[Unused Dependencies] Progress: ${depcheckData.dependencies.length}/${depcheckData.dependencies.length} checked\n`);
       }
       if (depcheckData.devDependencies && depcheckData.devDependencies.length > 0) {
-        for (let i = 0; i < depcheckData.devDependencies.length; i += BATCH_SIZE) {
-          const batch = depcheckData.devDependencies.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < depcheckData.devDependencies.length; i += BATCH_SIZE$2) {
+          const batch = depcheckData.devDependencies.slice(i, i + BATCH_SIZE$2);
           batch.forEach((dep, idx) => {
             process.stdout.write(`\r[Unused Dev Dependencies] Progress: ${i + idx + 1}/${depcheckData.devDependencies.length} checked`);
           this.addDependencyIssue({
@@ -3598,8 +2927,8 @@ class DependencyAudit {
       
       // Check for missing packages in node_modules
       const depKeys = Object.keys(allDeps);
-      for (let i = 0; i < depKeys.length; i += BATCH_SIZE) {
-        const batch = depKeys.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < depKeys.length; i += BATCH_SIZE$2) {
+        const batch = depKeys.slice(i, i + BATCH_SIZE$2);
         batch.forEach((packageName, idx) => {
           process.stdout.write(`\r[Missing Packages] Progress: ${i + idx + 1}/${depKeys.length} checked`);
         const packagePath = path.join('node_modules', packageName);
@@ -3631,8 +2960,8 @@ class DependencyAudit {
       
       if (packageJson.peerDependencies) {
         const peerKeys = Object.keys(packageJson.peerDependencies);
-        for (let i = 0; i < peerKeys.length; i += BATCH_SIZE) {
-          const batch = peerKeys.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < peerKeys.length; i += BATCH_SIZE$2) {
+          const batch = peerKeys.slice(i, i + BATCH_SIZE$2);
           batch.forEach((peerDep, idx) => {
             process.stdout.write(`\r[Peer Dependencies] Progress: ${i + idx + 1}/${peerKeys.length} checked`);
           const requiredVersion = packageJson.peerDependencies[peerDep];
@@ -3673,8 +3002,8 @@ class DependencyAudit {
         'jquery', 'angular', 'vue', 'react-dom'
       ];
       
-      for (let i = 0; i < largePackages.length; i += BATCH_SIZE) {
-        const batch = largePackages.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < largePackages.length; i += BATCH_SIZE$2) {
+        const batch = largePackages.slice(i, i + BATCH_SIZE$2);
         batch.forEach((pkg, idx) => {
           process.stdout.write(`\r[Large Dependencies] Progress: ${i + idx + 1}/${largePackages.length} checked`);
         if (allDeps[pkg]) {
@@ -3725,8 +3054,8 @@ class DependencyAudit {
         const problematicLicenses = ['GPL', 'AGPL', 'LGPL'];
         
         const licenseKeys = Object.keys(licenseData);
-        for (let i = 0; i < licenseKeys.length; i += BATCH_SIZE) {
-          const batch = licenseKeys.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < licenseKeys.length; i += BATCH_SIZE$2) {
+          const batch = licenseKeys.slice(i, i + BATCH_SIZE$2);
           batch.forEach((packageName, idx) => {
             process.stdout.write(`\r[License Compliance] Progress: ${i + idx + 1}/${licenseKeys.length} checked`);
           const packageInfo = licenseData[packageName];
@@ -3823,8 +3152,9 @@ class DependencyAudit {
  * Main audit orchestrator that runs all audit categories
  */
 class AuditOrchestrator {
-  constructor(folderPath) {
+  constructor(folderPath, lighthouseUrl = null) {
     this.folderPath = folderPath;
+    this.lighthouseUrl = lighthouseUrl;
     this.auditResults = {};
   }
 
@@ -3851,6 +3181,10 @@ class AuditOrchestrator {
           console.warn(chalk.yellow('⚠️  Accessibility audit failed:', error.message));
           return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
         }),
+        this.runLighthouseAudit().catch(error => {
+          console.warn(chalk.yellow('⚠️  Lighthouse audit failed:', error.message));
+          return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
+        }),
         this.runTestingAudit().catch(error => {
           console.warn(chalk.yellow('⚠️  Testing audit failed:', error.message));
           return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
@@ -3865,6 +3199,7 @@ class AuditOrchestrator {
         securityResults,
         performanceResults,
         accessibilityResults,
+        lighthouseResults,
         testingResults,
         dependencyResults
       ] = await Promise.all(auditPromises);
@@ -3884,6 +3219,7 @@ class AuditOrchestrator {
           security: securityResults,
           performance: performanceResults,
           accessibility: accessibilityResults,
+          lighthouse: lighthouseResults,
           testing: testingResults,
           dependency: dependencyResults
         }
@@ -3936,6 +3272,28 @@ class AuditOrchestrator {
     console.log(chalk.blue('♿ Running Accessibility Audit...'));
     const accessibilityAudit = new AccessibilityAudit(this.folderPath);
     return await accessibilityAudit.runAccessibilityAudit();
+  }
+
+  /**
+   * Run Lighthouse audit
+   */
+  async runLighthouseAudit() {
+    if (!this.lighthouseUrl) {
+      console.log(chalk.yellow('No Lighthouse URL provided. Skipping Lighthouse audit.'));
+      return {
+        totalIssues: 0,
+        highSeverity: 0,
+        mediumSeverity: 0,
+        lowSeverity: 0,
+        issues: [],
+        scores: {},
+        urls: []
+      };
+    }
+    
+    console.log(chalk.blue('🚀 Running Lighthouse Audit...'));
+    const lighthouseAudit = new LighthouseAudit(this.folderPath);
+    return await lighthouseAudit.runLighthouseAudit([this.lighthouseUrl]);
   }
 
   /**
@@ -4014,6 +3372,7 @@ class AuditOrchestrator {
       security: '🔒',
       performance: '⚡',
       accessibility: '♿',
+      lighthouse: '🚀',
       testing: '🧪',
       dependency: '📦'
     };
@@ -4044,6 +3403,11 @@ class AuditOrchestrator {
       console.log(chalk.blue('♿ Accessibility: Fix missing alt attributes and form labels'));
     }
     
+    // Lighthouse recommendations
+    if (categories.lighthouse && categories.lighthouse.totalIssues > 0) {
+      console.log(chalk.magenta('🚀 Lighthouse: Optimize your website for better performance and accessibility'));
+    }
+    
     // Testing recommendations
     if (categories.testing.highSeverity > 0) {
       console.log(chalk.magenta('🧪 Testing: Add test files and testing framework'));
@@ -4065,6 +3429,7 @@ class AuditOrchestrator {
       security: () => this.runSecurityAudit(),
       performance: () => this.runPerformanceAudit(),
       accessibility: () => this.runAccessibilityAudit(),
+      lighthouse: () => this.runLighthouseAudit(),
       testing: () => this.runTestingAudit(),
       dependency: () => this.runDependencyAudit()
     };
@@ -4077,50 +3442,943 @@ class AuditOrchestrator {
   }
 }
 
-const codeInsightInit = async (options = {}) => {
+const copyFile = (sourcePath, targetPath) => {
+  fs.copyFileSync(sourcePath, targetPath);
+};
+
+const copyStaticFiles = async (folderPath) => {
+  const dist = "../build";
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  await mkdir(folderPath, { recursive: true });
+  const sourcePath = path.join(__dirname, dist, "index.html");
+  const targetPath = path.join(folderPath, "index.html");
+  copyFile(sourcePath, targetPath);
+  const mainJsSourcePath = path.join(__dirname, dist, "bundle.js");
+  const mainJsTargetPath = path.join(folderPath, "bundle.js");
+  copyFile(mainJsSourcePath, mainJsTargetPath);
+  const mainCssSourcePath = path.join(__dirname, dist, "bundle.css");
+  const mainCssTargetPath = path.join(folderPath, "bundle.css");
+  copyFile(mainCssSourcePath, mainCssTargetPath);
+};
+
+// Default ESLint rules to exclude (commonly disabled by project architects)
+const DEFAULT_ESLINT_EXCLUDE_RULES = [
+  // Formatting and style rules
+  'indent', 'quotes', 'semi', 'comma-dangle', 'no-trailing-spaces', 'eol-last',
+  'no-multiple-empty-lines', 'space-before-function-paren', 'space-before-blocks',
+  'keyword-spacing', 'space-infix-ops', 'object-curly-spacing', 'array-bracket-spacing',
+  'comma-spacing', 'key-spacing', 'brace-style', 'camelcase', 'new-cap',
+  'no-underscore-dangle', 'no-unused-vars', 'no-console', 'no-debugger',
+  'prefer-const', 'no-var', 'arrow-spacing', 'no-spaced-func', 'func-call-spacing',
+  'no-multi-spaces', 'no-trailing-spaces', 'no-mixed-spaces-and-tabs',
+  'no-tabs', 'no-mixed-operators', 'operator-linebreak', 'nonblock-statement-body-position',
+  'no-else-return', 'no-nested-ternary', 'no-unneeded-ternary', 'object-shorthand',
+  'prefer-template', 'template-curly-spacing', 'prefer-arrow-callback', 'arrow-body-style',
+  'no-duplicate-imports', 'import/order', 'import/no-unresolved', 'import/extensions',
+  'import/no-extraneous-dependencies', 'import/prefer-default-export',
+  'react/jsx-indent', 'react/jsx-indent-props', 'react/jsx-closing-bracket-location',
+  'react/jsx-closing-tag-location', 'react/jsx-curly-spacing', 'react/jsx-equals-spacing',
+  'react/jsx-first-prop-new-line', 'react/jsx-max-props-per-line', 'react/jsx-one-expression-per-line',
+  'react/jsx-props-no-multi-spaces', 'react/jsx-tag-spacing', 'react/jsx-wrap-multilines',
+  'react/self-closing-comp', 'react/jsx-boolean-value', 'react/jsx-curly-brace-presence',
+  'react/jsx-no-bind', 'react/jsx-no-literals', 'react/jsx-pascal-case',
+  'react/jsx-sort-default-props', 'react/jsx-sort-props', 'react/no-array-index-key',
+  'react/no-danger', 'react/no-deprecated', 'react/no-did-mount-set-state',
+  'react/no-did-update-set-state', 'react/no-direct-mutation-state',
+  'react/no-find-dom-node', 'react/no-is-mounted', 'react/no-multi-comp',
+  'react/no-render-return-value', 'react/no-set-state', 'react/no-string-refs',
+  'react/no-unescaped-entities', 'react/no-unknown-property', 'react/no-unsafe',
+  'react/no-unused-prop-types', 'react/no-unused-state', 'react/prefer-es6-class',
+  'react/prefer-stateless-function', 'react/prop-types', 'react/react-in-jsx-scope',
+  'react/require-default-props', 'react/require-optimization', 'react/require-render-return',
+  'react/sort-comp', 'react/sort-prop-types', 'react/style-prop-object',
+  'react/void-dom-elements-no-children', 'react/jsx-key', 'react/jsx-no-duplicate-props',
+  'react/jsx-no-undef', 'react/jsx-uses-react', 'react/jsx-uses-vars',
+  'react/no-array-index-key', 'react/no-danger', 'react/no-deprecated',
+  'react/no-did-mount-set-state', 'react/no-did-update-set-state',
+  'react/no-direct-mutation-state', 'react/no-find-dom-node', 'react/no-is-mounted',
+  'react/no-multi-comp', 'react/no-render-return-value', 'react/no-set-state',
+  'react/no-string-refs', 'react/no-unescaped-entities', 'react/no-unknown-property',
+  'react/no-unsafe', 'react/no-unused-prop-types', 'react/no-unused-state',
+  'react/prefer-es6-class', 'react/prefer-stateless-function', 'react/prop-types',
+  'react/react-in-jsx-scope', 'react/require-default-props', 'react/require-optimization',
+  'react/require-render-return', 'react/sort-comp', 'react/sort-prop-types',
+  'react/style-prop-object', 'react/void-dom-elements-no-children', 'import/no-cycle', 
+  'max-len', 'no-param-reassign'
+];
+
+// Helper to get all rules enabled by a config
+function getRulesForConfig(configName) {
+  const require = createRequire(import.meta.url);
+  let rules = {};
   try {
-    await audit.createReportFolder();
+    if (configName === 'airbnb') {
+      // Airbnb base config aggregates these files
+      const airbnbRuleFiles = [
+        'eslint-config-airbnb-base/rules/best-practices',
+        'eslint-config-airbnb-base/rules/errors',
+        'eslint-config-airbnb-base/rules/node',
+        'eslint-config-airbnb-base/rules/style',
+        'eslint-config-airbnb-base/rules/variables',
+        'eslint-config-airbnb-base/rules/imports',
+        'eslint-config-airbnb-base/rules/strict',
+        'eslint-config-airbnb-base/rules/es6',
+      ];
+      airbnbRuleFiles.forEach(file => {
+        try {
+          const mod = require(file);
+          if (mod && mod.rules) {
+            rules = { ...rules, ...mod.rules };
+          }
+        } catch (e) {}
+      });
+    } else if (configName === 'eslint:recommended') {
+      // Try to load recommended config if available
+      try {
+        const recommended = require('eslint/conf/eslint-recommended');
+        if (recommended && recommended.rules) {
+          rules = { ...rules, ...recommended.rules };
+        }
+      } catch (e) {}
+    }
+    // Add more configs as needed
+  } catch (e) {}
+  return Object.keys(rules);
+}
 
-    const { reports = [], projectType } = options;
+// Helper to get config extends from config file
+function getConfigExtends(configPath) {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    if (Array.isArray(config.extends)) return config.extends;
+    if (typeof config.extends === 'string') return [config.extends];
+  } catch (e) {}
+  return [];
+}
+
+// Constants for configuration files
+const CONFIG_FOLDER$1 = "config";
+const ESLINTRC_JSON = ".eslintrc.json";
+const ESLINTRC_JS = ".eslintrc.js";
+const ESLINTRC_YML = ".eslintrc.yml";
+const ESLINTRC = ".eslintrc";
+const ESLINTRC_REACT = "eslintrc.react.json";
+const ESLINTRC_NODE = "eslintrc.node.json";
+const ESLINTRC_VANILLA = "eslintrc.vanilla.json";
+const ESLINTRC_TS = "eslintrc.typescript.json";
+const ESLINTRC_TSREACT = "eslintrc.tsreact.json";
+
+/**
+ * Function to determine ESLint configuration file path
+ * @param {boolean} recommendedLintRules
+ * @param {string} projectType
+ * @returns {string} lintConfigFile
+ */
+const getLintConfigFile$1 = (recommendedLintRules, projectType = '') => {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  let configFileName = ESLINTRC_JSON;
+
+  if (projectType.toLowerCase() === 'react') {
+    configFileName = ESLINTRC_REACT;
+  } else if (projectType.toLowerCase() === 'node') {
+    configFileName = ESLINTRC_NODE;
+  } else if (projectType.toLowerCase() === 'vanilla') {
+    configFileName = ESLINTRC_VANILLA;
+  } else if (projectType.toLowerCase() === 'typescript') {
+    configFileName = ESLINTRC_TS;
+  } else if (projectType.toLowerCase() === 'typescript + react' || projectType.toLowerCase() === 'tsreact') {
+    configFileName = ESLINTRC_TSREACT;
+  }
+
+  const configFilePath = path.join(__dirname, CONFIG_FOLDER$1, configFileName);
+  if (fs.existsSync(configFilePath)) {
+    return configFilePath;
+  }
+
+  // fallback to default logic
+  const recommendedLintRulesConfigFile = path.join(
+    __dirname,
+    CONFIG_FOLDER$1,
+    ESLINTRC_JSON
+  );
+  const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
+  const eslintLintFilePathFromModule = path.join(moduleDir, ESLINTRC_JSON);
+
+  if (recommendedLintRules) {
+    return recommendedLintRulesConfigFile;
+  }
+
+  const configFiles = [
+    ESLINTRC,
+    ESLINTRC_JS,
+    ESLINTRC_YML,
+    ESLINTRC_JSON,
+    eslintLintFilePathFromModule,
+  ];
+
+  return configFiles.find((file) => fs.existsSync(file));
+};
+
+/**
+ * Function to lint a single file
+ * @param {string} filePath
+ * @param {ESLint} eslint
+ * @returns {Promise<Object|null>} lint result
+ */
+const lintFile$1 = async (filePath, eslint) => {
+  try {
+    // Read file content
+    const data = await readFile(filePath, "utf8");
+
+    // Lint the file
+    const messages = await eslint.lintText(data, {
+      filePath,
+    });
+
+    // if (messages[0].errorCount) {
+    //   logError(filePath);
+    // } else if (messages[0].warningCount) {
+    //   logWarning(filePath);
+    // } else {
+    //   logSuccess(filePath);
+    // }
+
+    return {
+      filePath,
+      errorCount: messages[0].errorCount,
+      warningCount: messages[0].warningCount,
+      messages: messages[0].messages,
+    };
+  } catch (err) {
+    console.error(chalk.red(`Error reading file ${filePath}: ${err}`));
+    return null;
+  }
+};
+
+const BATCH_SIZE$1 = 5;
+
+/**
+ * Function to lint all files
+ * @param {Array<string>} files
+ * @param {string} folderPath
+ * @param {ESLint} eslint
+ * @param {string} projectType
+ * @param {Array<string>} reports
+ */
+const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) => {
+  console.log(
+    chalk.green(
+      `Total files count is ${files.length} This linting task will take some time.`
+    )
+  );
+
+  // Get merged exclude rules from config
+  const excludeRules = getMergedExcludeRules('eslint', DEFAULT_ESLINT_EXCLUDE_RULES);
+
+  let results = [];
+  let processed = 0;
+  for (let i = 0; i < files.length; i += BATCH_SIZE$1) {
+    const batch = files.slice(i, i + BATCH_SIZE$1);
+    const batchResults = await Promise.all(batch.map(async (filePath) => {
+      processed++;
+      process.stdout.write(`\r[ESLint] Progress: ${processed}/${files.length} files checked`);
+      return await lintFile$1(filePath, eslint);
+    }));
+    results.push(...batchResults);
+  }
+  process.stdout.write(`\r[ESLint] Progress: ${files.length}/${files.length} files checked\n`);
+
+  const lintConfigFile = getLintConfigFile$1(false, projectType); // Pass false for recommendedLintRules
+  const configExtends = getConfigExtends(lintConfigFile);
+  const configRuleMap = {};
+  configExtends.forEach(cfg => {
+    // Normalize config name
+    let name = cfg;
+    if (name.startsWith('plugin:')) name = name.split(':')[1].split('/')[0];
+    if (name.startsWith('eslint-config-')) name = name.replace('eslint-config-', '');
+    if (name === 'airbnb-base' || name === 'airbnb') name = 'airbnb';
+    if (name === 'recommended') name = 'eslint:recommended';
+    const rules = getRulesForConfig(name);
+    rules.forEach(rule => {
+      if (!configRuleMap[rule]) configRuleMap[rule] = [];
+      configRuleMap[rule].push(cfg);
+    });
+  });
+
+  const jsonReport = {
+    projectType,
+    reports,
+    excludeRules: {
+      enabled: excludeRules.length > 0,
+      rules: excludeRules,
+      count: excludeRules.length
+    },
+    results: results
+      .map((result) => {
+        let filteredMessages = result?.messages
+          .filter(message => !excludeRules.includes(message.ruleId))
+          .map((message) => ({
+            ruleId: message.ruleId,
+            severity: message.severity,
+            line: message.line,
+            column: message.column,
+            endLine: message.endLine,
+            endColumn: message.endColumn,
+            message: message.message,
+            fix: message.fix,
+            suggestions: message.suggestions,
+            fatal: message.fatal,
+            ruleSource: message.ruleId
+              ? (message.ruleId.startsWith('react/') ? 'React Plugin'
+                : message.ruleId.startsWith('@typescript-eslint/') ? 'TypeScript ESLint Plugin'
+                : message.ruleId.startsWith('import/') ? 'Import Plugin'
+                : 'ESLint core')
+              : '',
+            configSource: message.ruleId && configRuleMap[message.ruleId] ? configRuleMap[message.ruleId] : [],
+          }));
+        // If errorCount > 0 but messages is empty, omit this file from the report
+        if ((result?.errorCount > 0) && (!filteredMessages || filteredMessages.length === 0)) {
+          return null;
+        }
+        return {
+          filePath: result?.filePath,
+          errorCount: filteredMessages.length,
+          warningCount: 0,
+          messages: filteredMessages,
+        };
+      })
+      .filter(Boolean),
+  };
+
+  await writeFile(
+    path.join(folderPath, "eslint-report.json"),
+    JSON.stringify(jsonReport, null, 2)
+  );
+};
+
+/**
+ * Function for linting all matched files
+ * @param {String} folderPath
+ * @param {String} jsFilePathPattern
+ * @param {Boolean} recommendedLintRules
+ * @param {String} projectType
+ * @param {Array<string>} reports
+ */
+const generateESLintReport = async (
+  folderPath,
+  recommendedLintRules,
+  projectType = '',
+  reports = []
+) => {
+  const lintConfigFile = getLintConfigFile$1(recommendedLintRules, projectType);
+  if (!lintConfigFile) {
+    throw new Error(".eslintrc file is missing");
+  }
+
+  console.log(chalk.blue(`Using ESLint config: ${lintConfigFile}`));
+
+  const eslint = new ESLint({
+    useEslintrc: false,
+    overrideConfigFile: lintConfigFile,
+  });
+
+  const files = await globby(getConfigPattern('jsFilePathPattern'));
+  console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${getConfigPattern('jsFilePathPattern').join(', ')}`));
+  // console.log(chalk.gray(`Files being processed:`));
+  // files.slice(0, 10).forEach(file => console.log(chalk.gray(`  - ${file}`)));
+  // if (files.length > 10) {
+  //   console.log(chalk.gray(`  ... and ${files.length - 10} more files`));
+  // }
+  await lintAllFiles$1(files, folderPath, eslint, projectType, reports);
+
+  try {
+    const auditOutput = execSync('npm audit --json', {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: 'pipe'
+    });
+    try {
+      // Only try to parse if output looks like JSON
+      if (auditOutput.trim().startsWith('{')) {
+        const audit = JSON.parse(auditOutput);
+        // ... process audit ...
+      } else {
+        console.warn(chalk.yellow('npm audit did not return JSON output.'));
+        console.warn(auditOutput);
+      }
+    } catch (parseErr) {
+      console.warn(chalk.yellow('⚠️ Could not parse audit JSON. Output was:'));
+      console.warn(auditOutput);
+    }
+  } catch (error) {
+    // ... existing error handling ...
+  }
+};
+
+const { lint } = stylelint;
+
+// Default Stylelint rules to exclude (commonly disabled by project architects)
+const DEFAULT_STYLELINT_EXCLUDE_RULES = [
+  // Formatting and style rules
+  'indentation', 'string-quotes', 'color-hex-case', 'color-hex-length',
+  'color-named', 'color-no-invalid-hex', 'font-family-name-quotes',
+  'font-weight-notation', 'function-calc-no-unspaced-operator',
+  'function-comma-newline-after', 'function-comma-newline-before',
+  'function-comma-space-after', 'function-comma-space-before',
+  'function-max-empty-lines', 'function-name-case', 'function-parentheses-newline-inside',
+  'function-parentheses-space-inside', 'function-url-quotes', 'function-whitespace-after',
+  'number-leading-zero', 'number-max-precision', 'number-no-trailing-zeros',
+  'string-no-newline', 'unit-case', 'unit-no-unknown', 'value-keyword-case',
+  'value-list-comma-newline-after', 'value-list-comma-newline-before',
+  'value-list-comma-space-after', 'value-list-comma-space-before',
+  'value-list-max-empty-lines', 'value-no-vendor-prefix', 'property-case',
+  'property-no-vendor-prefix', 'declaration-bang-space-after',
+  'declaration-bang-space-before', 'declaration-colon-newline-after',
+  'declaration-colon-space-after', 'declaration-colon-space-before',
+  'declaration-block-no-duplicate-properties', 'declaration-block-no-redundant-longhand-properties',
+  'declaration-block-no-shorthand-property-overrides', 'declaration-block-semicolon-newline-after',
+  'declaration-block-semicolon-newline-before', 'declaration-block-semicolon-space-after',
+  'declaration-block-semicolon-space-before', 'declaration-block-trailing-semicolon',
+  'block-closing-brace-empty-line-before', 'block-closing-brace-newline-after',
+  'block-closing-brace-newline-before', 'block-closing-brace-space-after',
+  'block-closing-brace-space-before', 'block-no-empty', 'block-opening-brace-newline-after',
+  'block-opening-brace-newline-before', 'block-opening-brace-space-after',
+  'block-opening-brace-space-before', 'selector-attribute-brackets-space-inside',
+  'selector-attribute-operator-space-after', 'selector-attribute-operator-space-before',
+  'selector-attribute-quotes', 'selector-combinator-space-after',
+  'selector-combinator-space-before', 'selector-descendant-combinator-no-non-space',
+  'selector-max-compound-selectors', 'selector-max-specificity', 'selector-no-qualifying-type',
+  'selector-pseudo-class-case', 'selector-pseudo-class-no-unknown',
+  'selector-pseudo-class-parentheses-space-inside', 'selector-pseudo-element-case',
+  'selector-pseudo-element-colon-notation', 'selector-pseudo-element-no-unknown',
+  'selector-type-case', 'selector-type-no-unknown', 'selector-max-empty-lines',
+  'rule-empty-line-before', 'at-rule-empty-line-before', 'at-rule-name-case',
+  'at-rule-name-newline-after', 'at-rule-name-space-after', 'at-rule-no-unknown',
+  'at-rule-semicolon-newline-after', 'at-rule-semicolon-space-before',
+  'comment-empty-line-before', 'comment-no-empty', 'comment-whitespace-inside',
+  'comment-word-blacklist', 'max-empty-lines', 'max-line-length', 'max-nesting-depth',
+  'no-browser-hacks', 'no-descending-specificity', 'no-duplicate-selectors',
+  'no-empty-source', 'no-eol-whitespace', 'no-extra-semicolons', 'no-invalid-double-slash-comments',
+  'no-missing-end-of-source-newline', 'no-unknown-animations', 'alpha-value-notation',
+  'color-function-notation', 'hue-degree-notation', 'import-notation',
+  'keyframe-selector-notation', 'media-feature-name-value-allowed-list',
+  'media-feature-range-notation', 'selector-not-notation', 'shorthand-property-no-redundant-values',
+  
+  // Naming convention rules commonly disabled
+  'selector-class-pattern',
+  'selector-id-pattern',
+  'selector-nested-pattern',
+  'custom-property-pattern',
+  'keyframes-name-pattern',
+  'class-name-pattern',
+  'id-pattern',
+  
+  // SCSS specific rules commonly disabled
+  'scss/selector-no-redundant-nesting-selector',
+  'scss/at-rule-no-unknown',
+  'scss/at-import-partial-extension',
+  'scss/at-import-no-partial-leading-underscore',
+  'scss/at-import-partial-extension-blacklist',
+  'scss/at-import-partial-extension-whitelist',
+  'scss/at-rule-conditional-no-parentheses',
+  'scss/at-rule-no-vendor-prefix',
+  'scss/comment-no-empty',
+  'scss/comment-no-loud',
+  'scss/declaration-nested-properties',
+  'scss/declaration-nested-properties-no-divided-groups',
+  'scss/dollar-variable-colon-newline-after',
+  'scss/dollar-variable-colon-space-after',
+  'scss/dollar-variable-colon-space-before',
+  'scss/dollar-variable-default',
+  'scss/dollar-variable-empty-line-after',
+  'scss/dollar-variable-empty-line-before',
+  'scss/dollar-variable-first-in-block',
+  'scss/dollar-variable-no-missing-interpolation',
+  'scss/dollar-variable-pattern',
+  'scss/double-slash-comment-whitespace-inside',
+  'scss/function-color-relative',
+  'scss/function-no-unknown',
+  'scss/function-quote-no-quoted-strings-inside',
+  'scss/function-unquote-no-unquoted-strings-inside',
+  'scss/map-keys-quotes',
+  'scss/media-feature-value-dollar-variable',
+  'scss/no-duplicate-dollar-variables',
+  'scss/no-duplicate-mixins',
+  'scss/no-global-function-names',
+  'scss/operator-no-newline-after',
+  'scss/operator-no-newline-before',
+  'scss/operator-no-unspaced',
+  'scss/partial-no-import',
+  'scss/percent-placeholder-pattern',
+  'scss/selector-nest-combinators',
+  'scss/selector-no-union-class-name',
+  
+  // Prettier-related rules to exclude (since we removed Prettier config)
+  'prettier/prettier',
+  'stylelint-config-prettier',
+  'stylelint-config-prettier-scss'
+];
+
+// Constants for configuration files
+const CONFIG_FOLDER = "config";
+const STYLELINTRC_JSON = ".stylelintrc.json";
+const STYLELINTRC_JS = ".stylelintrc.js";
+const STYLELINTRC_YML = ".stylelintrc.yml";
+const STYLELINTRC_CONFIG = "stylelint.config.js";
+
+/**
+ * Function to determine Stylelint configuration file path
+ * @param {boolean} recommendedLintRules
+ * @returns {string} lintStyleConfigFile
+ */
+const getLintConfigFile = (recommendedLintRules) => {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const recommendedLintRulesConfigFile = path.join(
+    __dirname,
+    CONFIG_FOLDER,
+    STYLELINTRC_JSON
+  );
+  const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
+  const styleLintFilePathFromModule = path.join(moduleDir, STYLELINTRC_JSON);
+
+  const configFiles = [
+    STYLELINTRC_CONFIG,
+    STYLELINTRC_JS,
+    STYLELINTRC_YML,
+    STYLELINTRC_JSON,
+    styleLintFilePathFromModule,
+  ];
+
+  return recommendedLintRules
+    ? recommendedLintRulesConfigFile
+    : configFiles.find((file) => fs.existsSync(file));
+};
+
+/**
+ * Function to handle errors during file reading
+ * @param {string} filePath
+ * @param {Error} error
+ * @returns {null}
+ */
+const handleFileReadError = (filePath, error) => {
+  console.error(chalk.red(`Error reading file ${filePath}: ${error}`));
+  return null;
+};
+
+/**
+ * Function to lint a single file
+ * @param {string} filePath
+ * @param {string} lintStyleConfigFile
+ * @returns {Promise<Object|null>} lint result
+ */
+const lintFile = async (filePath, lintStyleConfigFile) => {
+  try {
+    // Read file content
+    const data = await readFile(filePath, "utf8");
+    // Lint the file
+    const item = await lint({
+      code: data,
+      configFile: lintStyleConfigFile,
+    });
+
+    const output = JSON.parse(item.output);
     
-    if (projectType) {
-      console.log(`Project type selected: ${projectType}`);
-    }
+    // Debug logging for files with errors but no messages
+    // if (output[0] && output[0].warnings && output[0].warnings.length > 0) {
+    //   console.log(`[Stylelint Debug] ${filePath}: ${output[0].warnings.length} warnings found`);
+    //   output[0].warnings.forEach((warning, index) => {
+    //     console.log(`[Stylelint Debug]   Warning ${index + 1}: ${warning.rule} - ${warning.text}`);
+    //   });
+    // } else if (output[0] && output[0].errored) {
+    //   console.log(`[Stylelint Debug] ${filePath}: File has errors but no warnings array`);
+    //   console.log(`[Stylelint Debug] Output structure:`, JSON.stringify(output[0], null, 2));
+    // }
 
-    // Traditional reports
-    if (reports.includes('all') || reports.includes('eslint')) {
-      await audit.generateESLintReport(true, projectType, reports);
-    }
-    if (reports.includes('all') || reports.includes('stylelint')) {
-      await audit.generateStyleLintReport(true, projectType, reports);
-    }
-    if (reports.includes('all') || reports.includes('package')) {
-      await audit.generateNpmPackageReport(projectType, reports);
-    }
-
-    // Comprehensive audits
-    const auditCategories = ['security', 'performance', 'accessibility', 'testing', 'dependency'];
-    const hasAuditReports = auditCategories.some(category => reports.includes(category));
+    // Safeguard against malformed output
+    const warnings = output[0] && output[0].warnings ? output[0].warnings : [];
     
-    if (reports.includes('comprehensive') || hasAuditReports) {
-      const orchestrator = new AuditOrchestrator('./report');
+    // Determine friendly config source
+    let configSourceValue = path.basename(lintStyleConfigFile);
+    try {
+      const configContent = JSON.parse(fs.readFileSync(lintStyleConfigFile, 'utf8'));
+      if (Array.isArray(configContent.extends) && configContent.extends.length > 0) {
+        configSourceValue = configContent.extends[0];
+      } else if (typeof configContent.extends === 'string') {
+        configSourceValue = configContent.extends;
+      }
+    } catch (e) {}
+
+    return {
+      filePath,
+      errorCount: warnings.length,
+      warningCount: 0,
+      messages: warnings.map((message) => ({
+        line: message.line,
+        column: message.column,
+        endLine: message.endLine,
+        endColumn: message.endColumn,
+        severity: message.severity,
+        rule: message.rule,
+        message: message.text,
+        fix: message.fix,
+        suggestions: message.suggestions,
+        ruleSource: message.rule
+          ? (message.rule.startsWith('scss/') ? 'SCSS Plugin'
+            : message.rule.startsWith('order/') ? 'Order Plugin'
+            : 'Stylelint core')
+          : '',
+        configSource: [configSourceValue],
+      })),
+    };
+  } catch (err) {
+    return handleFileReadError(filePath, err);
+  }
+};
+
+const BATCH_SIZE = 5;
+
+/**
+ * Function to lint all files
+ * @param {Array<string>} files
+ * @param {string} folderPath
+ * @param {string} lintStyleConfigFile
+ */
+const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType, reports) => {
+  console.log(
+    chalk.green(
+      `Total files count is ${files.length} This linting task will take some time.`
+    )
+  );
+
+  // Get merged exclude rules from config
+  const excludeRules = getMergedExcludeRules('stylelint', DEFAULT_STYLELINT_EXCLUDE_RULES);
+
+  let results = [];
+  let processed = 0;
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    const batch = files.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(async (filePath) => {
+      processed++;
+      process.stdout.write(`\r[Stylelint] Progress: ${processed}/${files.length} files checked`);
+      return await lintFile(filePath, lintStyleConfigFile);
+    }));
+    results.push(...batchResults);
+  }
+  process.stdout.write(`\r[Stylelint] Progress: ${files.length}/${files.length} files checked\n`);
+
+  // Filter messages based on exclude rules and update error counts
+  const filteredResults = results.map(result => {
+    const filteredMessages = result.messages.filter(message => !excludeRules.includes(message.rule));
+    
+    // Ensure error count matches actual message count
+    const actualErrorCount = filteredMessages.length;
+    
+    // Log if there's a mismatch between error count and message count
+    if (result.errorCount > 0 && actualErrorCount === 0) {
+      console.log(`[Stylelint Warning] ${result.filePath}: Error count (${result.errorCount}) doesn't match message count (${actualErrorCount})`);
+    }
+    
+    return {
+      ...result,
+      errorCount: actualErrorCount,
+      warningCount: 0,
+      messages: filteredMessages
+    };
+  });
+
+  // BEM naming convention check
+  let bemFound = false;
+  for (const file of files) {
+    const content = fs.readFileSync(file, 'utf8');
+    if (/\.[a-z]+__[a-z]+(--[a-z]+)?/.test(content)) {
+      bemFound = true;
+      break;
+    }
+  }
+  const bemNaming = {
+    type: 'bem-naming',
+    passed: bemFound,
+    message: bemFound ? 'BEM naming convention detected.' : 'No BEM naming convention detected.'
+  };
+
+  const jsonReport = {
+    projectType,
+    reports,
+    excludeRules: {
+      enabled: excludeRules.length > 0,
+      rules: excludeRules,
+      count: excludeRules.length
+    },
+    results: filteredResults,
+    bemNaming // <-- add BEM naming result
+  };
+
+  await fs.promises.writeFile(
+    path.join(folderPath, "stylelint-report.json"),
+    JSON.stringify(jsonReport, null, 2)
+  );
+};
+
+/**
+ * Function for linting all matched files
+ * @param {String} folderPath
+ * @param {Boolean} recommendedLintRules
+ * @param {String} projectType
+ * @param {Array<string>} reports
+ */
+const generateStyleLintReport = async (
+  folderPath,
+  recommendedLintRules,
+  projectType = '',
+  reports = []
+) => {
+  const lintStyleConfigFile = getLintConfigFile(recommendedLintRules);
+  if (!lintStyleConfigFile) {
+    throw new Error(".stylelintrc.json file is missing");
+  }
+
+  // Use config-driven pattern for SCSS/CSS/LESS files
+  const files = await globby(getConfigPattern('scssFilePathPattern'));
+
+  await lintAllFiles(files, folderPath, lintStyleConfigFile, projectType, reports);
+};
+
+const kbToMb = (kilobytes) => kilobytes / 1024;
+
+const generateNpmPackageReport = async () => {
+  const folderPath = path.resolve(process.cwd(), "report");
+  try {
+    const data = await readFile("package.json", "utf8");
+    const packageJson = JSON.parse(data);
+    const dependencies = packageJson?.dependencies || {};
+    const devDependencies = packageJson?.devDependencies || {};
+    let npmPackagesData = {
+      dependencies: [],
+      devDependencies: [],
+    };
+
+    const processPackage = async (packageName, isDevDependency = false) => {
+      // console.log(chalk.green(`Validating ${packageName}`));
+      try {
+        const response = await fetch(
+          `https://registry.npmjs.org/${packageName}`
+        );
+
+        const packageInfo = await response.json();
+        const {
+          name,
+          version,
+          dist: { tarball, unpackedSize },
+          license,
+          bugs,
+          description,
+          deprecated,
+        } = packageInfo?.versions[packageInfo["dist-tags"]?.latest];
+
+        const packageData = {
+          name,
+          version,
+          license,
+          download: tarball,
+          description,
+          unpackedSize: unpackedSize
+            ? `${kbToMb(unpackedSize).toFixed(2)} MB`
+            : "Not available", // Convert to MB
+          deprecated: deprecated ? "Deprecated" : "Not deprecated",
+        };
+
+        if (isDevDependency) {
+          npmPackagesData.devDependencies.push(packageData);
+        } else {
+          npmPackagesData.dependencies.push(packageData);
+        }
+      } catch (err) {
+        console.log(
+          chalk.red(`Something went wrong with ${packageName} package`)
+        );
+      }
+    };
+
+    const depNames = Object.keys(dependencies);
+    let processed = 0;
+    for (const packageName of depNames) {
+      processed++;
+      process.stdout.write(`\r[NPM Packages] Progress: ${processed}/${depNames.length} dependencies checked`);
+      await processPackage(packageName);
+    }
+    process.stdout.write(`\r[NPM Packages] Progress: ${depNames.length}/${depNames.length} dependencies checked\n`);
+
+    // Process devDependencies
+    const devDepNames = Object.keys(devDependencies);
+    let devProcessed = 0;
+    for (const packageName of devDepNames) {
+      devProcessed++;
+      process.stdout.write(`\r[NPM Dev Packages] Progress: ${devProcessed}/${devDepNames.length} devDependencies checked`);
+      await processPackage(packageName, true);
+    }
+    process.stdout.write(`\r[NPM Dev Packages] Progress: ${devDepNames.length}/${devDepNames.length} devDependencies checked\n`);
+
+    await writeFile(
+      `${folderPath}/npm-report.json`,
+      JSON.stringify(npmPackagesData, null, 2)
+    );
+  } catch (error) {
+    console.error("Error:", error);
+  }
+};
+
+// Function to make the API request
+async function makeAPIRequest(
+  accessToken,
+  aemBasePath,
+  aemContentPath,
+  aemAppsPath,
+  slingResourceTypeBase
+) {
+  const componentListQuery = new URLSearchParams();
+  componentListQuery.append("p.limit", "-1");
+  componentListQuery.append("path", aemAppsPath);
+  componentListQuery.append("type", "cq:Component");
+
+  // API endpoint URL
+  const componentQueryURL = `${aemBasePath}/bin/querybuilder.json?${componentListQuery.toString()}`;
+
+  // Create the headers object
+  const headers = {
+    Cookie: `login-token=${accessToken}`, // Set the access token as a cookie
+  };
+
+  // Make the API request
+  const response = await fetch(componentQueryURL, { headers });
+
+  // Parse the response
+  const data = await response.json();
+
+  let result = [];
+  for (const component of data.hits) {
+    const componentPropertiesQuery = new URLSearchParams();
+    componentPropertiesQuery.append("p.limit", "5");
+    componentPropertiesQuery.append("path", aemContentPath);
+    componentPropertiesQuery.append("property", "sling:resourceType");
+    componentPropertiesQuery.append(
+      "property.value",
+      `${slingResourceTypeBase}${component.name}`
+    );
+    componentPropertiesQuery.append("type", "nt:unstructured");
+
+    // API endpoint URL
+    const componentPropertiesURL = `${aemBasePath}/bin/querybuilder.json?${componentPropertiesQuery.toString()}`;
+    const resp = await fetch(componentPropertiesURL, { headers });
+    const json = await resp.json();
+    result.push(Object.assign({}, component, { usageCount: await json.total }));
+  }
+
+  return result;
+}
+
+const generateComponentUsageReport = async (
+  reportFolderPath,
+  accessToken,
+  aemBasePath,
+  aemContentPath,
+  aemAppsPath,
+  slingResourceTypeBase
+) => {
+  const data = await makeAPIRequest(
+    accessToken,
+    aemBasePath,
+    aemContentPath,
+    aemAppsPath,
+    slingResourceTypeBase
+  );
+
+  await writeFile(
+    path.join(reportFolderPath, "component-usage-report.json"),
+    JSON.stringify(data, null, 2)
+  );
+
+  return data;
+};
+
+/**
+ * Main function to initialize code insight tool
+ */
+async function codeInsightInit(options = {}) {
+  const {
+    projectType = 'Other',
+    reports = ['all'],
+    eslintConfig = 'airbnb',
+    stylelintConfig = 'standard',
+    lighthouseUrl = null
+  } = options;
+
+  console.log(chalk.blue('🚀 UI Code Insight Tool Starting...\n'));
+
+  const auditCategories = ['security', 'performance', 'accessibility', 'lighthouse', 'testing', 'dependency'];
+  const currentDir = process.cwd();
+  const reportDir = path.join(currentDir, 'report');
+
+  // Create report directory if it doesn't exist
+  if (!fs.existsSync(reportDir)) {
+    fs.mkdirSync(reportDir, { recursive: true });
+  }
+
+  try {
+    // Copy static files (dashboard template)
+    console.log(chalk.blue('📁 Copying static files...'));
+    await copyStaticFiles(reportDir);
+    console.log(chalk.green('✅ Static files copied successfully!'));
+
+    // Initialize audit orchestrator with lighthouse URL
+    const orchestrator = new AuditOrchestrator(reportDir, lighthouseUrl);
       
-      if (reports.includes('comprehensive')) {
+    // Run audits based on selection
+    if (reports.includes('all')) {
+      console.log(chalk.blue('🔍 Running all audits...\n'));
         await orchestrator.runAllAudits();
       } else {
-        for (const category of auditCategories) {
-          if (reports.includes(category)) {
-            console.log(`\nRunning ${category} audit...`);
-            await orchestrator.runSpecificAudit(category);
-          }
+      console.log(chalk.blue(`🔍 Running selected audits: ${reports.join(', ')}\n`));
+      
+      for (const reportType of reports) {
+        if (auditCategories.includes(reportType)) {
+          console.log(chalk.blue(`\n📊 Running ${reportType} audit...`));
+          await orchestrator.runSpecificAudit(reportType);
         }
       }
     }
+
+    // Generate additional reports if requested
+    if (reports.includes('eslint') || reports.includes('all')) {
+      console.log(chalk.blue('\n📋 Generating ESLint Report...'));
+      await generateESLintReport(eslintConfig, reportDir);
+    }
+
+    if (reports.includes('stylelint') || reports.includes('all')) {
+      console.log(chalk.blue('\n📋 Generating Stylelint Report...'));
+      await generateStyleLintReport(stylelintConfig, reportDir);
+          }
+
+    if (reports.includes('packages') || reports.includes('all')) {
+      console.log(chalk.blue('\n📋 Generating Packages Report...'));
+      await generateNpmPackageReport(projectType, reports);
+    }
+
+    if (reports.includes('component-usage') || reports.includes('all')) {
+      console.log(chalk.blue('\n📋 Generating Component Usage Report...'));
+      await generateComponentUsageReport(reportDir);
+    }
+
+    console.log(chalk.green('\n✅ All reports generated successfully!'));
+    console.log(chalk.blue(`📁 Reports saved to: ${reportDir}`));
+    console.log(chalk.blue('🌐 Open dashboard.html in your browser to view results'));
+
   } catch (error) {
-    console.error("Error in codeInsightInit:", error);
+    console.error(chalk.red('❌ Error during code insight generation:', error.message));
+    throw error;
   }
-  // Ensure config is copied to report folder after all reports
-  audit.copyConfigToReportFolder();
-};
+}
 
 export { codeInsightInit };

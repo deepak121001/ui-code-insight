@@ -34,6 +34,7 @@
             <li><a href="#" id="securityAuditReport" class="block px-4 py-2 rounded hover:bg-blue-50">🔒 Security Audit</a></li>
             <li><a href="#" id="performanceAuditReport" class="block px-4 py-2 rounded hover:bg-blue-50">⚡ Performance Audit</a></li>
             <li><a href="#" id="accessibilityAuditReport" class="block px-4 py-2 rounded hover:bg-blue-50">♿ Accessibility Audit</a></li>
+            <li><a href="#" id="lighthouseAuditReport" class="block px-4 py-2 rounded hover:bg-blue-50">🚀 Lighthouse Audit</a></li>
             <li><a href="#" id="testingAuditReport" class="block px-4 py-2 rounded hover:bg-blue-50">🧪 Testing Audit</a></li>
             <li><a href="#" id="dependencyAuditReport" class="block px-4 py-2 rounded hover:bg-blue-50">📦 Dependency Audit</a></li>
             <li><a href="#" id="comprehensiveAuditReport" class="block px-4 py-2 rounded hover:bg-blue-50 font-medium">📊 Comprehensive Report</a></li>
@@ -100,6 +101,13 @@
               <h3 class="text-lg font-semibold mb-3 text-cyan-600">📦 Dependency Issues</h3>
               <div id="dependencyOverview" class="text-center">
                 <div class="text-3xl font-bold text-cyan-600" id="dependencyTotal">-</div>
+                <div class="text-sm text-gray-500">Total Issues</div>
+              </div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4">
+              <h3 class="text-lg font-semibold mb-3 text-orange-600">🚀 Lighthouse Issues</h3>
+              <div id="lighthouseOverview" class="text-center">
+                <div class="text-3xl font-bold text-orange-600" id="lighthouseTotal">-</div>
                 <div class="text-sm text-gray-500">Total Issues</div>
               </div>
             </div>
@@ -200,6 +208,15 @@
             <div id="accessibilityPagination" class="mt-2 md:mt-0"></div>
           </div>
           <div id="accessibilityTableWrap" class="overflow-x-auto"></div>
+        </section>
+        <!-- Lighthouse Audit Section -->
+        <section id="lighthouseSection" class="hidden">
+          <h2 class="text-xl font-semibold mb-4 flex items-center space-x-2"><span>🚀 Lighthouse Audit</span></h2>
+          <div class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between">
+            <input id="lighthouseSearch" type="text" placeholder="Search issues..." class="mb-2 md:mb-0 px-3 py-2 border rounded w-full md:w-1/3" />
+            <div id="lighthousePagination" class="mt-2 md:mt-0"></div>
+          </div>
+          <div id="lighthouseTableWrap" class="overflow-x-auto"></div>
         </section>
         <!-- Testing Audit Section -->
         <section id="testingSection" class="hidden">

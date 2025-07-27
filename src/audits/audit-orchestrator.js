@@ -5,7 +5,7 @@ import { writeFile } from 'fs/promises';
 import { SecurityAudit } from './security-audit.js';
 import { PerformanceAudit } from './performance-audit.js';
 import { AccessibilityAudit } from './accessibility-audit.js';
-
+import { LighthouseAudit } from './lighthouse-audit.js';
 import { TestingAudit } from './testing-audit.js';
 import { DependencyAudit } from './dependency-audit.js';
 
@@ -13,8 +13,9 @@ import { DependencyAudit } from './dependency-audit.js';
  * Main audit orchestrator that runs all audit categories
  */
 export class AuditOrchestrator {
-  constructor(folderPath) {
+  constructor(folderPath, lighthouseUrl = null) {
     this.folderPath = folderPath;
+    this.lighthouseUrl = lighthouseUrl;
     this.auditResults = {};
   }
 
@@ -41,6 +42,10 @@ export class AuditOrchestrator {
           console.warn(chalk.yellow('⚠️  Accessibility audit failed:', error.message));
           return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
         }),
+        this.runLighthouseAudit().catch(error => {
+          console.warn(chalk.yellow('⚠️  Lighthouse audit failed:', error.message));
+          return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
+        }),
         this.runTestingAudit().catch(error => {
           console.warn(chalk.yellow('⚠️  Testing audit failed:', error.message));
           return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
@@ -55,6 +60,7 @@ export class AuditOrchestrator {
         securityResults,
         performanceResults,
         accessibilityResults,
+        lighthouseResults,
         testingResults,
         dependencyResults
       ] = await Promise.all(auditPromises);
@@ -74,6 +80,7 @@ export class AuditOrchestrator {
           security: securityResults,
           performance: performanceResults,
           accessibility: accessibilityResults,
+          lighthouse: lighthouseResults,
           testing: testingResults,
           dependency: dependencyResults
         }
@@ -126,6 +133,28 @@ export class AuditOrchestrator {
     console.log(chalk.blue('♿ Running Accessibility Audit...'));
     const accessibilityAudit = new AccessibilityAudit(this.folderPath);
     return await accessibilityAudit.runAccessibilityAudit();
+  }
+
+  /**
+   * Run Lighthouse audit
+   */
+  async runLighthouseAudit() {
+    if (!this.lighthouseUrl) {
+      console.log(chalk.yellow('No Lighthouse URL provided. Skipping Lighthouse audit.'));
+      return {
+        totalIssues: 0,
+        highSeverity: 0,
+        mediumSeverity: 0,
+        lowSeverity: 0,
+        issues: [],
+        scores: {},
+        urls: []
+      };
+    }
+    
+    console.log(chalk.blue('🚀 Running Lighthouse Audit...'));
+    const lighthouseAudit = new LighthouseAudit(this.folderPath);
+    return await lighthouseAudit.runLighthouseAudit([this.lighthouseUrl]);
   }
 
   /**
@@ -204,6 +233,7 @@ export class AuditOrchestrator {
       security: '🔒',
       performance: '⚡',
       accessibility: '♿',
+      lighthouse: '🚀',
       testing: '🧪',
       dependency: '📦'
     };
@@ -234,6 +264,11 @@ export class AuditOrchestrator {
       console.log(chalk.blue('♿ Accessibility: Fix missing alt attributes and form labels'));
     }
     
+    // Lighthouse recommendations
+    if (categories.lighthouse && categories.lighthouse.totalIssues > 0) {
+      console.log(chalk.magenta('🚀 Lighthouse: Optimize your website for better performance and accessibility'));
+    }
+    
     // Testing recommendations
     if (categories.testing.highSeverity > 0) {
       console.log(chalk.magenta('🧪 Testing: Add test files and testing framework'));
@@ -255,6 +290,7 @@ export class AuditOrchestrator {
       security: () => this.runSecurityAudit(),
       performance: () => this.runPerformanceAudit(),
       accessibility: () => this.runAccessibilityAudit(),
+      lighthouse: () => this.runLighthouseAudit(),
       testing: () => this.runTestingAudit(),
       dependency: () => this.runDependencyAudit()
     };

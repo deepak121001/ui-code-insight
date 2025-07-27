@@ -445,6 +445,26 @@ function renderProjectMeta(meta) {
   }
 }
 
+// Helper function to get lighthouse total issues
+async function getLighthouseTotal() {
+  try {
+    const response = await fetch('./lightHouseCombine-report.json');
+    if (response.ok) {
+      const data = await response.json();
+      let totalIssues = 0;
+      data.forEach(item => {
+        if (item.issues) {
+          totalIssues += item.issues.length;
+        }
+      });
+      return totalIssues;
+    }
+  } catch (error) {
+    console.error('Error loading lighthouse data for overview:', error);
+  }
+  return 0;
+}
+
 // Render comprehensive audit overview
 function renderComprehensiveOverview(comprehensiveData, individualAuditData = {}) {
   // If comprehensiveData is missing or doesn't have categories, use individual audit data
@@ -478,6 +498,16 @@ function renderComprehensiveOverview(comprehensiveData, individualAuditData = {}
   if (accessibilityTotal) accessibilityTotal.textContent = getTotalIssues('accessibility', 'accessibility');
   if (testingTotal) testingTotal.textContent = getTotalIssues('testing', 'testing');
   if (dependencyTotal) dependencyTotal.textContent = getTotalIssues('dependency', 'dependency');
+  
+  // Load lighthouse total asynchronously
+  const lighthouseTotal = document.getElementById('lighthouseTotal');
+  if (lighthouseTotal) {
+    getLighthouseTotal().then(total => {
+      lighthouseTotal.textContent = total;
+    }).catch(() => {
+      lighthouseTotal.textContent = '0';
+    });
+  }
 }
 
 // Render overview charts

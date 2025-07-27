@@ -14,6 +14,7 @@ export const globalInit = () => {
     { id: 'securityAuditReport', file: 'security-audit-report.json' },
     { id: 'performanceAuditReport', file: 'performance-audit-report.json' },
     { id: 'accessibilityAuditReport', file: 'accessibility-audit-report.json' },
+    { id: 'lighthouseAuditReport', file: 'lightHouseCombine-report.json' },
     { id: 'testingAuditReport', file: 'testing-audit-report.json' },
     { id: 'dependencyAuditReport', file: 'dependency-audit-report.json' },
     { id: 'comprehensiveAuditReport', file: 'comprehensive-audit-report.json' },
