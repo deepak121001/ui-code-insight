@@ -1,4 +1,4 @@
-import { getConfigPattern } from './src/config-loader.js';
+import { getConfigPattern } from '../src/config-loader.js';
 import { globby } from 'globby';
 import fs from 'fs';
 import path from 'path';

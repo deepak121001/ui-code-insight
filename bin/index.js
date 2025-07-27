@@ -2,6 +2,11 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { codeInsightInit } from "../build/code-insight.js";
+import fs from 'fs';
+import path from 'path';
+
+// URL configuration file path - will be set to report folder during execution
+let URL_CONFIG_FILE = path.join(process.cwd(), '.ui-code-insight-urls.json');
 
 function getFriendlyConfigName(configKey) {
   if (configKey === 'airbnb') return 'Airbnb';
@@ -11,6 +16,270 @@ function getFriendlyConfigName(configKey) {
   if (configKey === 'plugin:import/recommended') return 'Import Plugin Recommended';
   // Add more as needed
   return configKey.replace(/^plugin:/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+// URL validation helper
+function validateUrls(input) {
+  if (!input) return 'At least one URL is required';
+  const urlList = input.split(',').map(url => url.trim()).filter(url => url);
+  if (urlList.length === 0) return 'At least one URL is required';
+  
+  for (const url of urlList) {
+    try {
+      const urlObj = new URL(url);
+      if (!urlObj.protocol || !urlObj.hostname) {
+        return `Invalid URL format: ${url}`;
+      }
+    } catch {
+      return `Please enter a valid URL: ${url}`;
+    }
+  }
+  return true;
+}
+
+// Parse URLs helper
+function parseUrls(input) {
+  return input.split(',').map(url => url.trim()).filter(url => url);
+}
+
+// Set URL config file path to report folder
+function setUrlConfigPath(reportDir) {
+  URL_CONFIG_FILE = path.join(reportDir, 'ui-code-insight-urls.json');
+}
+
+// Load saved URL configurations
+function loadUrlConfig() {
+  try {
+    if (fs.existsSync(URL_CONFIG_FILE)) {
+      const config = JSON.parse(fs.readFileSync(URL_CONFIG_FILE, 'utf8'));
+      return config;
+    }
+  } catch (error) {
+    console.warn(chalk.yellow('⚠️  Could not load saved URL configuration'));
+  }
+  return null;
+}
+
+// Save URL configuration
+function saveUrlConfig(urls, name = 'default') {
+  try {
+    // Ensure the directory exists
+    const configDir = path.dirname(URL_CONFIG_FILE);
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+    
+    const config = {
+      name,
+      urls,
+      timestamp: new Date().toISOString()
+    };
+    fs.writeFileSync(URL_CONFIG_FILE, JSON.stringify(config, null, 2));
+    console.log(chalk.green(`✅ URL configuration saved as "${name}" in report folder`));
+  } catch (error) {
+    console.warn(chalk.yellow('⚠️  Could not save URL configuration'));
+  }
+}
+
+async function promptForLiveUrls(auditType, description) {
+  console.log(chalk.blue(`\n${description}`));
+  
+  const { enableLiveUrlTesting } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'enableLiveUrlTesting',
+      message: `Would you like to enable live URL ${auditType} testing?`,
+      default: false,
+    },
+  ]);
+
+  if (!enableLiveUrlTesting) {
+    console.log(chalk.blue(`ℹ️  Running ${auditType} audit with code scanning only`));
+    return [];
+  }
+
+  const { urls } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'urls',
+      message: `Enter URLs to test (comma-separated, e.g., https://example.com, https://google.com):`,
+      validate: validateUrls,
+    },
+  ]);
+  
+  const urlList = parseUrls(urls);
+  console.log(chalk.green(`✅ Live ${auditType} testing will run on ${urlList.length} URL(s):`));
+  urlList.forEach(url => console.log(chalk.green(`   • ${url}`)));
+  
+  return urlList;
+}
+
+async function promptForLighthouseUrl() {
+  console.log(chalk.blue('\n📝 Note: Local Lighthouse results may differ from PageSpeed Insights'));
+  console.log(chalk.blue('   due to different testing environments and network conditions.\n'));
+  
+  const { url } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'url',
+      message: 'Enter the URL to test with Lighthouse (e.g., https://example.com):',
+      validate: (input) => {
+        if (!input) return 'URL is required for Lighthouse audit';
+        try {
+          const urlObj = new URL(input);
+          if (!urlObj.protocol || !urlObj.hostname) {
+            return 'Please enter a valid URL (including http:// or https://)';
+          }
+          return true;
+        } catch {
+          return 'Please enter a valid URL (including http:// or https://)';
+        }
+      },
+    },
+  ]);
+  
+  console.log(chalk.green(`✅ Lighthouse audit will run on: ${url}`));
+  return url;
+}
+
+async function promptForBatchUrlTesting(reports, reportDir = null) {
+  // Set URL config path to report folder if provided
+  if (reportDir) {
+    setUrlConfigPath(reportDir);
+  }
+  
+  // Check if any audits require live URLs
+  const liveUrlAudits = [];
+  if (reports.includes('lighthouse')) liveUrlAudits.push('Lighthouse');
+  if (reports.includes('security')) liveUrlAudits.push('Security');
+  if (reports.includes('accessibility')) liveUrlAudits.push('Accessibility');
+  
+  if (liveUrlAudits.length === 0) {
+    return { lighthouseUrl: null, accessibilityUrls: [], securityUrls: [] };
+  }
+  
+  console.log(chalk.blue('\n🌐 Live URL Testing Setup'));
+  console.log(chalk.blue('='.repeat(40)));
+  console.log(chalk.blue(`The following audits require live URLs: ${liveUrlAudits.join(', ')}`));
+  
+  // Check for saved URL configuration
+  const savedConfig = loadUrlConfig();
+  let useSavedConfig = false;
+  
+  if (savedConfig) {
+    console.log(chalk.blue(`📁 Found saved URL configuration: "${savedConfig.name}" (${savedConfig.urls.length} URLs)`));
+    const { useSaved } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'useSaved',
+        message: `Would you like to use the saved URL configuration?`,
+        default: true,
+      },
+    ]);
+    useSavedConfig = useSaved;
+  }
+  
+  if (useSavedConfig) {
+    console.log(chalk.green(`✅ Using saved URL configuration:`));
+    savedConfig.urls.forEach(url => console.log(chalk.green(`   • ${url}`)));
+    
+    return {
+      lighthouseUrl: reports.includes('lighthouse') ? savedConfig.urls[0] : null,
+      accessibilityUrls: reports.includes('accessibility') ? savedConfig.urls : [],
+      securityUrls: reports.includes('security') ? savedConfig.urls : [],
+    };
+  }
+  
+  console.log(chalk.blue('You can either:'));
+  console.log(chalk.blue('1. Enter URLs for each audit separately'));
+  console.log(chalk.blue('2. Use the same URLs for all audits (recommended)'));
+  
+  const { useBatchUrls } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'useBatchUrls',
+      message: 'Would you like to use the same URLs for all live URL audits?',
+      default: true,
+    },
+  ]);
+
+  if (useBatchUrls) {
+    const { batchUrls } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'batchUrls',
+        message: 'Enter URLs to test across all audits (comma-separated):',
+        validate: validateUrls,
+      },
+    ]);
+    
+    const urlList = parseUrls(batchUrls);
+    console.log(chalk.green(`✅ Using ${urlList.length} URL(s) for all live URL audits:`));
+    urlList.forEach(url => console.log(chalk.green(`   • ${url}`)));
+    
+    // Ask if user wants to save this configuration
+    const { saveConfig } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'saveConfig',
+        message: 'Would you like to save this URL configuration for future use?',
+        default: true,
+      },
+    ]);
+    
+    if (saveConfig) {
+      const { configName } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'configName',
+          message: 'Enter a name for this URL configuration:',
+          default: 'default',
+        },
+      ]);
+      saveUrlConfig(urlList, configName);
+    }
+    
+    return {
+      lighthouseUrl: reports.includes('lighthouse') ? urlList[0] : null, // Lighthouse uses first URL
+      accessibilityUrls: reports.includes('accessibility') ? urlList : [],
+      securityUrls: reports.includes('security') ? urlList : [],
+    };
+  } else {
+    // Individual URL prompting for each audit
+    let lighthouseUrl = null;
+    let accessibilityUrls = [];
+    let securityUrls = [];
+
+    if (reports.includes('lighthouse')) {
+      lighthouseUrl = await promptForLighthouseUrl();
+    }
+
+    if (reports.includes('accessibility')) {
+      accessibilityUrls = await promptForLiveUrls(
+        'accessibility',
+        '♿ Accessibility Audit - Live URL Testing\n' +
+        '     - Tests actual rendered pages for accessibility issues\n' +
+        '     - Uses axe-core for comprehensive WCAG compliance testing\n' +
+        '     - Tests color contrast, keyboard navigation, screen reader support\n' +
+        '     - Detects issues in JavaScript-rendered content\n' +
+        '     - Provides detailed recommendations for fixes'
+      );
+    }
+
+    if (reports.includes('security')) {
+      securityUrls = await promptForLiveUrls(
+        'security',
+        '🔒 Security Audit - Live URL Testing\n' +
+        '     - Tests HTTP security headers (HSTS, CSP, etc.)\n' +
+        '     - Checks for XSS vulnerabilities in rendered content\n' +
+        '     - Validates Content Security Policy effectiveness\n' +
+        '     - Tests transport security and certificate validation\n' +
+        '     - Provides security hardening recommendations'
+      );
+    }
+    
+    return { lighthouseUrl, accessibilityUrls, securityUrls };
+  }
 }
 
 async function main() {
@@ -168,136 +437,22 @@ async function main() {
     },
   ]);
 
-  let lighthouseUrl = null;
-  let accessibilityUrls = [];
-  let securityUrls = [];
-  
-  // If Lighthouse audit is selected, prompt for URL
-  if (reports.includes('lighthouse')) {
-    console.log(chalk.blue('\n📝 Note: Local Lighthouse results may differ from PageSpeed Insights'));
-    console.log(chalk.blue('   due to different testing environments and network conditions.\n'));
-    
-    const { url } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'url',
-        message: 'Enter the URL to test with Lighthouse (e.g., https://example.com):',
-        validate: (input) => {
-          if (!input) return 'URL is required for Lighthouse audit';
-          try {
-            new URL(input);
-            return true;
-          } catch {
-            return 'Please enter a valid URL (including http:// or https://)';
-          }
-        },
-      },
-    ]);
-    lighthouseUrl = url;
-    console.log(chalk.green(`✅ Lighthouse audit will run on: ${lighthouseUrl}`));
-  }
-
-  // If Security audit is selected, prompt for live URLs
-  if (reports.includes('security')) {
-    console.log(chalk.blue('\n🔒 Security Audit Options:'));
-    console.log(chalk.blue('   • Code scanning: Analyzes your local source code for security issues'));
-    console.log(chalk.blue('   • Live URL testing: Tests live websites for security vulnerabilities'));
-    console.log(chalk.blue('     - Checks HTTP security headers (CSP, HSTS, X-Frame-Options, etc.)'));
-    console.log(chalk.blue('     - Validates Content Security Policy effectiveness'));
-    console.log(chalk.blue('     - Detects XSS vulnerabilities in rendered content'));
-    console.log(chalk.blue('     - Tests for insecure transport (HTTP vs HTTPS)'));
-    console.log(chalk.blue('     - Identifies inline scripts and event handlers\n'));
-    
-    const { enableLiveUrlTesting } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'enableLiveUrlTesting',
-        message: 'Would you like to enable live URL security testing?',
-        default: false,
-      },
-    ]);
-
-    if (enableLiveUrlTesting) {
-      const { urls } = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'urls',
-          message: 'Enter URLs to test (comma-separated, e.g., https://example.com, https://google.com):',
-          validate: (input) => {
-            if (!input) return 'At least one URL is required for live security testing';
-            const urlList = input.split(',').map(url => url.trim());
-            for (const url of urlList) {
-              try {
-                new URL(url);
-              } catch {
-                return `Please enter a valid URL: ${url}`;
-              }
-            }
-            return true;
-          },
-        },
-      ]);
-      
-      securityUrls = urls.split(',').map(url => url.trim());
-      console.log(chalk.green(`✅ Live security testing will run on ${securityUrls.length} URL(s):`));
-      securityUrls.forEach(url => console.log(chalk.green(`   • ${url}`)));
-    } else {
-      console.log(chalk.blue('ℹ️  Running security audit with code scanning only'));
-    }
-  }
-
-  // If Accessibility audit is selected, prompt for live URLs
-  if (reports.includes('accessibility')) {
-    console.log(chalk.blue('\n♿ Accessibility Audit Options:'));
-    console.log(chalk.blue('   • Code scanning: Analyzes your local source code'));
-    console.log(chalk.blue('   • Live URL testing: Tests live websites for accessibility issues'));
-    console.log(chalk.blue('     - Uses axe-core for comprehensive WCAG compliance testing'));
-    console.log(chalk.blue('     - Tests color contrast, keyboard navigation, screen reader support'));
-    console.log(chalk.blue('     - Detects issues in JavaScript-rendered content'));
-    console.log(chalk.blue('     - Provides detailed recommendations for fixes\n'));
-    
-    const { enableLiveUrlTesting } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'enableLiveUrlTesting',
-        message: 'Would you like to enable live URL accessibility testing?',
-        default: false,
-      },
-    ]);
-
-    if (enableLiveUrlTesting) {
-      const { urls } = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'urls',
-          message: 'Enter URLs to test (comma-separated, e.g., https://example.com, https://google.com):',
-          validate: (input) => {
-            if (!input) return 'At least one URL is required for live accessibility testing';
-            const urlList = input.split(',').map(url => url.trim());
-            for (const url of urlList) {
-              try {
-                new URL(url);
-              } catch {
-                return `Please enter a valid URL: ${url}`;
-              }
-            }
-            return true;
-          },
-        },
-      ]);
-      
-      accessibilityUrls = urls.split(',').map(url => url.trim());
-      console.log(chalk.green(`✅ Live accessibility testing will run on ${accessibilityUrls.length} URL(s):`));
-      accessibilityUrls.forEach(url => console.log(chalk.green(`   • ${url}`)));
-    } else {
-      console.log(chalk.blue('ℹ️  Running accessibility audit with code scanning only'));
-    }
-  }
-
   // If only 'all' is selected, expand it to include all reports
   if (reports.length === 1 && reports.includes('all')) {
     reports.push('security', 'performance', 'accessibility', 'lighthouse', 'testing', 'dependency', 'eslint', 'stylelint', 'packages', 'component-usage');
   }
+
+  // Create report directory early for URL configuration
+  const currentDir = process.cwd();
+  const reportDir = path.join(currentDir, 'report');
+  
+  // Create report directory if it doesn't exist
+  if (!fs.existsSync(reportDir)) {
+    fs.mkdirSync(reportDir, { recursive: true });
+  }
+
+  // Handle live URL prompting with report directory
+  const { lighthouseUrl, accessibilityUrls, securityUrls } = await promptForBatchUrlTesting(reports, reportDir);
 
   try {
     await codeInsightInit({

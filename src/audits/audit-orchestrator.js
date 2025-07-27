@@ -67,6 +67,8 @@ export class AuditOrchestrator {
         dependencyResults
       ] = await Promise.all(auditPromises);
 
+
+
       // Compile results
       this.auditResults = {
         timestamp: new Date().toISOString(),
@@ -88,8 +90,13 @@ export class AuditOrchestrator {
         }
       };
 
-      // Calculate summary
-      Object.values(this.auditResults.categories).forEach(category => {
+      // Calculate summary with better error handling
+      Object.entries(this.auditResults.categories).forEach(([categoryName, category]) => {
+        if (!category) {
+          console.warn(chalk.yellow(`⚠️  ${categoryName} audit returned undefined, using fallback values`));
+          category = { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
+        }
+        
         this.auditResults.summary.totalIssues += category.totalIssues || 0;
         this.auditResults.summary.highSeverity += category.highSeverity || 0;
         this.auditResults.summary.mediumSeverity += category.mediumSeverity || 0;
@@ -230,6 +237,14 @@ export class AuditOrchestrator {
     
     Object.entries(categories).forEach(([category, results]) => {
       const icon = this.getCategoryIcon(category);
+      
+      // Handle undefined results
+      if (!results) {
+        console.log(chalk.white(`${icon} ${category.charAt(0).toUpperCase() + category.slice(1)}:`));
+        console.log(chalk.white(`   Total: 0 | High: 0 | Medium: 0 | Low: 0`));
+        return;
+      }
+      
       const total = results.totalIssues || 0;
       const high = results.highSeverity || 0;
       const medium = results.mediumSeverity || 0;
@@ -278,7 +293,7 @@ export class AuditOrchestrator {
     }
     
     // Accessibility recommendations
-    if (categories.accessibility.highSeverity > 0) {
+    if (categories.accessibility && categories.accessibility.highSeverity > 0) {
       console.log(chalk.blue('♿ Accessibility: Fix missing alt attributes and form labels'));
     }
     
@@ -288,12 +303,12 @@ export class AuditOrchestrator {
     }
     
     // Testing recommendations
-    if (categories.testing.highSeverity > 0) {
+    if (categories.testing && categories.testing.highSeverity > 0) {
       console.log(chalk.magenta('🧪 Testing: Add test files and testing framework'));
     }
     
     // Dependency recommendations
-    if (categories.dependency.highSeverity > 0) {
+    if (categories.dependency && categories.dependency.highSeverity > 0) {
       console.log(chalk.cyan('📦 Dependencies: Install missing dependencies and update outdated packages'));
     }
     

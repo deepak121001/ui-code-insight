@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { SecurityAudit } from './src/audits/security-audit.js';
+import { SecurityAudit } from '../src/audits/security-audit.js';
 import chalk from 'chalk';
 import fs from 'fs';
 import path from 'path';

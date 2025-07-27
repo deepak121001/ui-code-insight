@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { codeInsightInit } from './build/code-insight.js';
+import { codeInsightInit } from '../build/code-insight.js';
 import chalk from 'chalk';
 
 /**

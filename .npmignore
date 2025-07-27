@@ -3,6 +3,7 @@ report/
 test/
 coverage/
 docs/
+test/
 
 # Exclude config and local environment files
 .vscode/

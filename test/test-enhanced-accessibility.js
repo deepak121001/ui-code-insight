@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { AccessibilityAudit } from './src/audits/accessibility-audit.js';
+import { AccessibilityAudit } from '../src/audits/accessibility-audit.js';
 import chalk from 'chalk';
 import fs from 'fs';
 import path from 'path';

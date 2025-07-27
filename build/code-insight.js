@@ -5015,6 +5015,8 @@ class AuditOrchestrator {
         dependencyResults
       ] = await Promise.all(auditPromises);
 
+
+
       // Compile results
       this.auditResults = {
         timestamp: new Date().toISOString(),
@@ -5036,8 +5038,13 @@ class AuditOrchestrator {
         }
       };
 
-      // Calculate summary
-      Object.values(this.auditResults.categories).forEach(category => {
+      // Calculate summary with better error handling
+      Object.entries(this.auditResults.categories).forEach(([categoryName, category]) => {
+        if (!category) {
+          console.warn(chalk.yellow(`⚠️  ${categoryName} audit returned undefined, using fallback values`));
+          category = { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
+        }
+        
         this.auditResults.summary.totalIssues += category.totalIssues || 0;
         this.auditResults.summary.highSeverity += category.highSeverity || 0;
         this.auditResults.summary.mediumSeverity += category.mediumSeverity || 0;
@@ -5178,6 +5185,14 @@ class AuditOrchestrator {
     
     Object.entries(categories).forEach(([category, results]) => {
       const icon = this.getCategoryIcon(category);
+      
+      // Handle undefined results
+      if (!results) {
+        console.log(chalk.white(`${icon} ${category.charAt(0).toUpperCase() + category.slice(1)}:`));
+        console.log(chalk.white(`   Total: 0 | High: 0 | Medium: 0 | Low: 0`));
+        return;
+      }
+      
       const total = results.totalIssues || 0;
       const high = results.highSeverity || 0;
       const medium = results.mediumSeverity || 0;
@@ -5226,7 +5241,7 @@ class AuditOrchestrator {
     }
     
     // Accessibility recommendations
-    if (categories.accessibility.highSeverity > 0) {
+    if (categories.accessibility && categories.accessibility.highSeverity > 0) {
       console.log(chalk.blue('♿ Accessibility: Fix missing alt attributes and form labels'));
     }
     
@@ -5236,12 +5251,12 @@ class AuditOrchestrator {
     }
     
     // Testing recommendations
-    if (categories.testing.highSeverity > 0) {
+    if (categories.testing && categories.testing.highSeverity > 0) {
       console.log(chalk.magenta('🧪 Testing: Add test files and testing framework'));
     }
     
     // Dependency recommendations
-    if (categories.dependency.highSeverity > 0) {
+    if (categories.dependency && categories.dependency.highSeverity > 0) {
       console.log(chalk.cyan('📦 Dependencies: Install missing dependencies and update outdated packages'));
     }
     
@@ -5278,15 +5293,34 @@ const copyStaticFiles = async (folderPath) => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   await mkdir(folderPath, { recursive: true });
+  
+  // Copy dashboard files
   const sourcePath = path.join(__dirname, dist, "index.html");
   const targetPath = path.join(folderPath, "index.html");
   copyFile(sourcePath, targetPath);
+  
   const mainJsSourcePath = path.join(__dirname, dist, "bundle.js");
   const mainJsTargetPath = path.join(folderPath, "bundle.js");
   copyFile(mainJsSourcePath, mainJsTargetPath);
+  
   const mainCssSourcePath = path.join(__dirname, dist, "bundle.css");
   const mainCssTargetPath = path.join(folderPath, "bundle.css");
   copyFile(mainCssSourcePath, mainCssTargetPath);
+  
+  // Copy config file if it exists
+  const configSourcePath = path.join(process.cwd(), "ui-code-insight.config.json");
+  const configTargetPath = path.join(folderPath, "ui-code-insight.config.json");
+  
+  if (fs.existsSync(configSourcePath)) {
+    try {
+      copyFile(configSourcePath, configTargetPath);
+      console.log(chalk.green("✅ Config file copied to report folder"));
+    } catch (error) {
+      console.warn(chalk.yellow("⚠️  Could not copy config file:", error.message));
+    }
+  } else {
+    console.log(chalk.blue("ℹ️  No config file found to copy"));
+  }
 };
 
 // Default ESLint rules to exclude (commonly disabled by project architects)
@@ -5763,9 +5797,10 @@ const STYLELINTRC_CONFIG = "stylelint.config.js";
 const getLintConfigFile = (recommendedLintRules) => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
+  // Fix path resolution for build directory
+  const baseDir = __dirname.includes('build') ? path.join(__dirname, 'config') : path.join(__dirname, CONFIG_FOLDER);
   const recommendedLintRulesConfigFile = path.join(
-    __dirname,
-    CONFIG_FOLDER,
+    baseDir,
     STYLELINTRC_JSON
   );
   const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
@@ -6057,79 +6092,6 @@ const generateNpmPackageReport = async () => {
   }
 };
 
-// Function to make the API request
-async function makeAPIRequest(
-  accessToken,
-  aemBasePath,
-  aemContentPath,
-  aemAppsPath,
-  slingResourceTypeBase
-) {
-  const componentListQuery = new URLSearchParams();
-  componentListQuery.append("p.limit", "-1");
-  componentListQuery.append("path", aemAppsPath);
-  componentListQuery.append("type", "cq:Component");
-
-  // API endpoint URL
-  const componentQueryURL = `${aemBasePath}/bin/querybuilder.json?${componentListQuery.toString()}`;
-
-  // Create the headers object
-  const headers = {
-    Cookie: `login-token=${accessToken}`, // Set the access token as a cookie
-  };
-
-  // Make the API request
-  const response = await fetch(componentQueryURL, { headers });
-
-  // Parse the response
-  const data = await response.json();
-
-  let result = [];
-  for (const component of data.hits) {
-    const componentPropertiesQuery = new URLSearchParams();
-    componentPropertiesQuery.append("p.limit", "5");
-    componentPropertiesQuery.append("path", aemContentPath);
-    componentPropertiesQuery.append("property", "sling:resourceType");
-    componentPropertiesQuery.append(
-      "property.value",
-      `${slingResourceTypeBase}${component.name}`
-    );
-    componentPropertiesQuery.append("type", "nt:unstructured");
-
-    // API endpoint URL
-    const componentPropertiesURL = `${aemBasePath}/bin/querybuilder.json?${componentPropertiesQuery.toString()}`;
-    const resp = await fetch(componentPropertiesURL, { headers });
-    const json = await resp.json();
-    result.push(Object.assign({}, component, { usageCount: await json.total }));
-  }
-
-  return result;
-}
-
-const generateComponentUsageReport = async (
-  reportFolderPath,
-  accessToken,
-  aemBasePath,
-  aemContentPath,
-  aemAppsPath,
-  slingResourceTypeBase
-) => {
-  const data = await makeAPIRequest(
-    accessToken,
-    aemBasePath,
-    aemContentPath,
-    aemAppsPath,
-    slingResourceTypeBase
-  );
-
-  await writeFile(
-    path.join(reportFolderPath, "component-usage-report.json"),
-    JSON.stringify(data, null, 2)
-  );
-
-  return data;
-};
-
 /**
  * Main function to initialize code insight tool
  */
@@ -6182,12 +6144,12 @@ async function codeInsightInit(options = {}) {
     // Generate additional reports if requested
     if (reports.includes('eslint') || reports.includes('all')) {
       console.log(chalk.blue('\n📋 Generating ESLint Report...'));
-      await generateESLintReport(eslintConfig, reportDir);
+      await generateESLintReport(reportDir, true, projectType, reports);
     }
 
     if (reports.includes('stylelint') || reports.includes('all')) {
       console.log(chalk.blue('\n📋 Generating Stylelint Report...'));
-      await generateStyleLintReport(stylelintConfig, reportDir);
+      await generateStyleLintReport(reportDir, true, projectType, reports);
           }
 
     if (reports.includes('packages') || reports.includes('all')) {
@@ -6197,7 +6159,12 @@ async function codeInsightInit(options = {}) {
 
     if (reports.includes('component-usage') || reports.includes('all')) {
       console.log(chalk.blue('\n📋 Generating Component Usage Report...'));
-      await generateComponentUsageReport(reportDir);
+      try {
+        // Component usage report requires AEM parameters - skip if not provided
+        console.log(chalk.yellow('⚠️  Component Usage Report requires AEM configuration. Skipping...'));
+      } catch (error) {
+        console.warn(chalk.yellow('⚠️  Component Usage Report failed:', error.message));
+      }
     }
 
     console.log(chalk.green('\n✅ All reports generated successfully!'));

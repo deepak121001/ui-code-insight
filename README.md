@@ -245,6 +245,42 @@ You can customize how files are scanned and which rules are excluded by adding a
 
 ---
 
+## 🧪 Testing
+
+The project includes a comprehensive test suite located in the `test/` folder. These tests validate specific functionality and features of the UI Code Insight tool.
+
+### Running Tests
+
+```bash
+# List all available tests
+node test/run-tests.js
+
+# Run specific test categories
+node test/run-tests.js accessibility     # Run accessibility tests
+node test/run-tests.js security          # Run security tests
+node test/run-tests.js file-scanning     # Run file scanning tests
+
+# Run individual test files
+node test/test-accessibility-data.js
+node test/test-security-filtering.js
+node test/test-file-scanning.js
+```
+
+### Test Categories
+
+- **Accessibility Tests**: Validate accessibility audit functionality, live URL testing, and dashboard display
+- **Security Tests**: Verify security audit features, filtering, and live URL security testing
+- **File Scanning Tests**: Test file pattern matching, exclusion rules, and multi-file type scanning
+
+### Test Organization
+
+All test files are organized in the `test/` folder with clear naming conventions:
+- `test-{category}-{feature}.js` format
+- Comprehensive documentation in `test/README.md`
+- Independent test files that can be run separately
+
+---
+
 ## ⚠️ Important Usage Note
 
 **Do not run 'Comprehensive Audit (All Categories)' and 'All Traditional Reports' together on large projects.**

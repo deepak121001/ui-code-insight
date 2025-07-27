@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { AccessibilityAudit } from './src/audits/accessibility-audit.js';
-import { getConfigPattern } from './src/config-loader.js';
+import { AccessibilityAudit } from '../src/audits/accessibility-audit.js';
+import { getConfigPattern } from '../src/config-loader.js';
 import { globby } from 'globby';
 import chalk from 'chalk';
 import fs from 'fs';
