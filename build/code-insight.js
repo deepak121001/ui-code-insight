@@ -2287,6 +2287,7 @@ class LighthouseAudit {
     const issues = this.extractLighthouseIssues(reportData);
     const opportunities = this.extractOpportunities(reportData);
     const diagnostics = this.extractDiagnostics(reportData);
+    const performanceMetrics = this.extractPerformanceMetrics(reportData);
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -2333,6 +2334,181 @@ class LighthouseAudit {
         .issue-severity-high { border-left: 4px solid #db4437; }
         .issue-severity-medium { border-left: 4px solid #f4b400; }
         .issue-severity-low { border-left: 4px solid #0f9d58; }
+        
+        /* Improved Performance Metrics Styling */
+        .performance-metric {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+        }
+        .performance-metric:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        .metric-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .metric-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0;
+        }
+        .metric-score {
+            font-size: 28px;
+            font-weight: 700;
+            padding: 8px 16px;
+            border-radius: 8px;
+            color: white;
+        }
+        .metric-score.good { background: linear-gradient(135deg, #10b981, #059669); }
+        .metric-score.needs-improvement { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .metric-score.poor { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        
+        .metric-progress {
+            width: 100%;
+            height: 8px;
+            background: #f3f4f6;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+        .metric-progress-bar {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.8s ease;
+        }
+        .metric-progress-bar.good { background: linear-gradient(90deg, #10b981, #059669); }
+        .metric-progress-bar.needs-improvement { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .metric-progress-bar.poor { background: linear-gradient(90deg, #ef4444, #dc2626); }
+        
+        .metric-description {
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+        .metric-details {
+            font-size: 13px;
+            color: #9ca3af;
+            font-weight: 500;
+        }
+        
+        .opportunity-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+        }
+        .opportunity-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .opportunity-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .opportunity-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: #1f2937;
+        }
+        .opportunity-savings {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .resource-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .resource-table th,
+        .resource-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .resource-table th {
+            background: #f9fafb;
+            font-weight: 600;
+            font-size: 12px;
+            color: #374151;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .resource-table td {
+            font-size: 13px;
+            color: #4b5563;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .badge-analytics { background: #d1fae5; color: #065f46; }
+        .badge-tag-manager { background: #fef3c7; color: #92400e; }
+        .badge-script { background: #dbeafe; color: #1e40af; }
+        
+        /* Section Headers */
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .section-icon {
+            font-size: 24px;
+            margin-right: 12px;
+        }
+        .section-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        
+        /* Responsive Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .fade-in-up {
+            animation: fadeInUp 0.6s ease-out;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -2341,7 +2517,7 @@ class LighthouseAudit {
         <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Lighthouse Report</h1>
+                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Lighthouse Performance Report</h1>
                     <p class="text-gray-600">${url}</p>
                     <div class="flex items-center mt-2">
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
@@ -2360,8 +2536,30 @@ class LighthouseAudit {
                     <div class="score-circle ${this.getScoreClass(scores.performance)}">
                         ${Math.round(scores.performance)}
                     </div>
-                    <p class="text-center mt-2 text-sm font-medium text-gray-700">Performance</p>
+                    <p class="text-center mt-2 text-sm font-medium text-gray-700">Performance Score</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- Core Web Vitals Section -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <div class="section-header">
+                <div class="section-icon">🚀</div>
+                <h2 class="section-title">Core Web Vitals</h2>
+            </div>
+            <div class="metrics-grid">
+                ${this.renderCoreWebVitals(performanceMetrics)}
+            </div>
+        </div>
+
+        <!-- Performance Metrics Section -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <div class="section-header">
+                <div class="section-icon">⚡</div>
+                <h2 class="section-title">Performance Metrics</h2>
+            </div>
+            <div class="metrics-grid">
+                ${this.renderPerformanceMetrics(performanceMetrics)}
             </div>
         </div>
 
@@ -2420,10 +2618,26 @@ class LighthouseAudit {
             </div>
         </div>
 
+        <!-- Opportunities Section -->
+        ${opportunities.length > 0 ? `
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <div class="section-header">
+                <div class="section-icon">💡</div>
+                <h2 class="section-title">Performance Opportunities (${opportunities.length})</h2>
+            </div>
+            <div class="space-y-4">
+                ${opportunities.map(opp => this.renderOpportunity(opp)).join('')}
+            </div>
+        </div>
+        ` : ''}
+
         <!-- Issues Section -->
         ${issues.length > 0 ? `
         <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
-            <h2 class="text-2xl font-bold text-gray-900 mb-6">Issues Found (${issues.length})</h2>
+            <div class="section-header">
+                <div class="section-icon">⚠️</div>
+                <h2 class="section-title">Issues Found (${issues.length})</h2>
+            </div>
             <div class="space-y-4">
                 ${issues.map(issue => `
                 <div class="issue-severity-${issue.severity} bg-gray-50 rounded-lg p-4">
@@ -2458,32 +2672,13 @@ class LighthouseAudit {
         </div>
         `}
 
-        <!-- Opportunities Section -->
-        ${opportunities.length > 0 ? `
-        <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
-            <h2 class="text-2xl font-bold text-gray-900 mb-6">Opportunities (${opportunities.length})</h2>
-            <div class="space-y-4">
-                ${opportunities.map(opp => `
-                <div class="border border-gray-200 rounded-lg p-4">
-                    <h4 class="text-lg font-semibold text-gray-900 mb-2">${opp.title}</h4>
-                    <p class="text-gray-600 mb-3">${opp.description}</p>
-                    ${opp.savings ? `
-                    <div class="bg-blue-50 rounded-lg p-3">
-                        <span class="text-sm font-medium text-blue-800">
-                            Potential savings: ${opp.savings}
-                        </span>
-                    </div>
-                    ` : ''}
-                </div>
-                `).join('')}
-            </div>
-        </div>
-        ` : ''}
-
         <!-- Diagnostics Section -->
         ${diagnostics.length > 0 ? `
         <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
-            <h2 class="text-2xl font-bold text-gray-900 mb-6">Diagnostics (${diagnostics.length})</h2>
+            <div class="section-header">
+                <div class="section-icon">🔍</div>
+                <h2 class="section-title">Diagnostics (${diagnostics.length})</h2>
+            </div>
             <div class="space-y-4">
                 ${diagnostics.map(diag => `
                 <div class="border border-gray-200 rounded-lg p-4">
@@ -2576,11 +2771,156 @@ class LighthouseAudit {
   }
 
   /**
+   * Extract performance metrics from Lighthouse report
+   */
+  extractPerformanceMetrics(report) {
+    const metrics = [];
+
+    // Core Web Vitals
+    metrics.push({
+      title: 'Largest Contentful Paint (LCP)',
+      description: 'The time it takes for the largest image or text block to load on the page.',
+      score: report.audits?.['largest-contentful-paint']?.score,
+      value: report.audits?.['largest-contentful-paint']?.numericValue,
+      unit: 'seconds',
+      category: 'Core Web Vitals'
+    });
+
+    metrics.push({
+      title: 'First Contentful Paint (FCP)',
+      description: 'The time it takes for the first text or image to load on the page.',
+      score: report.audits?.['first-contentful-paint']?.score,
+      value: report.audits?.['first-contentful-paint']?.numericValue,
+      unit: 'seconds',
+      category: 'Core Web Vitals'
+    });
+
+    metrics.push({
+      title: 'Cumulative Layout Shift (CLS)',
+      description: 'The sum of all layout shifts that occur during the page load.',
+      score: report.audits?.['cumulative-layout-shift']?.score,
+      value: report.audits?.['cumulative-layout-shift']?.numericValue,
+      unit: 'N/A',
+      category: 'Core Web Vitals'
+    });
+
+    // Performance Metrics
+    metrics.push({
+      title: 'Total Blocking Time (TBT)',
+      description: 'The total amount of time the main thread is blocked, preventing interactive updates.',
+      score: report.audits?.['total-blocking-time']?.score,
+      value: report.audits?.['total-blocking-time']?.numericValue,
+      unit: 'milliseconds',
+      category: 'Performance'
+    });
+
+    metrics.push({
+      title: 'Time to Interactive (TTI)',
+      description: 'The time it takes for the page to become fully interactive.',
+      score: report.audits?.['interactive']?.score,
+      value: report.audits?.['interactive']?.numericValue,
+      unit: 'seconds',
+      category: 'Performance'
+    });
+
+    metrics.push({
+      title: 'First Input Delay (FID)',
+      description: 'The time it takes for the browser to respond to user interaction.',
+      score: report.audits?.['first-input-delay']?.score,
+      value: report.audits?.['first-input-delay']?.numericValue,
+      unit: 'milliseconds',
+      category: 'Performance'
+    });
+
+    // Add more metrics as needed
+    return metrics;
+  }
+
+  /**
+   * Render Core Web Vitals section for HTML report
+   */
+  renderCoreWebVitals(metrics) {
+    let html = '';
+    metrics.forEach(metric => {
+      if (metric.category === 'Core Web Vitals' && metric.score !== null && metric.score !== undefined) {
+        const scorePercent = Math.round(metric.score * 100);
+        const displayValue = metric.value ? `${metric.value} ${metric.unit}` : 'N/A';
+        this.getScoreClass(metric.score);
+        const scoreLabel = scorePercent >= 90 ? 'good' : scorePercent >= 50 ? 'needs-improvement' : 'poor';
+        
+        html += `
+        <div class="performance-metric fade-in-up">
+            <div class="metric-header">
+                <h4 class="metric-title">${metric.title}</h4>
+                <span class="metric-score ${scoreLabel}">${scorePercent}</span>
+            </div>
+            <div class="metric-progress">
+                <div class="metric-progress-bar ${scoreLabel}" style="width: ${scorePercent}%"></div>
+            </div>
+            <p class="metric-description">${metric.description}</p>
+            <p class="metric-details">Score: ${scorePercent}% (${displayValue})</p>
+        </div>
+        `;
+      }
+    });
+    return html;
+  }
+
+  /**
+   * Render Performance Metrics section for HTML report
+   */
+  renderPerformanceMetrics(metrics) {
+    let html = '';
+    metrics.forEach(metric => {
+      if (metric.category === 'Performance' && metric.score !== null && metric.score !== undefined) {
+        const scorePercent = Math.round(metric.score * 100);
+        const displayValue = metric.value ? `${metric.value} ${metric.unit}` : 'N/A';
+        this.getScoreClass(metric.score);
+        const scoreLabel = scorePercent >= 90 ? 'good' : scorePercent >= 50 ? 'needs-improvement' : 'poor';
+        
+        html += `
+        <div class="performance-metric fade-in-up">
+            <div class="metric-header">
+                <h4 class="metric-title">${metric.title}</h4>
+                <span class="metric-score ${scoreLabel}">${scorePercent}</span>
+            </div>
+            <div class="metric-progress">
+                <div class="metric-progress-bar ${scoreLabel}" style="width: ${scorePercent}%"></div>
+            </div>
+            <p class="metric-description">${metric.description}</p>
+            <p class="metric-details">Score: ${scorePercent}% (${displayValue})</p>
+        </div>
+        `;
+      }
+    });
+    return html;
+  }
+
+  /**
+   * Render an opportunity card for HTML report
+   */
+  renderOpportunity(opportunity) {
+    return `
+    <div class="opportunity-card">
+        <div class="opportunity-header">
+            <h4 class="opportunity-title">${opportunity.title}</h4>
+            ${opportunity.savings ? `<span class="opportunity-savings">Potential savings: ${opportunity.savings}</span>` : ''}
+        </div>
+        <p class="text-gray-600 mb-3">${opportunity.description}</p>
+        <p class="text-sm text-gray-500">Score: ${Math.round(opportunity.score * 100)}%</p>
+    </div>
+    `;
+  }
+
+  /**
    * Get score class for styling
    */
   getScoreClass(score) {
-    if (score >= 90) return 'score-green';
-    if (score >= 50) return 'score-orange';
+    if (score === null || score === undefined) return 'score-red';
+    // Handle both percentage (0-100) and decimal (0-1) scores
+    const normalizedScore = score > 1 ? score / 100 : score;
+    if (normalizedScore >= 0.9) return 'score-green';
+    if (normalizedScore >= 0.5) return 'score-orange';
     return 'score-red';
   }
 
@@ -2588,8 +2928,11 @@ class LighthouseAudit {
    * Get score text class for styling
    */
   getScoreTextClass(score) {
-    if (score >= 90) return 'text-score-green';
-    if (score >= 50) return 'text-score-orange';
+    if (score === null || score === undefined) return 'text-score-red';
+    // Handle both percentage (0-100) and decimal (0-1) scores
+    const normalizedScore = score > 1 ? score / 100 : score;
+    if (normalizedScore >= 0.9) return 'text-score-green';
+    if (normalizedScore >= 0.5) return 'text-score-orange';
     return 'text-score-red';
   }
 
@@ -2754,9 +3097,11 @@ class LighthouseAudit {
    */
   getScoreDisplay(score) {
     if (score === null || score === undefined) return chalk.gray('N/A');
-    if (score >= 90) return chalk.green(`${score.toFixed(0)}%`);
-    if (score >= 50) return chalk.yellow(`${score.toFixed(0)}%`);
-    return chalk.red(`${score.toFixed(0)}%`);
+    // Handle both percentage (0-100) and decimal (0-1) scores
+    const normalizedScore = score > 1 ? score : score * 100;
+    if (normalizedScore >= 90) return chalk.green(`${Math.round(normalizedScore)}%`);
+    if (normalizedScore >= 50) return chalk.yellow(`${Math.round(normalizedScore)}%`);
+    return chalk.red(`${Math.round(normalizedScore)}%`);
   }
 }
 
