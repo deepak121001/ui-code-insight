@@ -1,4 +1,5 @@
 import { fetchData, showDashboardMessage } from './helper.js';
+import { loadAccessibilityReport, showAccessibilitySection, changeAccessibilityPage } from './accessibility-dom.js';
 
 // Load configuration for exclude rules
 let configExcludeRules = {};
@@ -421,6 +422,9 @@ const REPORTS = [
   { id: 'comprehensiveAuditReport', section: 'comprehensiveSection', type: 'comprehensive-audit', search: null, pagination: null, table: 'comprehensiveTableWrap' },
 ];
 
+// Global function for accessibility pagination
+window.changeAccessibilityPage = changeAccessibilityPage;
+
 // Utility to show/hide sections
 function showSection(id) {
   ['overviewSection', ...REPORTS.map(r => r.section), 'excludedRulesSection'].forEach(sec => {
@@ -498,36 +502,41 @@ function renderComprehensiveOverview(comprehensiveData, individualAuditData = {}
   const testingTotal = document.getElementById('testingTotal');
   const dependencyTotal = document.getElementById('dependencyTotal');
 
-  // Helper to get total issues from either comprehensive or individual report
   function getTotalIssues(category, individualKey) {
-    if (categories[category] && typeof categories[category].totalIssues === 'number') {
+    if (categories[category] && categories[category].totalIssues !== undefined) {
       return categories[category].totalIssues;
     }
-    // Fallback to individual audit data
-    const data = individualAuditData[individualKey];
-    if (data && typeof data.totalIssues === 'number') {
-      return data.totalIssues;
-    }
-    if (data && Array.isArray(data.issues)) {
-      return data.issues.length;
+    if (individualAuditData[individualKey] && individualAuditData[individualKey].totalIssues !== undefined) {
+      return individualAuditData[individualKey].totalIssues;
     }
     return 0;
   }
 
-  if (securityTotal) securityTotal.textContent = getTotalIssues('security', 'security');
-  if (performanceTotal) performanceTotal.textContent = getTotalIssues('performance', 'performance');
-  if (accessibilityTotal) accessibilityTotal.textContent = getTotalIssues('accessibility', 'accessibility');
-  if (testingTotal) testingTotal.textContent = getTotalIssues('testing', 'testing');
-  if (dependencyTotal) dependencyTotal.textContent = getTotalIssues('dependency', 'dependency');
-  
-  // Load lighthouse total asynchronously
-  const lighthouseTotal = document.getElementById('lighthouseTotal');
-  if (lighthouseTotal) {
-    getLighthouseTotal().then(total => {
-      lighthouseTotal.textContent = total;
-    }).catch(() => {
-      lighthouseTotal.textContent = '0';
-    });
+  if (securityTotal) securityTotal.textContent = getTotalIssues('security', 'security-audit');
+  if (performanceTotal) performanceTotal.textContent = getTotalIssues('performance', 'performance-audit');
+  if (accessibilityTotal) accessibilityTotal.textContent = getTotalIssues('accessibility', 'accessibility-audit');
+  if (testingTotal) testingTotal.textContent = getTotalIssues('testing', 'testing-audit');
+  if (dependencyTotal) dependencyTotal.textContent = getTotalIssues('dependency', 'dependency-audit');
+
+  // Update accessibility overview with detailed breakdown if available
+  if (accessibilityTotal && individualAuditData['accessibility-audit']) {
+    const accessibilityData = individualAuditData['accessibility-audit'];
+    if (accessibilityData.summary) {
+      // Update the overview with detailed breakdown
+      const overviewContainer = document.getElementById('accessibilityOverview');
+      if (overviewContainer) {
+        overviewContainer.innerHTML = `
+          <div class="text-center">
+            <div class="text-3xl font-bold text-blue-600">${accessibilityData.totalIssues || 0}</div>
+            <div class="text-sm text-gray-500">Total Issues</div>
+            <div class="text-xs text-gray-400 mt-1">
+              Code: ${accessibilityData.summary.codeScanIssues || 0} | 
+              Live: ${accessibilityData.summary.liveUrlIssues || 0}
+            </div>
+          </div>
+        `;
+      }
+    }
   }
 }
 
@@ -906,11 +915,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     npmData,
     comprehensiveData,
     {
-      security: securityData,
-      performance: performanceData,
-      accessibility: accessibilityData,
-      testing: testingData,
-      dependency: dependencyData
+      'security-audit': securityData,
+      'performance-audit': performanceData,
+      'accessibility-audit': accessibilityData,
+      'testing-audit': testingData,
+      'dependency-audit': dependencyData
     }
   );
 
@@ -1389,7 +1398,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Add comprehensive audit event listeners
-  const auditTypes = ['security', 'performance', 'accessibility', 'testing', 'dependency'];
+  const auditTypes = ['security', 'performance', 'testing', 'dependency'];
   
   auditTypes.forEach(type => {
     if (reportExistence[`${type}-audit`]) {
@@ -1438,6 +1447,14 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
   });
+
+  // Special handling for accessibility audit
+  if (reportExistence['accessibility-audit']) {
+    document.getElementById('accessibilityAuditReport').addEventListener('click', async (e) => {
+      e.preventDefault();
+      showAccessibilitySection();
+    });
+  }
 
   // Comprehensive audit report
   if (reportExistence['comprehensive-audit']) {

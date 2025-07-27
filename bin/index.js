@@ -169,6 +169,7 @@ async function main() {
   ]);
 
   let lighthouseUrl = null;
+  let accessibilityUrls = [];
   
   // If Lighthouse audit is selected, prompt for URL
   if (reports.includes('lighthouse')) {
@@ -195,6 +196,54 @@ async function main() {
     console.log(chalk.green(`✅ Lighthouse audit will run on: ${lighthouseUrl}`));
   }
 
+  // If Accessibility audit is selected, prompt for live URLs
+  if (reports.includes('accessibility')) {
+    console.log(chalk.blue('\n♿ Accessibility Audit Options:'));
+    console.log(chalk.blue('   • Code scanning: Analyzes your local source code'));
+    console.log(chalk.blue('   • Live URL testing: Tests live websites for accessibility issues'));
+    console.log(chalk.blue('     - Uses axe-core for comprehensive WCAG compliance testing'));
+    console.log(chalk.blue('     - Tests color contrast, keyboard navigation, screen reader support'));
+    console.log(chalk.blue('     - Detects issues in JavaScript-rendered content'));
+    console.log(chalk.blue('     - Provides detailed recommendations for fixes\n'));
+    
+    const { enableLiveUrlTesting } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'enableLiveUrlTesting',
+        message: 'Would you like to enable live URL accessibility testing?',
+        default: false,
+      },
+    ]);
+
+    if (enableLiveUrlTesting) {
+      const { urls } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'urls',
+          message: 'Enter URLs to test (comma-separated, e.g., https://example.com, https://google.com):',
+          validate: (input) => {
+            if (!input) return 'At least one URL is required for live accessibility testing';
+            const urlList = input.split(',').map(url => url.trim());
+            for (const url of urlList) {
+              try {
+                new URL(url);
+              } catch {
+                return `Please enter a valid URL: ${url}`;
+              }
+            }
+            return true;
+          },
+        },
+      ]);
+      
+      accessibilityUrls = urls.split(',').map(url => url.trim());
+      console.log(chalk.green(`✅ Live accessibility testing will run on ${accessibilityUrls.length} URL(s):`));
+      accessibilityUrls.forEach(url => console.log(chalk.green(`   • ${url}`)));
+    } else {
+      console.log(chalk.blue('ℹ️  Running accessibility audit with code scanning only'));
+    }
+  }
+
   // If only 'all' is selected, expand it to include all reports
   if (reports.length === 1 && reports.includes('all')) {
     reports.push('security', 'performance', 'accessibility', 'lighthouse', 'testing', 'dependency', 'eslint', 'stylelint', 'packages', 'component-usage');
@@ -204,7 +253,8 @@ async function main() {
     await codeInsightInit({
       projectType,
       reports,
-      lighthouseUrl
+      lighthouseUrl,
+      accessibilityUrls
     });
   } catch (error) {
     console.error(chalk.red('Error:', error.message));

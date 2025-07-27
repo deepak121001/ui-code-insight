@@ -17,7 +17,8 @@ export async function codeInsightInit(options = {}) {
     reports = ['all'],
     eslintConfig = 'airbnb',
     stylelintConfig = 'standard',
-    lighthouseUrl = null
+    lighthouseUrl = null,
+    accessibilityUrls = []
   } = options;
 
   console.log(chalk.blue('🚀 UI Code Insight Tool Starting...\n'));
@@ -38,7 +39,7 @@ export async function codeInsightInit(options = {}) {
     console.log(chalk.green('✅ Static files copied successfully!'));
 
     // Initialize audit orchestrator with lighthouse URL
-    const orchestrator = new AuditOrchestrator(reportDir, lighthouseUrl);
+    const orchestrator = new AuditOrchestrator(reportDir, lighthouseUrl, accessibilityUrls);
       
     // Run audits based on selection
     if (reports.includes('all')) {

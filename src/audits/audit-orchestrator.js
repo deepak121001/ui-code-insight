@@ -13,9 +13,10 @@ import { DependencyAudit } from './dependency-audit.js';
  * Main audit orchestrator that runs all audit categories
  */
 export class AuditOrchestrator {
-  constructor(folderPath, lighthouseUrl = null) {
+  constructor(folderPath, lighthouseUrl = null, accessibilityUrls = []) {
     this.folderPath = folderPath;
     this.lighthouseUrl = lighthouseUrl;
+    this.accessibilityUrls = accessibilityUrls;
     this.auditResults = {};
   }
 
@@ -132,7 +133,23 @@ export class AuditOrchestrator {
   async runAccessibilityAudit() {
     console.log(chalk.blue('♿ Running Accessibility Audit...'));
     const accessibilityAudit = new AccessibilityAudit(this.folderPath);
-    return await accessibilityAudit.runAccessibilityAudit();
+    
+    // If accessibility URLs are provided, run live URL testing
+    if (this.accessibilityUrls && this.accessibilityUrls.length > 0) {
+      console.log(chalk.blue(`🌐 Live URL testing enabled for ${this.accessibilityUrls.length} URL(s)`));
+      return await accessibilityAudit.runAccessibilityAudit(
+        this.accessibilityUrls,
+        {
+          codeScan: true,
+          liveUrlTest: true,
+          useAxeCore: true,
+          useLighthouse: false
+        }
+      );
+    } else {
+      // Run code scanning only
+      return await accessibilityAudit.runAccessibilityAudit();
+    }
   }
 
   /**
