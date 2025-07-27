@@ -2057,6 +2057,30 @@
         }
       }
     }
+
+    // Update security overview with detailed breakdown if available
+    if (securityTotal && individualAuditData['security-audit']) {
+      const securityData = individualAuditData['security-audit'];
+      if (securityData.issues) {
+        const codeScanIssues = securityData.issues.filter(issue => !issue.source || issue.source === 'custom');
+        const liveUrlIssues = securityData.issues.filter(issue => issue.source === 'live-url');
+        
+        // Update the overview with detailed breakdown
+        const overviewContainer = document.getElementById('securityOverview');
+        if (overviewContainer) {
+          overviewContainer.innerHTML = `
+          <div class="text-center">
+            <div class="text-3xl font-bold text-red-600">${securityData.totalIssues || securityData.issues.length}</div>
+            <div class="text-sm text-gray-500">Total Issues</div>
+            <div class="text-xs text-gray-400 mt-1">
+              Code: ${codeScanIssues.length} | 
+              Live: ${liveUrlIssues.length}
+            </div>
+          </div>
+        `;
+        }
+      }
+    }
   }
 
   // Render overview charts
@@ -2209,8 +2233,14 @@
       '<th class="py-2 px-4 text-left">Type</th>' +
       '<th class="py-2 px-4 text-left">File</th>' +
       '<th class="py-2 px-4 text-left">Line</th>' +
-      '<th class="py-2 px-4 text-left">Severity</th>' +
-      '<th class="py-2 px-4 text-left">Message</th>' +
+      '<th class="py-2 px-4 text-left">Severity</th>';
+    
+    // Add Source column for security audits
+    if (auditType === 'security') {
+      html += '<th class="py-2 px-4 text-left">Source</th>';
+    }
+    
+    html += '<th class="py-2 px-4 text-left">Message</th>' +
       '<th class="py-2 px-4 text-left">Code</th>' +
       '</tr></thead><tbody>';
 
@@ -2260,12 +2290,28 @@
       if (fileCell.length > 40) {
         fileCell = `<span title="${issue.file}">${fileCell.slice(0, 18)}...${fileCell.slice(-18)}</span>`;
       }
+      
+      // Determine source for security audits
+      let sourceCell = '';
+      if (auditType === 'security') {
+        const source = issue.source || 'custom';
+        const sourceLabel = source === 'live-url' ? 'Live URL' : 'Code Scan';
+        const sourceColor = source === 'live-url' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800';
+        sourceCell = `<td class="py-2 px-4"><span class="px-2 py-1 text-xs font-medium rounded-full ${sourceColor}">${sourceLabel}</span></td>`;
+      }
+      
       html += `<tr class="border-b border-gray-200 hover:bg-gray-100">` +
         `<td class="py-2 px-4 max-w-xs break-all">${vuln.label}</td>` +
         `<td class="py-2 px-4 max-w-xs break-all">${fileCell}</td>` +
         `<td class="py-2 px-4">${issue.line || 'N/A'}</td>` +
-        `<td class="py-2 px-4"><span class="font-semibold ${severityColor}">${issue.severity || 'N/A'}</span></td>` +
-        `<td class="py-2 px-4 max-w-md break-words">${issue.message || 'N/A'}</td>` +
+        `<td class="py-2 px-4"><span class="font-semibold ${severityColor}">${issue.severity || 'N/A'}</span></td>`;
+      
+      // Add source column for security audits
+      if (auditType === 'security') {
+        html += sourceCell;
+      }
+      
+      html += `<td class="py-2 px-4 max-w-md break-words">${issue.message || 'N/A'}</td>` +
         `<td class="py-2 px-4 max-w-md">${codeDisplay}</td>` +
         '</tr>';
     });
@@ -2947,6 +2993,107 @@
         e.preventDefault();
         showAccessibilitySection();
       });
+    }
+
+    // Special handling for security audit filtering
+    if (reportExistence['security-audit']) {
+      let securityData = null;
+      let securityFilteredData = [];
+      let securityFilter = 'all';
+
+      // Load and filter security data
+      async function loadAndFilterSecurityData() {
+        try {
+          if (!securityData) {
+            securityData = await fetchData('security-audit');
+          }
+          
+          // Apply filter
+          if (securityFilter === 'code-scan') {
+            securityFilteredData = securityData.issues.filter(issue => !issue.source || issue.source === 'custom');
+          } else if (securityFilter === 'live-url') {
+            securityFilteredData = securityData.issues.filter(issue => issue.source === 'live-url');
+          } else {
+            securityFilteredData = [...securityData.issues];
+          }
+
+          // Render with filtered data
+          const filteredData = {
+            ...securityData,
+            issues: securityFilteredData
+          };
+          renderAuditTable(filteredData, 'securityTableWrap', 'securityPagination', 10, 'security');
+        } catch (error) {
+          console.error('Error loading security audit:', error);
+          document.getElementById('securityTableWrap').innerHTML = '<div class="text-red-500 p-4">Error loading security audit data.</div>';
+        }
+      }
+
+      // Security filter dropdown
+      const securityFilterSelect = document.getElementById('securityFilter');
+      if (securityFilterSelect) {
+        securityFilterSelect.addEventListener('change', (e) => {
+          securityFilter = e.target.value;
+          loadAndFilterSecurityData();
+        });
+      }
+
+      // Override the generic security audit click handler
+      const securityReportElement = document.getElementById('securityAuditReport');
+      if (securityReportElement) {
+        // Remove existing event listeners by cloning the element
+        const newSecurityReportElement = securityReportElement.cloneNode(true);
+        securityReportElement.parentNode.replaceChild(newSecurityReportElement, securityReportElement);
+        
+        newSecurityReportElement.addEventListener('click', async (e) => {
+          e.preventDefault();
+          setActiveSidebar('securityAuditReport');
+          showSection('securitySection');
+          await loadAndFilterSecurityData();
+        });
+      }
+
+      // Override the generic security search handler
+      const securitySearchInput = document.getElementById('securitySearch');
+      if (securitySearchInput) {
+        securitySearchInput.addEventListener('input', async (e) => {
+          try {
+            if (!securityData) {
+              securityData = await fetchData('security-audit');
+            }
+            
+            const searchTerm = e.target.value.toLowerCase();
+            
+            if (searchTerm) {
+              const searchFilteredData = securityData.issues.filter(issue => 
+                issue.message?.toLowerCase().includes(searchTerm) ||
+                issue.file?.toLowerCase().includes(searchTerm) ||
+                issue.type?.toLowerCase().includes(searchTerm) ||
+                issue.url?.toLowerCase().includes(searchTerm)
+              );
+              
+              // Apply current filter
+              if (securityFilter === 'code-scan') {
+                securityFilteredData = searchFilteredData.filter(issue => !issue.source || issue.source === 'custom');
+              } else if (securityFilter === 'live-url') {
+                securityFilteredData = searchFilteredData.filter(issue => issue.source === 'live-url');
+              } else {
+                securityFilteredData = searchFilteredData;
+              }
+
+              const filteredData = {
+                ...securityData,
+                issues: securityFilteredData
+              };
+              renderAuditTable(filteredData, 'securityTableWrap', 'securityPagination', 10, 'security');
+            } else {
+              await loadAndFilterSecurityData();
+            }
+          } catch (error) {
+            console.error('Error filtering security audit:', error);
+          }
+        });
+      }
     }
 
     // Comprehensive audit report

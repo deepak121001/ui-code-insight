@@ -170,6 +170,7 @@ async function main() {
 
   let lighthouseUrl = null;
   let accessibilityUrls = [];
+  let securityUrls = [];
   
   // If Lighthouse audit is selected, prompt for URL
   if (reports.includes('lighthouse')) {
@@ -194,6 +195,55 @@ async function main() {
     ]);
     lighthouseUrl = url;
     console.log(chalk.green(`✅ Lighthouse audit will run on: ${lighthouseUrl}`));
+  }
+
+  // If Security audit is selected, prompt for live URLs
+  if (reports.includes('security')) {
+    console.log(chalk.blue('\n🔒 Security Audit Options:'));
+    console.log(chalk.blue('   • Code scanning: Analyzes your local source code for security issues'));
+    console.log(chalk.blue('   • Live URL testing: Tests live websites for security vulnerabilities'));
+    console.log(chalk.blue('     - Checks HTTP security headers (CSP, HSTS, X-Frame-Options, etc.)'));
+    console.log(chalk.blue('     - Validates Content Security Policy effectiveness'));
+    console.log(chalk.blue('     - Detects XSS vulnerabilities in rendered content'));
+    console.log(chalk.blue('     - Tests for insecure transport (HTTP vs HTTPS)'));
+    console.log(chalk.blue('     - Identifies inline scripts and event handlers\n'));
+    
+    const { enableLiveUrlTesting } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'enableLiveUrlTesting',
+        message: 'Would you like to enable live URL security testing?',
+        default: false,
+      },
+    ]);
+
+    if (enableLiveUrlTesting) {
+      const { urls } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'urls',
+          message: 'Enter URLs to test (comma-separated, e.g., https://example.com, https://google.com):',
+          validate: (input) => {
+            if (!input) return 'At least one URL is required for live security testing';
+            const urlList = input.split(',').map(url => url.trim());
+            for (const url of urlList) {
+              try {
+                new URL(url);
+              } catch {
+                return `Please enter a valid URL: ${url}`;
+              }
+            }
+            return true;
+          },
+        },
+      ]);
+      
+      securityUrls = urls.split(',').map(url => url.trim());
+      console.log(chalk.green(`✅ Live security testing will run on ${securityUrls.length} URL(s):`));
+      securityUrls.forEach(url => console.log(chalk.green(`   • ${url}`)));
+    } else {
+      console.log(chalk.blue('ℹ️  Running security audit with code scanning only'));
+    }
   }
 
   // If Accessibility audit is selected, prompt for live URLs
@@ -254,7 +304,8 @@ async function main() {
       projectType,
       reports,
       lighthouseUrl,
-      accessibilityUrls
+      accessibilityUrls,
+      securityUrls
     });
   } catch (error) {
     console.error(chalk.red('Error:', error.message));

@@ -13,6 +13,7 @@ export const defaultJsFilePathPattern = [
   '!bin/**',
   '!**/__dropins__/**',
   '!**/cypress/**',
+  '!**/tools/**',
   '!**/*.min.js',
 ];
 
@@ -29,6 +30,7 @@ export const defaultHtmlFilePathPattern = [
   '!bin/**',
   '!**/__dropins__/**',
   '!**/cypress/**',
+  '!**/tools/**',
 ];
 
 export const defaultScssFilePathPattern = [
@@ -44,6 +46,7 @@ export const defaultScssFilePathPattern = [
   '!bin/**',
   '!**/__dropins__/**',
   '!**/cypress/**',
+  '!**/tools/**',
 ];
 
 export const assetGlobs = [

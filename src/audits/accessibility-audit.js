@@ -499,11 +499,11 @@ export class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -605,11 +605,11 @@ export class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -701,11 +701,11 @@ export class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -858,11 +858,11 @@ export class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -921,11 +921,11 @@ export class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -989,11 +989,11 @@ export class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -1057,11 +1057,11 @@ export class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -1125,11 +1125,11 @@ export class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -1202,11 +1202,11 @@ export class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];

@@ -14,7 +14,8 @@
     "!./cypress/**",
     "!./ui.frontend/dist/**",
     "!./ui.tests/test-module/cypress/**",
-    "!**/*.min.js"
+    "!**/*.min.js",
+    "!**/tools/**"
   ],
   "htmlFilePathPattern": [
     "**/*.{html,js,ts,jsx,tsx}",

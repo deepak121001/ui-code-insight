@@ -13,10 +13,11 @@ import { DependencyAudit } from './dependency-audit.js';
  * Main audit orchestrator that runs all audit categories
  */
 export class AuditOrchestrator {
-  constructor(folderPath, lighthouseUrl = null, accessibilityUrls = []) {
+  constructor(folderPath, lighthouseUrl = null, accessibilityUrls = [], securityUrls = []) {
     this.folderPath = folderPath;
     this.lighthouseUrl = lighthouseUrl;
     this.accessibilityUrls = accessibilityUrls;
+    this.securityUrls = securityUrls;
     this.auditResults = {};
   }
 
@@ -115,7 +116,7 @@ export class AuditOrchestrator {
   async runSecurityAudit() {
     console.log(chalk.blue('🔒 Running Security Audit...'));
     const securityAudit = new SecurityAudit(this.folderPath);
-    return await securityAudit.runSecurityAudit();
+    return await securityAudit.runSecurityAudit(this.securityUrls);
   }
 
   /**

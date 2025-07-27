@@ -28,6 +28,7 @@ const defaultJsFilePathPattern = [
   '!bin/**',
   '!**/__dropins__/**',
   '!**/cypress/**',
+  '!**/tools/**',
   '!**/*.min.js',
 ];
 
@@ -44,6 +45,7 @@ const defaultHtmlFilePathPattern = [
   '!bin/**',
   '!**/__dropins__/**',
   '!**/cypress/**',
+  '!**/tools/**',
 ];
 
 const defaultScssFilePathPattern = [
@@ -59,6 +61,7 @@ const defaultScssFilePathPattern = [
   '!bin/**',
   '!**/__dropins__/**',
   '!**/cypress/**',
+  '!**/tools/**',
 ];
 
 const assetGlobs = [
@@ -238,6 +241,35 @@ class SecurityAudit {
   constructor(folderPath) {
     this.folderPath = folderPath;
     this.securityIssues = [];
+    this.browser = null;
+  }
+
+  /**
+   * Initialize browser for live URL testing
+   */
+  async initBrowser() {
+    if (!this.browser) {
+      this.browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ]
+      });
+    }
+    return this.browser;
+  }
+
+  /**
+   * Close browser
+   */
+  async closeBrowser() {
+    if (this.browser) {
+      await this.browser.close();
+      this.browser = null;
+    }
   }
 
   printContext(lines, index) {
@@ -634,124 +666,199 @@ async checkDependencyVulnerabilities() {
     }
   }
 
-  async checkSecurityHeaders() {
-    console.log(chalk.blue('🔒 Checking for security headers in HTML files only...'));
+  /**
+   * Test security headers and CSP on live URLs
+   */
+  async testLiveUrlSecurity(url) {
+    console.log(chalk.blue(`🔒 Testing security headers for: ${url}`));
     
-    // Explicitly target only HTML files - never scan JS files for CSP
-    const htmlFiles = await globby([
-      '**/*.html',
-      '**/*.htm', 
-      '**/*.jsp',
-      '**/*.htl',
-      '**/*.xhtml',
-      '**/*.shtml',
-      '!**/node_modules/**',
-      '!**/dist/**',
-      '!**/build/**',
-      '!**/.git/**'
-    ]);
-    
-    console.log(chalk.gray(`📁 Scanning ${htmlFiles.length} HTML files for CSP and security headers...`));
-    
-    for (const file of htmlFiles) {
-      try {
-        // Double-check: ensure we're only processing HTML files
-        if (!/\.(html|htm|jsp|htl|xhtml|shtml)$/i.test(file)) {
-          console.warn(chalk.yellow(`⚠️ Skipping non-HTML file: ${file}`));
-          continue;
-        }
-        
-        const content = await fsp.readFile(file, 'utf8');
-        const lines = content.split('\n');
-        
-        // Check if any security headers are present in the file
-        const hasCSP = /<meta[^>]+http-equiv=["']Content-Security-Policy["']/i.test(content);
-        const hasHSTS = /<meta[^>]+http-equiv=["']Strict-Transport-Security["']/i.test(content);
-        const hasXFO = /<meta[^>]+http-equiv=["']X-Frame-Options["']/i.test(content);
-        
-        // If no security headers found, report the first line of the file
-        if (!hasCSP || !hasHSTS || !hasXFO) {
-          const firstNonEmptyLine = lines.findIndex(line => line.trim() && !line.trim().startsWith('<!DOCTYPE') && !line.trim().startsWith('<html'));
-          const reportLine = firstNonEmptyLine >= 0 ? firstNonEmptyLine : 0;
-          
-          if (!hasCSP) {
-            this.securityIssues.push({
-              type: 'missing_csp_header',
-              file,
-              line: reportLine + 1,
-              severity: 'high',
-              message: 'Missing Content-Security-Policy (CSP) header in HTML',
-              code: lines[reportLine] || '<html>',
-              context: this.printContext(lines, reportLine)
-            });
-          }
-          
-          if (!hasHSTS) {
-            this.securityIssues.push({
-              type: 'missing_hsts_header',
-              file,
-              line: reportLine + 1,
-              severity: 'medium',
-              message: 'Missing Strict-Transport-Security (HSTS) header in HTML',
-              code: lines[reportLine] || '<html>',
-              context: this.printContext(lines, reportLine)
-            });
-          }
-          
-          if (!hasXFO) {
-            this.securityIssues.push({
-              type: 'missing_xfo_header',
-              file,
-              line: reportLine + 1,
-              severity: 'medium',
-              message: 'Missing X-Frame-Options header in HTML',
-              code: lines[reportLine] || '<html>',
-              context: this.printContext(lines, reportLine)
-            });
-          }
-        }
-        
-        // Also check for weak CSP configurations on each line
-        lines.forEach((line, index) => {
-          const trimmed = line.trim();
-          if (!trimmed) return;
-          
-          // Check for weak CSP configurations
-          if (/Content-Security-Policy.*'unsafe-inline'/.test(trimmed)) {
-            this.securityIssues.push({
-              type: 'weak_csp_configuration',
-              file,
-              line: index + 1,
-              severity: 'high',
-              message: 'Weak Content-Security-Policy: unsafe-inline detected',
-              code: trimmed,
-              context: this.printContext(lines, index)
-            });
-          }
-          
-          // Check for missing or weak security headers
-          if (/<meta[^>]+http-equiv=["']Content-Security-Policy["'][^>]*content=["'][^"']*["']/.test(trimmed)) {
-            const cspContent = trimmed.match(/content=["']([^"']*)["']/);
-            if (cspContent && cspContent[1].includes("'unsafe-inline'")) {
-              this.securityIssues.push({
-                type: 'weak_csp_inline',
-                file,
-                line: index + 1,
-                severity: 'high',
-                message: 'Content-Security-Policy allows unsafe-inline',
-                code: trimmed,
-                context: this.printContext(lines, index)
-              });
-            }
-          }
-        });
-        
-      } catch (err) {
-        console.warn(chalk.yellow(`⚠️ Could not read HTML file ${file}: ${err.message}`));
+    try {
+      const page = await this.browser.newPage();
+      
+      // Set viewport and user agent
+      await page.setViewport({ width: 1280, height: 720 });
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+      
+      // Navigate to the URL and capture response headers
+      const response = await page.goto(url, { 
+        waitUntil: 'networkidle2',
+        timeout: 30000 
+      });
+      
+      if (!response) {
+        console.warn(chalk.yellow(`⚠️ No response received for ${url}`));
+        await page.close();
+        return;
       }
+      
+      const headers = response.headers();
+      
+      // Check for security headers
+      const securityHeaders = {
+        'Content-Security-Policy': headers['content-security-policy'],
+        'Strict-Transport-Security': headers['strict-transport-security'],
+        'X-Frame-Options': headers['x-frame-options'],
+        'X-Content-Type-Options': headers['x-content-type-options'],
+        'X-XSS-Protection': headers['x-xss-protection'],
+        'Referrer-Policy': headers['referrer-policy'],
+        'Permissions-Policy': headers['permissions-policy']
+      };
+      
+      // Check for missing security headers
+      const missingHeaders = [];
+      const weakHeaders = [];
+      
+      if (!securityHeaders['Content-Security-Policy']) {
+        missingHeaders.push('Content-Security-Policy');
+      } else {
+        // Check for weak CSP configurations
+        const csp = securityHeaders['Content-Security-Policy'];
+        if (csp.includes("'unsafe-inline'") || csp.includes("'unsafe-eval'")) {
+          weakHeaders.push({
+            header: 'Content-Security-Policy',
+            issue: 'Contains unsafe-inline or unsafe-eval directives',
+            value: csp
+          });
+        }
+      }
+      
+      if (!securityHeaders['Strict-Transport-Security']) {
+        missingHeaders.push('Strict-Transport-Security');
+      }
+      
+      if (!securityHeaders['X-Frame-Options']) {
+        missingHeaders.push('X-Frame-Options');
+      }
+      
+      if (!securityHeaders['X-Content-Type-Options']) {
+        missingHeaders.push('X-Content-Type-Options');
+      }
+      
+      if (!securityHeaders['X-XSS-Protection']) {
+        missingHeaders.push('X-XSS-Protection');
+      }
+      
+      // Add issues for missing headers
+      missingHeaders.forEach(header => {
+        this.securityIssues.push({
+          type: 'missing_security_header',
+          file: url,
+          line: 1,
+          severity: header === 'Content-Security-Policy' ? 'high' : 'medium',
+          message: `Missing ${header} security header`,
+          code: `HTTP Response Headers`,
+          context: `Live URL: ${url}`,
+          recommendation: `Add ${header} header to server configuration`,
+          source: 'live-url',
+          url: url,
+          header: header
+        });
+      });
+      
+      // Add issues for weak headers
+      weakHeaders.forEach(({ header, issue, value }) => {
+        this.securityIssues.push({
+          type: 'weak_security_header',
+          file: url,
+          line: 1,
+          severity: 'high',
+          message: `${header}: ${issue}`,
+          code: `${header}: ${value}`,
+          context: `Live URL: ${url}`,
+          recommendation: `Strengthen ${header} configuration by removing unsafe directives`,
+          source: 'live-url',
+          url: url,
+          header: header,
+          value: value
+        });
+      });
+      
+      // Check for HTTPS usage
+      if (!url.startsWith('https://')) {
+        this.securityIssues.push({
+          type: 'insecure_transport',
+          file: url,
+          line: 1,
+          severity: 'high',
+          message: 'Insecure HTTP transport detected',
+          code: `URL: ${url}`,
+          context: `Live URL uses HTTP instead of HTTPS`,
+          recommendation: 'Use HTTPS for all web traffic',
+          source: 'live-url',
+          url: url
+        });
+      }
+      
+      // Test for common security vulnerabilities
+      const securityTests = await page.evaluate(() => {
+        const results = {};
+        
+        // Check for XSS vulnerabilities in DOM
+        results.hasInnerHTML = document.querySelectorAll('[innerHTML]').length > 0;
+        results.hasDangerouslySetInnerHTML = document.querySelectorAll('[dangerouslySetInnerHTML]').length > 0;
+        
+        // Check for inline scripts
+        results.hasInlineScripts = document.querySelectorAll('script:not([src])').length > 0;
+        
+        // Check for inline event handlers
+        results.hasInlineEvents = document.querySelectorAll('[onclick], [onload], [onerror], [onmouseover]').length > 0;
+        
+        return results;
+      });
+      
+      // Add issues for security vulnerabilities
+      if (securityTests.hasInnerHTML || securityTests.hasDangerouslySetInnerHTML) {
+        this.securityIssues.push({
+          type: 'xss_dom_vulnerability',
+          file: url,
+          line: 1,
+          severity: 'high',
+          message: 'Potential XSS vulnerability: innerHTML or dangerouslySetInnerHTML usage detected',
+          code: 'DOM manipulation with innerHTML',
+          context: `Live URL: ${url}`,
+          recommendation: 'Avoid using innerHTML, use textContent or safe DOM manipulation methods',
+          source: 'live-url',
+          url: url
+        });
+      }
+      
+      if (securityTests.hasInlineScripts) {
+        this.securityIssues.push({
+          type: 'inline_scripts',
+          file: url,
+          line: 1,
+          severity: 'medium',
+          message: 'Inline scripts detected (potential XSS risk)',
+          code: 'Inline <script> tags found',
+          context: `Live URL: ${url}`,
+          recommendation: 'Move scripts to external files and use CSP to block inline scripts',
+          source: 'live-url',
+          url: url
+        });
+      }
+      
+      if (securityTests.hasInlineEvents) {
+        this.securityIssues.push({
+          type: 'inline_event_handlers',
+          file: url,
+          line: 1,
+          severity: 'medium',
+          message: 'Inline event handlers detected (potential XSS risk)',
+          code: 'Inline event handlers (onclick, onload, etc.) found',
+          context: `Live URL: ${url}`,
+          recommendation: 'Use addEventListener instead of inline event handlers',
+          source: 'live-url',
+          url: url
+        });
+      }
+      
+      await page.close();
+      console.log(chalk.green(`✅ Security testing completed for: ${url}`));
+      
+    } catch (error) {
+      console.error(chalk.red(`❌ Error testing security for ${url}: ${error.message}`));
+      console.error(chalk.gray('Stack trace:'), error.stack);
     }
-    
-    console.log(chalk.green(`✅ CSP scanning completed - ${htmlFiles.length} HTML files processed`));
   }
 
   
@@ -798,15 +905,35 @@ async checkDependencyVulnerabilities() {
   }
     
   
-  async runSecurityAudit() {
+  async runSecurityAudit(urls = []) {
     console.log(chalk.cyan.bold('\n🔍 Running Full Security Audit...'));
-    //await this.checkDependencyVulnerabilities();
+    
+    // Run code scanning
     await this.checkForSecrets();
     await this.checkESLintSecurityIssues();
     await this.checkFileUploadSecurity();
     await this.checkInputValidation();
-    await this.checkSecurityHeaders();
     await this.runEnhancedPatternChecks();
+
+    // Run live URL testing if URLs provided
+    if (urls && urls.length > 0) {
+      console.log(chalk.blue('\n🌐 Running Live URL Security Testing...'));
+      
+      try {
+        await this.initBrowser();
+        console.log(chalk.green('✅ Browser initialized successfully'));
+        
+        for (const url of urls) {
+          await this.testLiveUrlSecurity(url);
+        }
+        
+      } catch (error) {
+        console.error(chalk.red(`❌ Error during live URL security testing: ${error.message}`));
+        console.error(chalk.gray('Stack trace:'), error.stack);
+      } finally {
+        await this.closeBrowser();
+      }
+    }
 
     // Apply excludeRules from config
     const excludeRules = getMergedExcludeRules('security', []);
@@ -1853,11 +1980,11 @@ class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -1959,11 +2086,11 @@ class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -2055,11 +2182,11 @@ class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -2212,11 +2339,11 @@ class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -2275,11 +2402,11 @@ class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -2343,11 +2470,11 @@ class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -2411,11 +2538,11 @@ class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -2479,11 +2606,11 @@ class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -2556,11 +2683,11 @@ class AccessibilityAudit {
 
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const htmlFiles = await globby(getConfigPattern('htmlFilePathPattern'), {
-      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**'],
+      ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
     });
     
     const files = [...jsFiles, ...htmlFiles];
@@ -4834,10 +4961,11 @@ class DependencyAudit {
  * Main audit orchestrator that runs all audit categories
  */
 class AuditOrchestrator {
-  constructor(folderPath, lighthouseUrl = null, accessibilityUrls = []) {
+  constructor(folderPath, lighthouseUrl = null, accessibilityUrls = [], securityUrls = []) {
     this.folderPath = folderPath;
     this.lighthouseUrl = lighthouseUrl;
     this.accessibilityUrls = accessibilityUrls;
+    this.securityUrls = securityUrls;
     this.auditResults = {};
   }
 
@@ -4936,7 +5064,7 @@ class AuditOrchestrator {
   async runSecurityAudit() {
     console.log(chalk.blue('🔒 Running Security Audit...'));
     const securityAudit = new SecurityAudit(this.folderPath);
-    return await securityAudit.runSecurityAudit();
+    return await securityAudit.runSecurityAudit(this.securityUrls);
   }
 
   /**
@@ -6012,7 +6140,8 @@ async function codeInsightInit(options = {}) {
     eslintConfig = 'airbnb',
     stylelintConfig = 'standard',
     lighthouseUrl = null,
-    accessibilityUrls = []
+    accessibilityUrls = [],
+    securityUrls = []
   } = options;
 
   console.log(chalk.blue('🚀 UI Code Insight Tool Starting...\n'));
@@ -6033,7 +6162,7 @@ async function codeInsightInit(options = {}) {
     console.log(chalk.green('✅ Static files copied successfully!'));
 
     // Initialize audit orchestrator with lighthouse URL
-    const orchestrator = new AuditOrchestrator(reportDir, lighthouseUrl, accessibilityUrls);
+    const orchestrator = new AuditOrchestrator(reportDir, lighthouseUrl, accessibilityUrls, securityUrls);
       
     // Run audits based on selection
     if (reports.includes('all')) {

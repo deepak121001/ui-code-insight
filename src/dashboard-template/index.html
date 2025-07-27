@@ -189,6 +189,16 @@
             <input id="securitySearch" type="text" placeholder="Search issues..." class="mb-2 md:mb-0 px-3 py-2 border rounded w-full md:w-1/3" />
             <div id="securityPagination" class="mt-2 md:mt-0"></div>
           </div>
+          <div class="mb-4 flex flex-wrap items-center gap-4 text-sm">
+            <div class="flex items-center space-x-2">
+              <label for="securityFilter" class="text-gray-600">Filter by:</label>
+              <select id="securityFilter" class="border rounded px-2 py-1 text-sm">
+                <option value="all">All Issues</option>
+                <option value="code-scan">Code Scan Issues</option>
+                <option value="live-url">Live URL Issues</option>
+              </select>
+            </div>
+          </div>
           <div id="securityTableWrap" class="overflow-x-auto"></div>
         </section>
         <!-- Performance Audit Section -->
