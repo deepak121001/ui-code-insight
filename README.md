@@ -1,6 +1,6 @@
-# UI Insights Report Generator (ui-code-insight)
+# UI Code Insight - Comprehensive Code Quality & Security Audit Tool
 
-> **Your all-in-one CLI for auditing, visualizing, and improving code quality, security, and maintainability in modern JavaScript, TypeScript, and CSS projects. Instantly generate actionable dashboards and reports—no setup required.**
+> **Your all-in-one CLI for auditing, visualizing, and improving code quality, security, accessibility, and performance in modern JavaScript, TypeScript, and CSS projects. Instantly generate actionable dashboards and reports with live URL testing capabilities.**
 
 ---
 
@@ -9,197 +9,166 @@
 ```bash
 npx ui-code-insight
 ```
-> _No install, no config, instant insights._
+
+> _No install, no config, instant insights with comprehensive audit coverage._
 
 ### 📊 Live Demo
 Check out the [Audit Sample Dashboard](https://deepak121001.github.io/Audit-Sample/) to see the tool in action with sample projects!
-
-
 
 ---
 
 ## 🌟 Why Use UI Code Insight?
 
-| Feature                | Benefit                                 |
-|------------------------|-----------------------------------------|
-| **Interactive CLI**        | No config needed, just run and go       |
-| **Multi-framework support**| Works with React, Node, TS, Vanilla JS  |
-| **Comprehensive audits**   | Security, Performance, Accessibility... |
-| **Smart dependency mgmt**  | Installs only what you need             |
-| **Visual dashboard**       | See all issues in one place             |
-| **Live demo available**    | [Try it now](https://deepak121001.github.io/Audit-Sample/) |
+| Feature | Benefit |
+|---------|---------|
+| **🚀 Zero Configuration** | Works out of the box with smart defaults |
+| **🔍 Comprehensive Coverage** | 7 audit categories covering all aspects of code quality |
+| **🌐 Live URL Testing** | Test real websites for accessibility, security & performance |
+| **📊 Interactive Dashboard** | Beautiful visual reports with actionable insights |
+| **⚡ Fast & Efficient** | Optimized for large projects with batch processing |
+| **🛡️ Industry Standards** | Uses ESLint, Stylelint, Lighthouse, and axe-core |
+| **🎯 Framework Agnostic** | Works with React, Node, TypeScript, Vanilla JS |
+| **💡 Actionable Results** | Detailed recommendations with specific fixes |
 
 ---
 
-## 📦 Usage Examples
+## 📦 Installation & Usage
 
-### 🎯 Live Demo
-Experience the full UI Code Insight dashboard with sample projects: **[Audit Sample Dashboard](https://deepak121001.github.io/Audit-Sample/)**
+### Quick Start
+```bash
+# Run without installation
+npx ui-code-insight
 
-### CLI Prompt Example
+# Or install globally
+npm install -g ui-code-insight
+ui-code-insight
+```
+
+### 🎯 Interactive CLI Experience
 ```
 ? What type of project is this? (Use arrow keys)
 ❯ React
+  Node.js
+  TypeScript
+  Vanilla JavaScript
 
-? Would you like to install all required dependencies for React? (Y/n)
+? Would you like to install all required dependencies? (Y/n)
 ❯ Yes
 
-Installing missing dependencies: eslint-plugin-jsx-a11y eslint-config-airbnb
-✅ Dependencies installed successfully!
+? Which audit(s) do you want to run? (Press <space> to select)
+❯◯ 🔒 Security Audit
+ ◯ ⚡ Performance Audit  
+ ◯ ♿ Accessibility Audit
+ ◯ 🚀 Lighthouse Audit
+ ◯ 🧪 Testing Audit
+ ◯ 📦 Dependency Audit
+ ◯ 🔧 ESLint & Stylelint
+ ◯ 🎯 Comprehensive Audit (All Categories)
 
-? Which report(s) do you want to generate? (Press <space> to select, <a> to toggle all, <i> to invert selection)
-❯◯ ESLint
- ◯ Stylelint
- ◯ Package Report
- ◯ Security Audit
- ◯ Performance Audit
- ◯ Accessibility Audit
- ◯ Modern Practices Audit
- ◯ Testing Audit
- ◯ Dependency Audit
- ◯ Comprehensive Audit (All Categories)
- ◯ All Traditional Reports
-```
-
-### Sample Report Output (JSON)
-```json
-{
-  "category": "security",
-  "issues": [
-    {
-      "file": "src/server.js",
-      "line": 42,
-      "severity": "high",
-      "message": "Hardcoded secret detected",
-      "snippet": "const password = 'supersecret';"
-    }
-  ]
-}
+? Would you like to test live URLs? (Y/n)
+❯ Yes
 ```
 
 ---
 
-## 🛠️ Supported Project Types
+## 🔍 Comprehensive Audit Categories
 
-- React
-- Node.js
-- Vanilla JavaScript
-- TypeScript
-- TypeScript + React
+### 🔒 **Security Audit**
+**Code Scanning + Live URL Testing**
 
----
+- **Hardcoded Secrets Detection**: API keys, passwords, tokens, private keys
+- **Input Validation**: Missing validation attributes, unsafe DOM insertion
+- **File Upload Security**: Type restrictions, size limits, sanitization
+- **Code Injection**: eval(), Function constructor, dynamic code execution
+- **Network Security**: Insecure HTTP, development URLs, token exposure
+- **Live URL Security**: Security headers, CSP, XSS vulnerabilities, HTTPS usage
 
-## 🔍 Audit Categories At a Glance
+### ⚡ **Performance Audit**
+**Code Analysis + Bundle Analysis**
 
-- 🔒 **Security**: Find secrets, XSS, vulnerable deps
-- ⚡ **Performance**: Flag large bundles, dead code
-- ♿ **Accessibility**: Check alt text, headings, ARIA
-- 🧪 **Testing**: Detect missing or weak tests
-- 📦 **Dependencies**: Outdated, unused, or risky packages
+- **Inefficient Operations**: Memory leaks, expensive operations
+- **Large Dependencies**: Heavy packages, bundle size optimization
+- **Asset Optimization**: Image optimization, resource loading
+- **Code Splitting**: Bundle analysis, lazy loading opportunities
+- **Performance Patterns**: Anti-patterns, optimization opportunities
 
----
+### ♿ **Accessibility Audit**
+**Code Scanning + Live URL Testing with Axe-Core**
 
-## 🔒 Security Audit Coverage
+- **Image Accessibility**: Missing alt attributes, decorative images
+- **Heading Structure**: Proper hierarchy, skipped levels, multiple h1s
+- **Form Accessibility**: Labels, validation, keyboard navigation
+- **Color Contrast**: WCAG compliance, color usage patterns
+- **ARIA Usage**: Proper ARIA attributes, semantic HTML
+- **Live URL Testing**: Real browser testing with **axe-core** (industry standard)
+- **Keyboard Navigation**: Tab order, focus management
+- **Landmarks**: Semantic structure, skip links
+- **Axe-Core Features**:
+  - **80+ Accessibility Rules**: Comprehensive WCAG 2.1 AA compliance testing
+  - **Impact-Based Prioritization**: Critical, serious, moderate, minor impact levels
+  - **Detailed Remediation**: Specific guidance for each accessibility violation
+  - **Real-Time Analysis**: Live website accessibility testing via Puppeteer
+  - **Cross-Browser Support**: Works across all modern browsers
 
-Our comprehensive security audit covers multiple layers of security vulnerabilities and best practices:
+### 🚀 **Lighthouse Audit**
+**Live URL Performance Testing**
 
-### 🔐 **Hardcoded Secrets Detection**
-- **API Keys & Tokens**: Detects exposed API keys, access tokens, refresh tokens
-- **Passwords & Credentials**: Finds hardcoded passwords and authentication secrets
-- **Private Keys**: Identifies exposed private keys and certificates
-- **Connection Strings**: Spots database and service connection strings
-- **Pattern Matching**: Uses advanced regex patterns to catch various secret formats
+- **Performance Metrics**: LCP, FCP, CLS, TTI, TBT
+- **Accessibility Scoring**: WCAG compliance, screen reader support
+- **Best Practices**: Modern web standards, security practices
+- **SEO Optimization**: Search engine optimization, meta tags
+- **Mobile & Desktop**: Dual device testing with realistic throttling
+- **Custom Reports**: PageSpeed Insights-like HTML reports
 
-### 🛡️ **Input Validation & XSS Prevention**
-- **HTML Input Validation**: Checks for missing validation attributes (`required`, `pattern`, `maxlength`)
-- **Unsafe DOM Insertion**: Detects dangerous `innerHTML` and `dangerouslySetInnerHTML` usage
-- **Line-by-Line Analysis**: Processes each line individually for precise issue detection
-- **Context-Aware Reporting**: Provides exact line numbers and surrounding code context
-- **Real-time Progress**: Shows scanning progress for better user experience
+### 🧪 **Testing Audit**
+**Test Coverage & Quality**
 
-### 📁 **File Upload Security**
-- **Type Restrictions**: Ensures file inputs have `accept` attributes for type validation
-- **Size Limits**: Checks for file size restrictions (`max` attributes)
-- **Filename Sanitization**: Detects unsafe direct usage of `file.name` without sanitization
-- **Upload Logic Analysis**: Scans JavaScript files for proper file handling practices
-- **Precise Detection**: Line-by-line analysis with exact line numbers and code context
-- **HTML & JS Coverage**: Scans both HTML file inputs and JavaScript upload logic
+- **Test File Detection**: Missing test files, test organization
+- **Testing Patterns**: Framework usage, testing practices
+- **Mocking & Stubbing**: Test isolation, dependency mocking
+- **Test Coverage**: Coverage analysis, untested code
+- **Testing Best Practices**: Modern testing patterns, quality checks
 
-### 🔍 **Code Injection & Execution Vulnerabilities**
-- **eval() Usage**: Flags dangerous `eval()` function calls
-- **Function Constructor**: Detects `new Function()` usage
-- **Dynamic Code Execution**: Identifies patterns that could lead to code injection
-- **Enhanced Pattern Scanning**: Line-by-line analysis with precise location reporting
-- **Context-Aware Detection**: Provides surrounding code for better issue understanding
+### 📦 **Dependency Audit**
+**Package Management & Security**
 
-### 🌐 **Network & Transport Security**
-- **Insecure HTTP**: Detects non-HTTPS requests (`http://` URLs)
-- **Development URLs**: Flags localhost and development URLs in production code
-- **Token Exposure**: Identifies exposed Bearer tokens in code
+- **Outdated Dependencies**: Version updates, security patches
+- **Duplicate Dependencies**: Package duplication, version conflicts
+- **Unused Dependencies**: Dead code, unnecessary packages
+- **Missing Dependencies**: Runtime dependencies, peer dependencies
+- **License Compliance**: License checking, compliance issues
+- **Vulnerability Scanning**: npm audit integration, security issues
 
-### 🎯 **Content Security Policy (CSP) - HTML Files Only**
-- **HTML-Only Scanning**: Exclusively scans HTML files (`.html`, `.htm`, `.jsp`, `.htl`, `.xhtml`, `.shtml`) for CSP
-- **Missing CSP Headers**: Detects absence of Content-Security-Policy meta tags
-- **Weak CSP Configurations**: Identifies unsafe CSP settings like `'unsafe-inline'`
-- **Security Headers**: Checks for missing HSTS and X-Frame-Options headers
-- **Precise Location**: Provides exact line numbers and code context for CSP issues
-- **JavaScript Exclusion**: Never scans JS files for CSP (as they don't contain CSP headers)
+### 🔧 **ESLint & Stylelint**
+**Code Quality & Style**
 
-### 📦 **Dependency Vulnerability Scanning**
-- **npm audit Integration**: Runs `npm audit` to check for known vulnerabilities
-- **Package Analysis**: Identifies outdated or vulnerable dependencies
-- **Security Recommendations**: Provides specific update recommendations
-
-### 🔧 **ESLint Security Plugin Integration**
-- **Security Rules**: Leverages ESLint security plugins for additional checks
-- **Custom Security Patterns**: Implements project-specific security rule detection
-- **Rule-Based Analysis**: Uses established security linting rules
-
-### 📊 **Comprehensive Reporting**
-- **Severity Levels**: Categorizes issues as High, Medium, or Low priority
-- **Line-by-Line Analysis**: Provides exact file locations and line numbers
-- **Code Context**: Shows surrounding code for better issue understanding
-- **Deduplication**: Removes duplicate findings for cleaner reports
-- **JSON Export**: Generates structured reports for integration with other tools
-
-### 🎛️ **Configurable Exclusions**
-- **Custom Rules**: Allow project-specific security rule exclusions
-- **Pattern Filtering**: Exclude specific code patterns from security checks
-- **Flexible Configuration**: Adapt security scanning to project requirements
-
-### 🔄 **Continuous Security Monitoring**
-- **Automated Scanning**: Integrate security checks into CI/CD pipelines
-- **Regular Audits**: Schedule periodic security assessments
-- **Trend Analysis**: Track security improvements over time
-
-### 🚀 **Technical Enhancements**
-- **Async File Processing**: Improved performance with non-blocking file operations
-- **Memory Optimization**: Efficient line-by-line processing with garbage collection
-- **Error Resilience**: Graceful handling of file read errors and malformed content
-- **Progress Tracking**: Real-time progress indicators for better user experience
-- **Smart File Filtering**: Intelligent exclusion of build artifacts and dependencies
+- **ESLint Integration**: JavaScript/TypeScript linting with configurable rules
+- **Stylelint Integration**: CSS/SCSS linting with style enforcement
+- **Framework Support**: React, Node, TypeScript, Vanilla JS
+- **Custom Configurations**: Project-specific rule sets
+- **Rule Exclusion**: Configurable rule filtering
 
 ---
 
-## 🛡️ How It Works
+## 🌐 Live URL Testing Features
 
-1. **Select audits via CLI**: Choose which audits to run.
-2. **File scanning**: Scans your codebase, excluding common build/output folders.
-3. **Pattern matching & analysis**: Uses static analysis and best-practice checks.
-4. **Report generation**: Saves results as JSON in the `report/` directory.
-5. **Dashboard visualization**: View all results in a single dashboard.
+### **Multi-Audit URL Testing**
+- **Batch URL Processing**: Test multiple URLs simultaneously
+- **URL Configuration Management**: Save and reuse URL configurations
+- **Cross-Audit Integration**: Security, accessibility, and Lighthouse testing
+- **Progress Tracking**: Real-time progress indicators
+- **Error Handling**: Graceful failure handling with detailed logging
 
----
+### **Browser Automation**
+- **Puppeteer Integration**: Real browser testing with Chrome/Chromium
+- **Mobile & Desktop Emulation**: Realistic device testing
+- **Network Throttling**: Real-world performance simulation
+- **Screenshot Capture**: Visual verification capabilities
+- **Console Logging**: Detailed debugging information
 
-## ⚙️ Configuration
 
-**Do I need a config file?**
-- **No!** Defaults work for most users. Just run and go.
-- For custom file patterns or advanced settings, create `ui-code-insight.config.json` in your project root.
-
-### `ui-code-insight.config.json` Reference
-
-You can customize how files are scanned and which rules are excluded by adding a `ui-code-insight.config.json` file to your project root. Example:
+### **Configuration File**
+Create `ui-code-insight.config.json` in your project root:
 
 ```json
 {
@@ -225,135 +194,254 @@ You can customize how files are scanned and which rules are excluded by adding a
       "overrideDefault": false,
       "additionalRules": ["my-custom-rule"]
     },
-    "stylelint": {
+    "security": {
       "enabled": true,
       "overrideDefault": false,
-      "additionalRules": ["my-custom-style-rule"]
-    },
-    "dependency": {
-      "enabled": true,
-      "overrideDefault": false,
-      "additionalRules": ["custom-dependency-rule"]
+      "additionalRules": ["custom-security-rule"]
     }
-    // ... other audit types ...
   }
 }
 ```
 
-- **jsFilePathPattern, htmlFilePathPattern, scssFilePathPattern**: Glob patterns for files to include/exclude in audits.
-- **excludeRules**: Fine-tune which rules are enabled/disabled for each audit type. You can add custom rules or override defaults.
+### **URL Configuration Management**
+- **💾 Save URL Configurations**: Store frequently used URL sets for reuse
+- **🔄 Load Saved Configurations**: Reuse previous URL setups instantly
+- **📁 Report Folder Integration**: Configurations saved alongside reports
+- **🎛️ Multiple Configurations**: Support for different testing scenarios
+- **⚡ Batch Processing**: Test multiple URLs simultaneously
 
 ---
 
-## 🧪 Testing
+## 📊 Dashboard & Reporting
 
-The project includes a comprehensive test suite located in the `test/` folder. These tests validate specific functionality and features of the UI Code Insight tool.
+### **📊 Interactive Dashboard**
+- **🎯 Comprehensive Overview**: All audit results in one beautiful interface
+- **📈 Category Breakdown**: Detailed analysis by audit type with visual charts
+- **🔍 Advanced Filtering**: Filter by severity, source, category, and more
+- **🔎 Smart Search**: Find specific issues quickly with powerful search
+- **📱 Responsive Design**: Works perfectly on desktop and mobile devices
+- **⚡ Real-time Updates**: Dynamic data loading and instant filtering
 
-### Running Tests
+### **📄 Report Formats**
+- **📊 JSON Reports**: Structured data perfect for CI/CD integration
+- **🌐 HTML Dashboard**: Beautiful interactive web interface
+- **🚀 Custom Lighthouse Reports**: PageSpeed Insights-like detailed reports
+- **📋 CSV Export**: Spreadsheet-friendly formats for further analysis
+- **📱 Mobile-Optimized**: Responsive design for all devices
 
-```bash
-# List all available tests
-node test/run-tests.js
-
-# Run specific test categories
-node test/run-tests.js accessibility     # Run accessibility tests
-node test/run-tests.js security          # Run security tests
-node test/run-tests.js file-scanning     # Run file scanning tests
-
-# Run individual test files
-node test/test-accessibility-data.js
-node test/test-security-filtering.js
-node test/test-file-scanning.js
+### **Report Organization**
+```
+report/
+├── accessibility-audit-report.json
+├── security-audit-report.json
+├── performance-audit-report.json
+├── lighthouse-audit-report.json
+├── testing-audit-report.json
+├── dependency-audit-report.json
+├── comprehensive-audit-report.json
+├── ui-code-insight.config.json
+├── ui-code-insight-urls.json
+└── index.html (dashboard)
 ```
 
-### Test Categories
+---
 
-- **Accessibility Tests**: Validate accessibility audit functionality, live URL testing, and dashboard display
-- **Security Tests**: Verify security audit features, filtering, and live URL security testing
-- **File Scanning Tests**: Test file pattern matching, exclusion rules, and multi-file type scanning
+## 🛠️ Supported Project Types
 
-### Test Organization
-
-All test files are organized in the `test/` folder with clear naming conventions:
-- `test-{category}-{feature}.js` format
-- Comprehensive documentation in `test/README.md`
-- Independent test files that can be run separately
+- **⚛️ React** (JavaScript & TypeScript)
+- **🟢 Node.js** (Backend applications & APIs)
+- **🟡 Vanilla JavaScript** (Traditional web projects)
+- **🔵 TypeScript** (Type-safe JavaScript development)
+- **⚛️ TypeScript + React** (Modern React with TypeScript)
+- **🎯 Framework Agnostic** (Works with any JavaScript/TypeScript project)
 
 ---
 
-## ⚠️ Important Usage Note
-
-**Do not run 'Comprehensive Audit (All Categories)' and 'All Traditional Reports' together on large projects.**
-
-Running both at the same time may cause the tool to crash or run out of memory on large codebases. For best results, run one or the other, not both together.
-
----
-
-## ❓ FAQ
-
-**Q: How accurate are the reports?**  
-A: 
-- **Rule-Based Static Analysis:** The tool uses established static analysis engines (like ESLint, Stylelint, and custom audits) that apply well-known rules and patterns to your codebase. The accuracy of each report is tied to the quality and completeness of these rules.
-- **Coverage of Patterns:** The tool looks for a wide range of issues, but it can only find what it’s programmed to detect. If an issue falls outside these patterns, it won’t be flagged.
-- **No False Positives/Negatives Guarantee:** Like all static analysis tools, there may be false positives (flagging something that isn’t really a problem) or false negatives (missing a real issue). The tool aims to minimize these by using up-to-date, community-accepted rules and by allowing configuration for project-specific needs.
-- **Transparency and Customization:** The tool outputs detailed reports, so users can review and verify each finding. Users can customize rules or add exceptions to improve relevance and reduce noise.
-- **Not a Substitute for Manual Review:** Automated tools are a first line of defense and help catch common issues quickly. For critical applications, manual code review and testing are still recommended to catch context-specific or business-logic issues.
-
-**Q: Do I need to configure anything?**  
-A: No! Defaults work for most users. Advanced users can add a config file.
-
-**Q: Where are reports saved?**  
-A: In the `report/` directory at your project root.
-
-
+### **🧪 Test Categories**
+- **♿ Accessibility Tests**: Live URL testing with axe-core, dashboard display
+- **🔒 Security Tests**: Pattern matching, live URL security analysis
+- **📁 File Scanning Tests**: Pattern matching, exclusion rules validation
+- **🔗 Integration Tests**: End-to-end workflow testing
+- **📊 Dashboard Tests**: Interactive dashboard functionality
+- **⚡ Performance Tests**: Large project handling and optimization
 
 ---
 
-## Dependencies
-- [Stylelint](https://www.npmjs.com/package/stylelint)
-- [ESLint](https://www.npmjs.com/package/eslint)
-- [@typescript-eslint/eslint-plugin](https://www.npmjs.com/package/@typescript-eslint/eslint-plugin)
-- [eslint-config-airbnb](https://www.npmjs.com/package/eslint-config-airbnb)
-- [eslint-config-airbnb-base](https://www.npmjs.com/package/eslint-config-airbnb-base)
-- [eslint-config-airbnb-typescript](https://www.npmjs.com/package/eslint-config-airbnb-typescript)
+## 🔧 Technical Architecture
+
+### **Modular Design**
+- **Audit Orchestrator**: Central coordination of all audits
+- **Individual Audit Modules**: Specialized audit implementations
+- **File Pattern System**: Centralized file pattern management
+- **Configuration Loader**: Dynamic configuration handling
+- **Dashboard Integration**: Unified reporting interface
+
+### **Performance Optimizations**
+- **Async Processing**: Non-blocking file operations
+- **Batch Processing**: Efficient large file handling
+- **Memory Management**: Garbage collection optimization
+- **Progress Tracking**: Real-time operation feedback
+- **Error Resilience**: Graceful failure handling
+
+### **Extensibility**
+- **Plugin Architecture**: Easy addition of new audit types
+- **Custom Patterns**: Configurable file pattern system
+- **Rule Customization**: Flexible rule exclusion system
+- **Integration APIs**: Structured data output for external tools
 
 ---
 
-## Repository
+## 📈 Advanced Features
 
-GitHub: [https://github.com/deepak121001/ui-code-insight.git](https://github.com/deepak121001/ui-code-insight.git)
+### **Live URL Testing Capabilities**
+- **Multi-Device Testing**: Desktop and mobile emulation
+- **Network Simulation**: Realistic throttling and latency
+- **Security Header Analysis**: CSP, HSTS, X-Frame-Options
+- **Accessibility Compliance**: WCAG 2.1 AA standards with axe-core integration
+- **Performance Metrics**: Core Web Vitals measurement
+
+### **Axe-Core Accessibility Engine**
+- **Industry Standard**: Uses the most trusted accessibility testing library
+- **Real-Time Analysis**: Tests live websites for accessibility violations
+- **Comprehensive Coverage**: 80+ accessibility rules covering all major WCAG guidelines
+- **Impact-Based Prioritization**: Issues categorized by critical, serious, moderate, and minor impact
+- **Detailed Remediation**: Each violation includes specific guidance on how to fix the issue
+- **WCAG 2.1 AA Compliance**: Automated testing against the latest accessibility standards
+- **Cross-Browser Support**: Works across all modern browsers
+- **Fast Execution**: Minimal impact on page load times
+
+### **Smart File Pattern Management**
+- **Centralized Configuration**: Single source of truth for file patterns
+- **Audit-Specific Patterns**: Optimized patterns for each audit type
+- **Exclusion Management**: Comprehensive exclusion system
+- **Pattern Validation**: Built-in pattern validation utilities
+- **Statistics Tracking**: Pattern usage analytics
+
+### **Enhanced Error Handling**
+- **Graceful Degradation**: Continue operation despite individual failures
+- **Detailed Logging**: Comprehensive error reporting
+- **Recovery Mechanisms**: Automatic retry and fallback systems
+- **User Feedback**: Clear error messages and suggestions
+
+---
+
+## ⚠️ Important Usage Notes
+
+### **Performance Considerations**
+- **Large Projects**: For very large codebases, run audits individually
+- **Memory Usage**: Monitor memory usage during comprehensive audits
+- **Network Testing**: Live URL testing requires internet connectivity
+- **Browser Resources**: Lighthouse testing uses significant system resources
+
+### **Best Practices**
+- **Regular Audits**: Schedule periodic code quality assessments
+- **Incremental Testing**: Test changes incrementally in CI/CD
+- **Configuration Management**: Use version-controlled configuration files
+- **Team Integration**: Share audit results and configurations with team
+
+---
+
+## ❓ Frequently Asked Questions
+
+**Q: How accurate are the audit reports?**  
+A: The tool uses industry-standard engines (ESLint, Stylelint, Lighthouse, axe-core) and custom pattern matching. While highly accurate, manual review is recommended for critical applications.
+
+**Q: Do I need to configure anything to get started?**  
+A: No! The tool works out of the box with smart defaults. Advanced users can add configuration files for customization.
+
+**Q: Where are the audit reports saved?**  
+A: All reports are saved in the `report/` directory at your project root, with supporting files and the interactive dashboard.
+
+**Q: Can I integrate this into my CI/CD pipeline?**  
+A: Yes! The tool generates structured JSON reports perfect for CI/CD integration and automated quality gates.
+
+**Q: Does it work with monorepos and large projects?**  
+A: Yes! The tool is optimized for large codebases and supports monorepos with proper file pattern configuration.
+
+**Q: What browsers are supported for live URL testing?**  
+A: All modern browsers via Puppeteer, with mobile and desktop emulation support.
+
+**Q: How fast is the tool on large projects?**  
+A: Optimized with batch processing, async operations, and memory management for efficient large project handling.
+
+---
+
+## 🔗 Dependencies
+
+### **Core Dependencies**
+- [ESLint](https://www.npmjs.com/package/eslint) - JavaScript/TypeScript linting
+- [Stylelint](https://www.npmjs.com/package/stylelint) - CSS/SCSS linting
+- [Lighthouse](https://www.npmjs.com/package/lighthouse) - Web performance auditing
+- [Puppeteer](https://www.npmjs.com/package/puppeteer) - Browser automation for live URL testing
+- [Chalk](https://www.npmjs.com/package/chalk) - Terminal styling
+- [Inquirer](https://www.npmjs.com/package/inquirer) - Interactive CLI
+
+### **Accessibility Testing**
+- **Axe-Core Integration**: Industry-standard accessibility testing engine
+  - **Live URL Testing**: Real-time accessibility analysis of live websites
+  - **WCAG 2.1 Compliance**: Automated testing against WCAG 2.1 AA standards
+  - **Comprehensive Coverage**: Tests for color contrast, keyboard navigation, ARIA usage, semantic HTML
+  - **Detailed Reporting**: Provides specific violation details with remediation guidance
+  - **Impact Assessment**: Categorizes issues by critical, serious, moderate, and minor impact levels
+
+### **Framework Support**
+- [@typescript-eslint/eslint-plugin](https://www.npmjs.com/package/@typescript-eslint/eslint-plugin) - TypeScript support
+- [eslint-config-airbnb](https://www.npmjs.com/package/eslint-config-airbnb) - Airbnb style guide
+- [eslint-plugin-react](https://www.npmjs.com/package/eslint-plugin-react) - React support
+- [eslint-plugin-security](https://www.npmjs.com/package/eslint-plugin-security) - Security rules
+
+---
 
 ## 📊 Live Demo & Samples
 
 - **Audit Sample Dashboard**: [https://deepak121001.github.io/Audit-Sample/](https://deepak121001.github.io/Audit-Sample/)
-- **Sample Projects**: Explore React, Node.js, and Vanilla JavaScript projects with intentional issues for testing
-- **Interactive Reports**: View ESLint, Stylelint, Security, Accessibility, and Performance audits in action
+- **Sample Projects**: Explore React, Node.js, and Vanilla JavaScript projects
+- **Interactive Reports**: View all audit types in action
 
 ---
 
 ## 🤝 Contributing
 
 Contributions, issues, and feature requests are welcome!
-Feel free to check [issues](https://github.com/deepak121001/ui-code-insight/issues) or open a pull request.
 
-1. Fork the repo
+1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/YourFeature`)
 3. Commit your changes (`git commit -am 'Add new feature'`)
 4. Push to the branch (`git push origin feature/YourFeature`)
 5. Open a pull request
 
+### **Development Setup**
+```bash
+git clone https://github.com/deepak121001/ui-code-insight.git
+cd ui-code-insight
+npm install
+npm run build
+```
+
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] AI-powered code suggestions
-- [ ] More framework support
-- [ ] Customizable dashboard themes
-
+- [ ] 🤖 AI-powered code suggestions and automated fixes
+- [ ] 🎨 Customizable dashboard themes and branding
+- [ ] 🔗 Integration with popular CI/CD platforms (GitHub Actions, GitLab CI, Jenkins)
+- [ ] 📊 Advanced performance profiling and optimization recommendations
+- [ ] 🛠️ Custom audit rule creation and sharing
+- [ ] 🌐 More framework support (Vue, Angular, Svelte, Next.js, Nuxt)
 ---
 
 ## 📝 License
 
-_This project is licensed under the MIT License._
+This project is licensed under the MIT License.
+
+---
+
+## 📞 Support
+
+- **GitHub Issues**: [https://github.com/deepak121001/ui-code-insight/issues](https://github.com/deepak121001/ui-code-insight/issues)
+- **Documentation**: [https://github.com/deepak121001/ui-code-insight](https://github.com/deepak121001/ui-code-insight)
+- **Live Demo**: [https://deepak121001.github.io/Audit-Sample/](https://deepak121001.github.io/Audit-Sample/)
+
+---
 
 ![Dashboard Overview](docs/dashboard-overview.png)

@@ -13,65 +13,37 @@ import { createRequire } from 'module';
 import stylelint from 'stylelint';
 import fetch from 'node-fetch';
 
-// Centralized globby file patterns for all audits
-
+// Default patterns - moved here to break circular dependency
 const defaultJsFilePathPattern = [
   '**/*.{js,ts,jsx,tsx}',
   '!**/node_modules/**',
-  '!**/.storybook/**',
-  '!**/storybook/**',
+  '!**/dist/**',
+  '!**/build/**',
+  '!**/coverage/**',
   '!**/report/**',
-  '!build/**',
-  '!dist/**',
-  '!coverage/**',
-  '!.git/**',
-  '!bin/**',
-  '!**/__dropins__/**',
-  '!**/cypress/**',
-  '!**/tools/**',
   '!**/*.min.js',
+  '!**/tools/**'
 ];
 
 const defaultHtmlFilePathPattern = [
-  '**/*.{html,js,ts,jsx,tsx}',
+  '**/*.{html,htm}',
   '!**/node_modules/**',
-  '!**/.storybook/**',
-  '!**/storybook/**',
+  '!**/dist/**',
+  '!**/build/**',
+  '!**/coverage/**',
   '!**/report/**',
-  '!build/**',
-  '!dist/**',
-  '!coverage/**',
-  '!.git/**',
-  '!bin/**',
-  '!**/__dropins__/**',
-  '!**/cypress/**',
-  '!**/tools/**',
+  '!**/tools/**'
 ];
 
 const defaultScssFilePathPattern = [
-  '**/*.{scss,less,css}',
+  '**/*.{css,scss,sass,less}',
   '!**/node_modules/**',
-  '!**/.storybook/**',
-  '!**/storybook/**',
+  '!**/dist/**',
+  '!**/build/**',
+  '!**/coverage/**',
   '!**/report/**',
-  '!build/**',
-  '!dist/**',
-  '!coverage/**',
-  '!.git/**',
-  '!bin/**',
-  '!**/__dropins__/**',
-  '!**/cypress/**',
-  '!**/tools/**',
+  '!**/tools/**'
 ];
-
-const assetGlobs = [
-  'public/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
-  'assets/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
-  'static/**/*.{png,jpg,jpeg,bmp,tiff,gif}',
-  'src/assets/**/*.{png,jpg,jpeg,bmp,tiff,gif}'
-];
-
-// Add more as needed for CSS, JSON, etc.
 
 let cachedConfig = null;
 let warnedAboutDefaultConfig = false;
@@ -979,6 +951,32 @@ async checkDependencyVulnerabilities() {
     return results;
   }
 }
+
+// Centralized file patterns for all audits
+
+/**
+ * Get Asset file patterns
+ * Used by: Performance audit
+ */
+function getAssetPatterns() {
+  return [
+    'public/**/*.{png,jpg,jpeg,bmp,tiff,gif,svg,webp}',
+    'assets/**/*.{png,jpg,jpeg,bmp,tiff,gif,svg,webp}',
+    'static/**/*.{png,jpg,jpeg,bmp,tiff,gif,svg,webp}',
+    'src/assets/**/*.{png,jpg,jpeg,bmp,tiff,gif,svg,webp}',
+    '!**/node_modules/**',
+    '!**/report/**',
+    '!build/**',
+    '!dist/**'
+  ];
+}
+
+// ============================================================================
+// LEGACY COMPATIBILITY
+// ============================================================================
+
+// Legacy exports for backward compatibility
+const assetGlobs = getAssetPatterns();
 
 const CONFIG_FOLDER$2 = "config";
 const ESLINTRC_JSON$1 = ".eslintrc.json";
