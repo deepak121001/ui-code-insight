@@ -44,7 +44,6 @@ export class LighthouseAudit {
           const desktopData = await fs.readFile(desktopReportPath, "utf8");
           const desktopReport = JSON.parse(desktopData);
           urlResult.desktop = {
-            fileName: `${outputName}.desktop.report.html`,
             performance: desktopReport.categories?.performance?.score * 100,
             accessibility: desktopReport.categories?.accessibility?.score * 100,
             bestPractices: desktopReport.categories?.["best-practices"]?.score * 100,
@@ -54,7 +53,6 @@ export class LighthouseAudit {
         } else {
           console.log(chalk.yellow(`  ⚠️  No desktop report found for ${url}`));
           urlResult.desktop = {
-            fileName: `${outputName}.desktop.report.html`,
             performance: null,
             accessibility: null,
             bestPractices: null,
@@ -66,7 +64,6 @@ export class LighthouseAudit {
       } catch (error) {
         console.error(chalk.red(`Error processing desktop report for ${url}:`, error.message));
         urlResult.desktop = {
-          fileName: `${outputName}.desktop.report.html`,
           performance: null,
           accessibility: null,
           bestPractices: null,
@@ -82,7 +79,6 @@ export class LighthouseAudit {
           const mobileData = await fs.readFile(mobileReportPath, "utf8");
           const mobileReport = JSON.parse(mobileData);
           urlResult.mobile = {
-            fileName: `${outputName}.mobile.report.html`,
             performance: mobileReport.categories?.performance?.score * 100,
             accessibility: mobileReport.categories?.accessibility?.score * 100,
             bestPractices: mobileReport.categories?.["best-practices"]?.score * 100,
@@ -92,7 +88,6 @@ export class LighthouseAudit {
         } else {
           console.log(chalk.yellow(`  ⚠️  No mobile report found for ${url}`));
           urlResult.mobile = {
-            fileName: `${outputName}.mobile.report.html`,
             performance: null,
             accessibility: null,
             bestPractices: null,
@@ -104,7 +99,6 @@ export class LighthouseAudit {
       } catch (error) {
         console.error(chalk.red(`Error processing mobile report for ${url}:`, error.message));
         urlResult.mobile = {
-          fileName: `${outputName}.mobile.report.html`,
           performance: null,
           accessibility: null,
           bestPractices: null,
@@ -188,11 +182,10 @@ export class LighthouseAudit {
         try {
           const outputName = url.replace(/^https?:\/\//, "").replace(/\//g, "");
           const deviceSuffix = deviceType === 'mobile' ? '.mobile' : '.desktop';
-          const htmlOutputPath = path.join(folderPath, `${outputName}${deviceSuffix}.report.html`);
           const jsonOutputPath = path.join(folderPath, `${outputName}${deviceSuffix}.report.json`);
           
           // Check if reports already exist
-          const reportsExist = fsSync.existsSync(jsonOutputPath) && fsSync.existsSync(htmlOutputPath);
+          const reportsExist = fsSync.existsSync(jsonOutputPath);
           const actionText = reportsExist ? 'Updating existing' : 'Creating new';
           
           if (attempt > 0) {
@@ -205,7 +198,7 @@ export class LighthouseAudit {
           // Lighthouse configuration - optimized to match PageSpeed Insights
           const options = {
             port: (new URL(browser.wsEndpoint())).port,
-            output: ['json', 'html'],
+            output: ['json'], // Only generate JSON, not HTML
             onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
             formFactor: deviceType,
             throttling: deviceType === 'mobile' ? {
@@ -260,10 +253,10 @@ export class LighthouseAudit {
           // Save JSON report (overwrite if exists)
           await fs.writeFile(jsonOutputPath, JSON.stringify(report, null, 2));
           
-          // Save HTML report (overwrite if exists)
-          await fs.writeFile(htmlOutputPath, runnerResult.report);
+          // Generate custom HTML report with PageSpeed Insights-like UI
+          const customHtmlFileName = await this.generateCustomHtmlReport(url, deviceType, report);
           
-          console.log(chalk.blue(`  📄 Reports saved: ${outputName}${deviceSuffix}.report.json & ${outputName}${deviceSuffix}.report.html`));
+          console.log(chalk.blue(`  📄 Reports saved: ${outputName}${deviceSuffix}.report.json & ${customHtmlFileName}`));
           
           const successText = reportsExist ? 'Updated' : 'Generated';
           console.log(chalk.green(`  ✅ ${successText} ${deviceType} report for: ${url}`));
@@ -275,7 +268,8 @@ export class LighthouseAudit {
             accessibility: report.categories?.accessibility?.score * 100,
             bestPractices: report.categories?.["best-practices"]?.score * 100,
             seo: report.categories?.seo?.score * 100,
-            issues: this.extractLighthouseIssues(report)
+            issues: this.extractLighthouseIssues(report),
+            customHtmlFile: customHtmlFileName
           };
         } catch (err) {
           attempt++;
@@ -333,6 +327,340 @@ export class LighthouseAudit {
     } finally {
       await browser.close();
     }
+  }
+
+  /**
+   * Generate custom HTML report with PageSpeed Insights-like UI
+   */
+  async generateCustomHtmlReport(url, deviceType, reportData) {
+    const outputName = url.replace(/^https?:\/\//, "").replace(/\//g, "");
+    const deviceSuffix = deviceType === 'mobile' ? '.mobile' : '.desktop';
+    const htmlOutputPath = path.join(path.resolve(process.cwd(), "report"), `${outputName}${deviceSuffix}.custom.html`);
+    
+    const htmlContent = this.createCustomHtmlReport(url, deviceType, reportData);
+    await fs.writeFile(htmlOutputPath, htmlContent);
+    
+    return `${outputName}${deviceSuffix}.custom.html`;
+  }
+
+  /**
+   * Create custom HTML report content
+   */
+  createCustomHtmlReport(url, deviceType, reportData) {
+    const scores = {
+      performance: reportData.categories?.performance?.score * 100 || 0,
+      accessibility: reportData.categories?.accessibility?.score * 100 || 0,
+      bestPractices: reportData.categories?.["best-practices"]?.score * 100 || 0,
+      seo: reportData.categories?.seo?.score * 100 || 0
+    };
+
+    const issues = this.extractLighthouseIssues(reportData);
+    const opportunities = this.extractOpportunities(reportData);
+    const diagnostics = this.extractDiagnostics(reportData);
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lighthouse Report - ${url} (${deviceType})</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'score-green': '#0f9d58',
+                        'score-orange': '#f4b400',
+                        'score-red': '#db4437'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .score-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            margin: 0 auto;
+        }
+        .score-green { background: linear-gradient(135deg, #0f9d58, #0b8043); }
+        .score-orange { background: linear-gradient(135deg, #f4b400, #f57c00); }
+        .score-red { background: linear-gradient(135deg, #db4437, #c53929); }
+        .metric-card {
+            transition: transform 0.2s;
+        }
+        .metric-card:hover {
+            transform: translateY(-2px);
+        }
+        .issue-severity-high { border-left: 4px solid #db4437; }
+        .issue-severity-medium { border-left: 4px solid #f4b400; }
+        .issue-severity-low { border-left: 4px solid #0f9d58; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Lighthouse Report</h1>
+                    <p class="text-gray-600">${url}</p>
+                    <div class="flex items-center mt-2">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                          deviceType === 'mobile' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }">
+                            ${deviceType === 'mobile' ? '📱 Mobile' : '💻 Desktop'}
+                        </span>
+                        <span class="ml-3 text-sm text-gray-500">
+                            Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
+                        </span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="score-circle ${this.getScoreClass(scores.performance)}">
+                        ${Math.round(scores.performance)}
+                    </div>
+                    <p class="text-center mt-2 text-sm font-medium text-gray-700">Performance</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="metric-card bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Performance</h3>
+                    <span class="text-2xl font-bold ${this.getScoreTextClass(scores.performance)}">
+                        ${Math.round(scores.performance)}
+                    </span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="h-2 rounded-full ${this.getScoreClass(scores.performance)}" 
+                         style="width: ${scores.performance}%"></div>
+                </div>
+            </div>
+
+            <div class="metric-card bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Accessibility</h3>
+                    <span class="text-2xl font-bold ${this.getScoreTextClass(scores.accessibility)}">
+                        ${Math.round(scores.accessibility)}
+                    </span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="h-2 rounded-full ${this.getScoreClass(scores.accessibility)}" 
+                         style="width: ${scores.accessibility}%"></div>
+                </div>
+            </div>
+
+            <div class="metric-card bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Best Practices</h3>
+                    <span class="text-2xl font-bold ${this.getScoreTextClass(scores.bestPractices)}">
+                        ${Math.round(scores.bestPractices)}
+                    </span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="h-2 rounded-full ${this.getScoreClass(scores.bestPractices)}" 
+                         style="width: ${scores.bestPractices}%"></div>
+                </div>
+            </div>
+
+            <div class="metric-card bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">SEO</h3>
+                    <span class="text-2xl font-bold ${this.getScoreTextClass(scores.seo)}">
+                        ${Math.round(scores.seo)}
+                    </span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="h-2 rounded-full ${this.getScoreClass(scores.seo)}" 
+                         style="width: ${scores.seo}%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Issues Section -->
+        ${issues.length > 0 ? `
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Issues Found (${issues.length})</h2>
+            <div class="space-y-4">
+                ${issues.map(issue => `
+                <div class="issue-severity-${issue.severity} bg-gray-50 rounded-lg p-4">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <h4 class="text-lg font-semibold text-gray-900 mb-2">${issue.message}</h4>
+                            <p class="text-gray-600 mb-3">${issue.description}</p>
+                            <div class="flex items-center space-x-4 text-sm">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  issue.severity === 'high' ? 'bg-red-100 text-red-800' :
+                                  issue.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-green-100 text-green-800'
+                                }">
+                                    ${issue.severity.toUpperCase()}
+                                </span>
+                                <span class="text-gray-500">Category: ${issue.category}</span>
+                                <span class="text-gray-500">Score: ${Math.round(issue.score * 100)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `).join('')}
+            </div>
+        </div>
+        ` : `
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <div class="text-center py-8">
+                <div class="text-6xl mb-4">🎉</div>
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">No Issues Found!</h2>
+                <p class="text-gray-600">Great job! Your page is performing well across all metrics.</p>
+            </div>
+        </div>
+        `}
+
+        <!-- Opportunities Section -->
+        ${opportunities.length > 0 ? `
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Opportunities (${opportunities.length})</h2>
+            <div class="space-y-4">
+                ${opportunities.map(opp => `
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <h4 class="text-lg font-semibold text-gray-900 mb-2">${opp.title}</h4>
+                    <p class="text-gray-600 mb-3">${opp.description}</p>
+                    ${opp.savings ? `
+                    <div class="bg-blue-50 rounded-lg p-3">
+                        <span class="text-sm font-medium text-blue-800">
+                            Potential savings: ${opp.savings}
+                        </span>
+                    </div>
+                    ` : ''}
+                </div>
+                `).join('')}
+            </div>
+        </div>
+        ` : ''}
+
+        <!-- Diagnostics Section -->
+        ${diagnostics.length > 0 ? `
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Diagnostics (${diagnostics.length})</h2>
+            <div class="space-y-4">
+                ${diagnostics.map(diag => `
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <h4 class="text-lg font-semibold text-gray-900 mb-2">${diag.title}</h4>
+                    <p class="text-gray-600">${diag.description}</p>
+                </div>
+                `).join('')}
+            </div>
+        </div>
+        ` : ''}
+
+        <!-- Footer -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <div class="text-center text-gray-500">
+                <p>Report generated by UI Code Insight Lighthouse Audit</p>
+                <p class="text-sm mt-2">
+                    <a href="${url}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                        View Original Page
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add some interactivity
+        document.addEventListener('DOMContentLoaded', function() {
+            // Animate score bars on load
+            const progressBars = document.querySelectorAll('.h-2.rounded-full');
+            progressBars.forEach(bar => {
+                const width = bar.style.width;
+                bar.style.width = '0%';
+                setTimeout(() => {
+                    bar.style.transition = 'width 1s ease-in-out';
+                    bar.style.width = width;
+                }, 500);
+            });
+
+            // Add click handlers for expandable sections
+            const issueCards = document.querySelectorAll('.issue-severity-high, .issue-severity-medium, .issue-severity-low');
+            issueCards.forEach(card => {
+                card.addEventListener('click', function() {
+                    this.classList.toggle('ring-2');
+                    this.classList.toggle('ring-blue-500');
+                });
+            });
+        });
+    </script>
+</body>
+</html>`;
+  }
+
+  /**
+   * Extract opportunities from Lighthouse report
+   */
+  extractOpportunities(report) {
+    const opportunities = [];
+    
+    Object.entries(report.audits || {}).forEach(([id, audit]) => {
+      if (audit.details?.type === 'opportunity' && audit.score !== null && audit.score < 1) {
+        opportunities.push({
+          title: audit.title,
+          description: audit.description,
+          savings: audit.details?.summary || null,
+          score: audit.score
+        });
+      }
+    });
+    
+    return opportunities;
+  }
+
+  /**
+   * Extract diagnostics from Lighthouse report
+   */
+  extractDiagnostics(report) {
+    const diagnostics = [];
+    
+    Object.entries(report.audits || {}).forEach(([id, audit]) => {
+      if (audit.details?.type === 'diagnostic' && audit.score !== null) {
+        diagnostics.push({
+          title: audit.title,
+          description: audit.description,
+          score: audit.score
+        });
+      }
+    });
+    
+    return diagnostics;
+  }
+
+  /**
+   * Get score class for styling
+   */
+  getScoreClass(score) {
+    if (score >= 90) return 'score-green';
+    if (score >= 50) return 'score-orange';
+    return 'score-red';
+  }
+
+  /**
+   * Get score text class for styling
+   */
+  getScoreTextClass(score) {
+    if (score >= 90) return 'text-score-green';
+    if (score >= 50) return 'text-score-orange';
+    return 'text-score-red';
   }
 
   /**

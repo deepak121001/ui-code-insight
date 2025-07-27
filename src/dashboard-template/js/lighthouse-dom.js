@@ -32,6 +32,11 @@ export const lighthouseDom = {
     
     // Update overview data
     lighthouseDom.updateOverviewFromData();
+    
+    // Refresh the overview display
+    if (typeof refreshLighthouseOverview === 'function') {
+      refreshLighthouseOverview();
+    }
   },
 
   loadLighthouseData: async () => {
@@ -116,7 +121,7 @@ export const lighthouseDom = {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               ${desktopData.error ? 
                 `<span class="text-red-600">Error: ${desktopData.error}</span>` :
-                `<a href="./${desktopData.fileName}" target="_blank" class="text-blue-600 hover:text-blue-900">View Report</a>`
+                `<a href="./${item.url.replace(/^https?:\/\//, "").replace(/\//g, "")}.desktop.custom.html" target="_blank" class="text-green-600 hover:text-green-900">View Report</a>`
               }
             </td>
           </tr>
@@ -162,7 +167,7 @@ export const lighthouseDom = {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               ${mobileData.error ? 
                 `<span class="text-red-600">Error: ${mobileData.error}</span>` :
-                `<a href="./${mobileData.fileName}" target="_blank" class="text-blue-600 hover:text-blue-900">View Report</a>`
+                `<a href="./${item.url.replace(/^https?:\/\//, "").replace(/\//g, "")}.mobile.custom.html" target="_blank" class="text-green-600 hover:text-green-900">View Report</a>`
               }
             </td>
           </tr>

@@ -869,6 +869,11 @@
       
       // Update overview data
       lighthouseDom.updateOverviewFromData();
+      
+      // Refresh the overview display
+      if (typeof refreshLighthouseOverview === 'function') {
+        refreshLighthouseOverview();
+      }
     },
 
     loadLighthouseData: async () => {
@@ -953,7 +958,7 @@
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               ${desktopData.error ? 
                 `<span class="text-red-600">Error: ${desktopData.error}</span>` :
-                `<a href="./${desktopData.fileName}" target="_blank" class="text-blue-600 hover:text-blue-900">View Report</a>`
+                `<a href="./${item.url.replace(/^https?:\/\//, "").replace(/\//g, "")}.desktop.custom.html" target="_blank" class="text-green-600 hover:text-green-900">View Report</a>`
               }
             </td>
           </tr>
@@ -999,7 +1004,7 @@
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               ${mobileData.error ? 
                 `<span class="text-red-600">Error: ${mobileData.error}</span>` :
-                `<a href="./${mobileData.fileName}" target="_blank" class="text-blue-600 hover:text-blue-900">View Report</a>`
+                `<a href="./${item.url.replace(/^https?:\/\//, "").replace(/\//g, "")}.mobile.custom.html" target="_blank" class="text-green-600 hover:text-green-900">View Report</a>`
               }
             </td>
           </tr>
@@ -1511,17 +1516,38 @@
       if (response.ok) {
         const data = await response.json();
         let totalIssues = 0;
+        
         data.forEach(item => {
-          if (item.issues) {
-            totalIssues += item.issues.length;
+          // Count desktop issues
+          if (item.desktop && item.desktop.issues) {
+            totalIssues += item.desktop.issues.length;
+          }
+          // Count mobile issues
+          if (item.mobile && item.mobile.issues) {
+            totalIssues += item.mobile.issues.length;
           }
         });
+        
         return totalIssues;
       }
     } catch (error) {
       console.error('Error loading lighthouse data for overview:', error);
     }
     return 0;
+  }
+
+  // Refresh Lighthouse overview
+  async function refreshLighthouseOverview$1() {
+    const lighthouseTotal = document.getElementById('lighthouseTotal');
+    if (lighthouseTotal) {
+      try {
+        const total = await getLighthouseTotal();
+        lighthouseTotal.textContent = total;
+      } catch (error) {
+        console.error('Error refreshing lighthouse overview:', error);
+        lighthouseTotal.textContent = '0';
+      }
+    }
   }
 
   // Render comprehensive audit overview
@@ -1885,6 +1911,12 @@
       }
     }
 
+    // Check for Lighthouse report
+    const lighthouseExists = await reportExists('lightHouseCombine');
+    if (!lighthouseExists) {
+      hideReportTabAndSection({ id: 'lighthouseAuditReport', section: 'lighthouseSection' });
+    }
+
     // Fetch data for overview charts only for available reports
     const eslintData = reportExistence['eslint'] ? await fetchData('eslint') : null;
     const stylelintData = reportExistence['stylelint'] ? await fetchData('stylelint') : null;
@@ -1919,6 +1951,11 @@
         dependency: dependencyData
       }
     );
+
+    // Update Lighthouse overview if report exists
+    if (lighthouseExists) {
+      await refreshLighthouseOverview$1();
+    }
 
     // Sidebar navigation
     document.getElementById('mainPage').addEventListener('click', e => {
