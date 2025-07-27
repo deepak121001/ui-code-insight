@@ -1662,6 +1662,7 @@ async checkDependencyVulnerabilities() {
       '**/*.shtml',
       '!**/node_modules/**',
       '!**/dist/**',
+      '!**/report/**',
       '!**/build/**',
       '!**/.git/**'
     ]);
