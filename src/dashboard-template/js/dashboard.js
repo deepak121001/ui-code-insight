@@ -1,4 +1,5 @@
 import { fetchData, showDashboardMessage } from './helper.js';
+import { loadAccessibilityReport, showAccessibilitySection, changeAccessibilityPage } from './accessibility-dom.js';
 
 // Load configuration for exclude rules
 let configExcludeRules = {};
@@ -421,6 +422,9 @@ const REPORTS = [
   { id: 'comprehensiveAuditReport', section: 'comprehensiveSection', type: 'comprehensive-audit', search: null, pagination: null, table: 'comprehensiveTableWrap' },
 ];
 
+// Global function for accessibility pagination
+window.changeAccessibilityPage = changeAccessibilityPage;
+
 // Utility to show/hide sections
 function showSection(id) {
   ['overviewSection', ...REPORTS.map(r => r.section), 'excludedRulesSection'].forEach(sec => {
@@ -445,6 +449,47 @@ function renderProjectMeta(meta) {
   }
 }
 
+// Helper function to get lighthouse total issues
+async function getLighthouseTotal() {
+  try {
+    const response = await fetch('./lightHouseCombine-report.json');
+    if (response.ok) {
+      const data = await response.json();
+      let totalIssues = 0;
+      
+      data.forEach(item => {
+        // Count desktop issues
+        if (item.desktop && item.desktop.issues) {
+          totalIssues += item.desktop.issues.length;
+        }
+        // Count mobile issues
+        if (item.mobile && item.mobile.issues) {
+          totalIssues += item.mobile.issues.length;
+        }
+      });
+      
+      return totalIssues;
+    }
+  } catch (error) {
+    console.error('Error loading lighthouse data for overview:', error);
+  }
+  return 0;
+}
+
+// Refresh Lighthouse overview
+async function refreshLighthouseOverview() {
+  const lighthouseTotal = document.getElementById('lighthouseTotal');
+  if (lighthouseTotal) {
+    try {
+      const total = await getLighthouseTotal();
+      lighthouseTotal.textContent = total;
+    } catch (error) {
+      console.error('Error refreshing lighthouse overview:', error);
+      lighthouseTotal.textContent = '0';
+    }
+  }
+}
+
 // Render comprehensive audit overview
 function renderComprehensiveOverview(comprehensiveData, individualAuditData = {}) {
   // If comprehensiveData is missing or doesn't have categories, use individual audit data
@@ -457,27 +502,66 @@ function renderComprehensiveOverview(comprehensiveData, individualAuditData = {}
   const testingTotal = document.getElementById('testingTotal');
   const dependencyTotal = document.getElementById('dependencyTotal');
 
-  // Helper to get total issues from either comprehensive or individual report
   function getTotalIssues(category, individualKey) {
-    if (categories[category] && typeof categories[category].totalIssues === 'number') {
+    if (categories[category] && categories[category].totalIssues !== undefined) {
       return categories[category].totalIssues;
     }
-    // Fallback to individual audit data
-    const data = individualAuditData[individualKey];
-    if (data && typeof data.totalIssues === 'number') {
-      return data.totalIssues;
-    }
-    if (data && Array.isArray(data.issues)) {
-      return data.issues.length;
+    if (individualAuditData[individualKey] && individualAuditData[individualKey].totalIssues !== undefined) {
+      return individualAuditData[individualKey].totalIssues;
     }
     return 0;
   }
 
-  if (securityTotal) securityTotal.textContent = getTotalIssues('security', 'security');
-  if (performanceTotal) performanceTotal.textContent = getTotalIssues('performance', 'performance');
-  if (accessibilityTotal) accessibilityTotal.textContent = getTotalIssues('accessibility', 'accessibility');
-  if (testingTotal) testingTotal.textContent = getTotalIssues('testing', 'testing');
-  if (dependencyTotal) dependencyTotal.textContent = getTotalIssues('dependency', 'dependency');
+  if (securityTotal) securityTotal.textContent = getTotalIssues('security', 'security-audit');
+  if (performanceTotal) performanceTotal.textContent = getTotalIssues('performance', 'performance-audit');
+  if (accessibilityTotal) accessibilityTotal.textContent = getTotalIssues('accessibility', 'accessibility-audit');
+  if (testingTotal) testingTotal.textContent = getTotalIssues('testing', 'testing-audit');
+  if (dependencyTotal) dependencyTotal.textContent = getTotalIssues('dependency', 'dependency-audit');
+
+  // Update accessibility overview with detailed breakdown if available
+  if (accessibilityTotal && individualAuditData['accessibility-audit']) {
+    const accessibilityData = individualAuditData['accessibility-audit'];
+    if (accessibilityData.summary) {
+      // Update the overview with detailed breakdown
+      const overviewContainer = document.getElementById('accessibilityOverview');
+      if (overviewContainer) {
+        overviewContainer.innerHTML = `
+          <div class="text-center">
+            <div class="text-3xl font-bold text-blue-600">${accessibilityData.totalIssues || 0}</div>
+            <div class="text-sm text-gray-500">Total Issues</div>
+            <div class="text-xs text-gray-400 mt-1">
+              Code: ${accessibilityData.summary.codeScanIssues || 0} | 
+              Live: ${accessibilityData.summary.liveUrlIssues || 0}
+            </div>
+          </div>
+        `;
+      }
+    }
+  }
+
+  // Update security overview with detailed breakdown if available
+  if (securityTotal && individualAuditData['security-audit']) {
+    const securityData = individualAuditData['security-audit'];
+    if (securityData.issues) {
+      const codeScanIssues = securityData.issues.filter(issue => !issue.source || issue.source === 'custom');
+      const liveUrlIssues = securityData.issues.filter(issue => issue.source === 'live-url');
+      
+      // Update the overview with detailed breakdown
+      const overviewContainer = document.getElementById('securityOverview');
+      if (overviewContainer) {
+        overviewContainer.innerHTML = `
+          <div class="text-center">
+            <div class="text-3xl font-bold text-red-600">${securityData.totalIssues || securityData.issues.length}</div>
+            <div class="text-sm text-gray-500">Total Issues</div>
+            <div class="text-xs text-gray-400 mt-1">
+              Code: ${codeScanIssues.length} | 
+              Live: ${liveUrlIssues.length}
+            </div>
+          </div>
+        `;
+      }
+    }
+  }
 }
 
 // Render overview charts
@@ -656,8 +740,14 @@ window.renderAuditTable = function(data, tableId, paginationId, pageSize = 10, a
     '<th class="py-2 px-4 text-left">Type</th>' +
     '<th class="py-2 px-4 text-left">File</th>' +
     '<th class="py-2 px-4 text-left">Line</th>' +
-    '<th class="py-2 px-4 text-left">Severity</th>' +
-    '<th class="py-2 px-4 text-left">Message</th>' +
+    '<th class="py-2 px-4 text-left">Severity</th>';
+  
+  // Add Source column for security audits
+  if (auditType === 'security') {
+    html += '<th class="py-2 px-4 text-left">Source</th>';
+  }
+  
+  html += '<th class="py-2 px-4 text-left">Message</th>' +
     '<th class="py-2 px-4 text-left">Code</th>' +
     '</tr></thead><tbody>';
 
@@ -707,12 +797,28 @@ window.renderAuditTable = function(data, tableId, paginationId, pageSize = 10, a
     if (fileCell.length > 40) {
       fileCell = `<span title="${issue.file}">${fileCell.slice(0, 18)}...${fileCell.slice(-18)}</span>`;
     }
+    
+    // Determine source for security audits
+    let sourceCell = '';
+    if (auditType === 'security') {
+      const source = issue.source || 'custom';
+      const sourceLabel = source === 'live-url' ? 'Live URL' : 'Code Scan';
+      const sourceColor = source === 'live-url' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800';
+      sourceCell = `<td class="py-2 px-4"><span class="px-2 py-1 text-xs font-medium rounded-full ${sourceColor}">${sourceLabel}</span></td>`;
+    }
+    
     html += `<tr class="border-b border-gray-200 hover:bg-gray-100">` +
       `<td class="py-2 px-4 max-w-xs break-all">${vuln.label}</td>` +
       `<td class="py-2 px-4 max-w-xs break-all">${fileCell}</td>` +
       `<td class="py-2 px-4">${issue.line || 'N/A'}</td>` +
-      `<td class="py-2 px-4"><span class="font-semibold ${severityColor}">${issue.severity || 'N/A'}</span></td>` +
-      `<td class="py-2 px-4 max-w-md break-words">${issue.message || 'N/A'}</td>` +
+      `<td class="py-2 px-4"><span class="font-semibold ${severityColor}">${issue.severity || 'N/A'}</span></td>`;
+    
+    // Add source column for security audits
+    if (auditType === 'security') {
+      html += sourceCell;
+    }
+    
+    html += `<td class="py-2 px-4 max-w-md break-words">${issue.message || 'N/A'}</td>` +
       `<td class="py-2 px-4 max-w-md">${codeDisplay}</td>` +
       '</tr>';
   });
@@ -822,6 +928,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // Check for Lighthouse report
+  const lighthouseExists = await reportExists('lightHouseCombine');
+  if (!lighthouseExists) {
+    hideReportTabAndSection({ id: 'lighthouseAuditReport', section: 'lighthouseSection' });
+  }
+
   // Fetch data for overview charts only for available reports
   const eslintData = reportExistence['eslint'] ? await fetchData('eslint') : null;
   const stylelintData = reportExistence['stylelint'] ? await fetchData('stylelint') : null;
@@ -849,13 +961,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     npmData,
     comprehensiveData,
     {
-      security: securityData,
-      performance: performanceData,
-      accessibility: accessibilityData,
-      testing: testingData,
-      dependency: dependencyData
+      'security-audit': securityData,
+      'performance-audit': performanceData,
+      'accessibility-audit': accessibilityData,
+      'testing-audit': testingData,
+      'dependency-audit': dependencyData
     }
   );
+
+  // Update Lighthouse overview if report exists
+  if (lighthouseExists) {
+    await refreshLighthouseOverview();
+  }
 
   // Sidebar navigation
   document.getElementById('mainPage').addEventListener('click', e => {
@@ -1327,7 +1444,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Add comprehensive audit event listeners
-  const auditTypes = ['security', 'performance', 'accessibility', 'testing', 'dependency'];
+  const auditTypes = ['security', 'performance', 'testing', 'dependency'];
   
   auditTypes.forEach(type => {
     if (reportExistence[`${type}-audit`]) {
@@ -1376,6 +1493,115 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
   });
+
+  // Special handling for accessibility audit
+  if (reportExistence['accessibility-audit']) {
+    document.getElementById('accessibilityAuditReport').addEventListener('click', async (e) => {
+      e.preventDefault();
+      showAccessibilitySection();
+    });
+  }
+
+  // Special handling for security audit filtering
+  if (reportExistence['security-audit']) {
+    let securityData = null;
+    let securityFilteredData = [];
+    let securityFilter = 'all';
+
+    // Load and filter security data
+    async function loadAndFilterSecurityData() {
+      try {
+        if (!securityData) {
+          securityData = await fetchData('security-audit');
+        }
+        
+        // Apply filter
+        if (securityFilter === 'code-scan') {
+          securityFilteredData = securityData.issues.filter(issue => !issue.source || issue.source === 'custom');
+        } else if (securityFilter === 'live-url') {
+          securityFilteredData = securityData.issues.filter(issue => issue.source === 'live-url');
+        } else {
+          securityFilteredData = [...securityData.issues];
+        }
+
+        // Render with filtered data
+        const filteredData = {
+          ...securityData,
+          issues: securityFilteredData
+        };
+        renderAuditTable(filteredData, 'securityTableWrap', 'securityPagination', 10, 'security');
+      } catch (error) {
+        console.error('Error loading security audit:', error);
+        document.getElementById('securityTableWrap').innerHTML = '<div class="text-red-500 p-4">Error loading security audit data.</div>';
+      }
+    }
+
+    // Security filter dropdown
+    const securityFilterSelect = document.getElementById('securityFilter');
+    if (securityFilterSelect) {
+      securityFilterSelect.addEventListener('change', (e) => {
+        securityFilter = e.target.value;
+        loadAndFilterSecurityData();
+      });
+    }
+
+    // Override the generic security audit click handler
+    const securityReportElement = document.getElementById('securityAuditReport');
+    if (securityReportElement) {
+      // Remove existing event listeners by cloning the element
+      const newSecurityReportElement = securityReportElement.cloneNode(true);
+      securityReportElement.parentNode.replaceChild(newSecurityReportElement, securityReportElement);
+      
+      newSecurityReportElement.addEventListener('click', async (e) => {
+        e.preventDefault();
+        setActiveSidebar('securityAuditReport');
+        showSection('securitySection');
+        await loadAndFilterSecurityData();
+      });
+    }
+
+    // Override the generic security search handler
+    const securitySearchInput = document.getElementById('securitySearch');
+    if (securitySearchInput) {
+      securitySearchInput.addEventListener('input', async (e) => {
+        try {
+          if (!securityData) {
+            securityData = await fetchData('security-audit');
+          }
+          
+          const searchTerm = e.target.value.toLowerCase();
+          
+          if (searchTerm) {
+            const searchFilteredData = securityData.issues.filter(issue => 
+              issue.message?.toLowerCase().includes(searchTerm) ||
+              issue.file?.toLowerCase().includes(searchTerm) ||
+              issue.type?.toLowerCase().includes(searchTerm) ||
+              issue.url?.toLowerCase().includes(searchTerm)
+            );
+            
+            // Apply current filter
+            if (securityFilter === 'code-scan') {
+              securityFilteredData = searchFilteredData.filter(issue => !issue.source || issue.source === 'custom');
+            } else if (securityFilter === 'live-url') {
+              securityFilteredData = searchFilteredData.filter(issue => issue.source === 'live-url');
+            } else {
+              securityFilteredData = searchFilteredData;
+            }
+
+            const filteredData = {
+              ...securityData,
+              issues: securityFilteredData
+            };
+            renderAuditTable(filteredData, 'securityTableWrap', 'securityPagination', 10, 'security');
+          } else {
+            await loadAndFilterSecurityData();
+          }
+        } catch (error) {
+          console.error('Error filtering security audit:', error);
+        }
+      });
+    }
+  }
 
   // Comprehensive audit report
   if (reportExistence['comprehensive-audit']) {

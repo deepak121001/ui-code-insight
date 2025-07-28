@@ -126,9 +126,10 @@ const STYLELINTRC_CONFIG = "stylelint.config.js";
 const getLintConfigFile = (recommendedLintRules) => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
+  // Fix path resolution for build directory
+  const baseDir = __dirname.includes('build') ? path.join(__dirname, 'config') : path.join(__dirname, CONFIG_FOLDER);
   const recommendedLintRulesConfigFile = path.join(
-    __dirname,
-    CONFIG_FOLDER,
+    baseDir,
     STYLELINTRC_JSON
   );
   const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");

@@ -43,6 +43,7 @@
     "eslint-plugin-security": "^3.0.1",
     "globby": "^13.2.2",
     "inquirer": "^12.7.0",
+    "lighthouse": "^11.7.1",
     "node-fetch": "^3.3.2",
     "p-limit": "^6.2.0",
     "puppeteer": "^24.11.2",

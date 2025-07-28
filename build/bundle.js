@@ -772,6 +772,7 @@
       { id: 'securityAuditReport', file: 'security-audit-report.json' },
       { id: 'performanceAuditReport', file: 'performance-audit-report.json' },
       { id: 'accessibilityAuditReport', file: 'accessibility-audit-report.json' },
+      { id: 'lighthouseAuditReport', file: 'lightHouseCombine-report.json' },
       { id: 'testingAuditReport', file: 'testing-audit-report.json' },
       { id: 'dependencyAuditReport', file: 'dependency-audit-report.json' },
       { id: 'comprehensiveAuditReport', file: 'comprehensive-audit-report.json' },
@@ -833,6 +834,691 @@
           .catch((error) => console.error("Error fetching data:", error));
       });
   };
+
+  const lighthouseDom = {
+    init: () => {
+      const lighthouseAuditReport = document.getElementById("lighthouseAuditReport");
+      if (lighthouseAuditReport) {
+        lighthouseAuditReport.addEventListener("click", (event) => {
+          event.preventDefault();
+          lighthouseDom.showLighthouseSection();
+        });
+      }
+    },
+
+    showLighthouseSection: () => {
+      // Hide all sections
+      document.querySelectorAll('main > section').forEach(section => {
+        section.classList.add('hidden');
+      });
+
+      // Show lighthouse section
+      const lighthouseSection = document.getElementById('lighthouseSection');
+      if (lighthouseSection) {
+        lighthouseSection.classList.remove('hidden');
+      }
+
+      // Update active menu item
+      document.querySelectorAll('#sidebarMenu a').forEach(link => {
+        link.classList.remove('bg-blue-100', 'text-blue-700');
+      });
+      document.getElementById('lighthouseAuditReport').classList.add('bg-blue-100', 'text-blue-700');
+
+      // Load lighthouse data
+      lighthouseDom.loadLighthouseData();
+      
+      // Update overview data
+      lighthouseDom.updateOverviewFromData();
+      
+      // Refresh the overview display
+      if (typeof refreshLighthouseOverview === 'function') {
+        refreshLighthouseOverview();
+      }
+    },
+
+    loadLighthouseData: async () => {
+      try {
+        const response = await fetch('./lightHouseCombine-report.json');
+        if (!response.ok) {
+          throw new Error('Lighthouse report not found');
+        }
+        
+        const data = await response.json();
+        lighthouseDom.displayLighthouseData(data);
+      } catch (error) {
+        console.error('Error loading lighthouse data:', error);
+        document.getElementById('lighthouseTableWrap').innerHTML = 
+          '<div class="text-center text-gray-500 py-8">No lighthouse report data available</div>';
+      }
+    },
+
+    displayLighthouseData: (data) => {
+      const tableWrap = document.getElementById('lighthouseTableWrap');
+      
+      if (!data || data.length === 0) {
+        tableWrap.innerHTML = '<div class="text-center text-gray-500 py-8">No lighthouse data available</div>';
+        return;
+      }
+
+      let tableHTML = `
+      <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Device</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performance</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Accessibility</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Best Practices</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SEO</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issues</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+    `;
+
+      data.forEach((item, index) => {
+        // Display desktop results
+        if (item.desktop) {
+          const desktopData = item.desktop;
+          const performanceColor = lighthouseDom.getScoreColor(desktopData.performance);
+          const accessibilityColor = lighthouseDom.getScoreColor(desktopData.accessibility);
+          const bestPracticesColor = lighthouseDom.getScoreColor(desktopData.bestPractices);
+          const seoColor = lighthouseDom.getScoreColor(desktopData.seo);
+          
+          const issuesCount = desktopData.issues ? desktopData.issues.length : 0;
+          const issuesColor = issuesCount === 0 ? 'text-green-600' : issuesCount > 10 ? 'text-red-600' : 'text-yellow-600';
+
+          tableHTML += `
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+              <div class="truncate max-w-xs" title="${item.url}">${item.url}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                💻 Desktop
+              </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="font-semibold ${performanceColor}">${desktopData.performance ? Math.round(desktopData.performance) + '%' : 'N/A'}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="font-semibold ${accessibilityColor}">${desktopData.accessibility ? Math.round(desktopData.accessibility) + '%' : 'N/A'}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="font-semibold ${bestPracticesColor}">${desktopData.bestPractices ? Math.round(desktopData.bestPractices) + '%' : 'N/A'}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="font-semibold ${seoColor}">${desktopData.seo ? Math.round(desktopData.seo) + '%' : 'N/A'}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="font-semibold ${issuesColor}">${issuesCount}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              ${desktopData.error ? 
+                `<span class="text-red-600">Error: ${desktopData.error}</span>` :
+                `<a href="./${item.url.replace(/^https?:\/\//, "").replace(/\//g, "")}.desktop.custom.html" target="_blank" class="text-green-600 hover:text-green-900">View Report</a>`
+              }
+            </td>
+          </tr>
+        `;
+        }
+
+        // Display mobile results
+        if (item.mobile) {
+          const mobileData = item.mobile;
+          const performanceColor = lighthouseDom.getScoreColor(mobileData.performance);
+          const accessibilityColor = lighthouseDom.getScoreColor(mobileData.accessibility);
+          const bestPracticesColor = lighthouseDom.getScoreColor(mobileData.bestPractices);
+          const seoColor = lighthouseDom.getScoreColor(mobileData.seo);
+          
+          const issuesCount = mobileData.issues ? mobileData.issues.length : 0;
+          const issuesColor = issuesCount === 0 ? 'text-green-600' : issuesCount > 10 ? 'text-red-600' : 'text-yellow-600';
+
+          tableHTML += `
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+              <div class="truncate max-w-xs" title="${item.url}">${item.url}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                📱 Mobile
+              </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="font-semibold ${performanceColor}">${mobileData.performance ? Math.round(mobileData.performance) + '%' : 'N/A'}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="font-semibold ${accessibilityColor}">${mobileData.accessibility ? Math.round(mobileData.accessibility) + '%' : 'N/A'}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="font-semibold ${bestPracticesColor}">${mobileData.bestPractices ? Math.round(mobileData.bestPractices) + '%' : 'N/A'}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="font-semibold ${seoColor}">${mobileData.seo ? Math.round(mobileData.seo) + '%' : 'N/A'}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <span class="font-semibold ${issuesColor}">${issuesCount}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              ${mobileData.error ? 
+                `<span class="text-red-600">Error: ${mobileData.error}</span>` :
+                `<a href="./${item.url.replace(/^https?:\/\//, "").replace(/\//g, "")}.mobile.custom.html" target="_blank" class="text-green-600 hover:text-green-900">View Report</a>`
+              }
+            </td>
+          </tr>
+        `;
+        }
+      });
+
+      tableHTML += `
+          </tbody>
+        </table>
+      </div>
+    `;
+
+      tableWrap.innerHTML = tableHTML;
+    },
+
+    getScoreColor: (score) => {
+      if (!score) return 'text-gray-500';
+      if (score >= 90) return 'text-green-600';
+      if (score >= 50) return 'text-yellow-600';
+      return 'text-red-600';
+    },
+
+    updateOverview: (data) => {
+      if (!data || data.length === 0) return;
+      
+      let totalIssues = 0;
+      data.forEach(item => {
+        // Count desktop issues
+        if (item.desktop && item.desktop.issues) {
+          totalIssues += item.desktop.issues.length;
+        }
+        // Count mobile issues
+        if (item.mobile && item.mobile.issues) {
+          totalIssues += item.mobile.issues.length;
+        }
+      });
+
+      const lighthouseTotal = document.getElementById('lighthouseTotal');
+      if (lighthouseTotal) {
+        lighthouseTotal.textContent = totalIssues;
+      }
+    },
+
+    updateOverviewFromData: async () => {
+      try {
+        const response = await fetch('./lightHouseCombine-report.json');
+        if (!response.ok) {
+          throw new Error('Lighthouse report not found');
+        }
+        
+        const data = await response.json();
+        lighthouseDom.updateOverview(data);
+      } catch (error) {
+        console.error('Error updating lighthouse overview:', error);
+      }
+    }
+  };
+
+  /**
+   * Accessibility DOM manipulation and display functions
+   */
+
+  // Global variables for accessibility data
+  let accessibilityData = [];
+  let filteredAccessibilityData = [];
+  let currentAccessibilityPage = 1;
+  const accessibilityPageSize = 20;
+
+  /**
+   * Load and display accessibility audit data
+   */
+  async function loadAccessibilityReport() {
+    try {
+      console.log('Loading accessibility report...');
+      const response = await fetch('accessibility-audit-report.json');
+      if (!response.ok) {
+        throw new Error(`Accessibility report not found: ${response.status} ${response.statusText}`);
+      }
+      
+      accessibilityData = await response.json();
+      console.log('Accessibility data loaded:', accessibilityData);
+      
+      filteredAccessibilityData = [...(accessibilityData.issues || [])];
+      console.log('Filtered accessibility data:', filteredAccessibilityData.length, 'issues');
+      
+      displayAccessibilityData();
+      updateAccessibilityOverview();
+      setupAccessibilitySearchAndFilter();
+      
+    } catch (error) {
+      console.error('Error loading accessibility report:', error);
+      showAccessibilityMessage(`Accessibility report not found or could not be loaded: ${error.message}`);
+    }
+  }
+
+  /**
+   * Display accessibility data in the table
+   */
+  function displayAccessibilityData() {
+    const container = document.getElementById('accessibilityTableWrap');
+    if (!container) return;
+
+    if (!accessibilityData || !accessibilityData.issues || accessibilityData.issues.length === 0) {
+      container.innerHTML = `
+      <div class="bg-white rounded-lg shadow p-8 text-center">
+        <div class="text-6xl mb-4">🎉</div>
+        <h3 class="text-xl font-semibold text-gray-900 mb-2">No Accessibility Issues Found!</h3>
+        <p class="text-gray-600">Great job! Your project is accessible across all tested areas.</p>
+        ${accessibilityData && accessibilityData.summary ? `
+          <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+            <h4 class="font-semibold text-gray-700 mb-2">Scan Summary</h4>
+            <div class="text-sm text-gray-600">
+              <p>Code Scan Issues: ${accessibilityData.summary.codeScanIssues || 0}</p>
+              <p>Live URL Issues: ${accessibilityData.summary.liveUrlIssues || 0}</p>
+              <p>Axe-Core Issues: ${accessibilityData.summary.axeCoreIssues || 0}</p>
+              <p>Lighthouse Issues: ${accessibilityData.summary.lighthouseIssues || 0}</p>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+      return;
+    }
+
+    // Calculate pagination
+    const startIndex = (currentAccessibilityPage - 1) * accessibilityPageSize;
+    const endIndex = startIndex + accessibilityPageSize;
+    const pageData = filteredAccessibilityData.slice(startIndex, endIndex);
+
+    // Group issues by source (code scan vs live URL)
+    const codeScanIssues = pageData.filter(issue => issue.source === 'custom');
+    const liveUrlIssues = pageData.filter(issue => issue.source !== 'custom');
+
+    // Calculate file scanning information
+    const uniqueFiles = new Set();
+    codeScanIssues.forEach(issue => {
+      if (issue.file) {
+        uniqueFiles.add(issue.file);
+      }
+    });
+
+    let html = `
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 bg-gray-50 border-b">
+        <div class="text-center">
+          <div class="text-2xl font-bold text-blue-600">${codeScanIssues.length}</div>
+          <div class="text-sm text-gray-600">Code Scan Issues</div>
+          <div class="text-xs text-gray-500">${uniqueFiles.size} files scanned</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold text-green-600">${liveUrlIssues.length}</div>
+          <div class="text-sm text-gray-600">Live URL Issues</div>
+          <div class="text-xs text-gray-500">Dynamic testing</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold text-purple-600">${pageData.length}</div>
+          <div class="text-sm text-gray-600">Total Issues</div>
+          <div class="text-xs text-gray-500">This page</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold text-orange-600">${accessibilityData.totalIssues || 0}</div>
+          <div class="text-sm text-gray-600">All Issues</div>
+          <div class="text-xs text-gray-500">Complete scan</div>
+        </div>
+      </div>
+
+      <!-- WCAG Compliance Summary -->
+      ${accessibilityData.issues && accessibilityData.issues.length > 0 ? `
+        <div class="p-4 bg-blue-50 border-b">
+          <h4 class="text-sm font-semibold text-blue-800 mb-2">WCAG Compliance Summary</h4>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div class="bg-white p-2 rounded">
+              <div class="font-semibold text-red-600">${accessibilityData.highSeverity || 0}</div>
+              <div class="text-gray-600">High Priority</div>
+            </div>
+            <div class="bg-white p-2 rounded">
+              <div class="font-semibold text-yellow-600">${accessibilityData.mediumSeverity || 0}</div>
+              <div class="text-gray-600">Medium Priority</div>
+            </div>
+            <div class="bg-white p-2 rounded">
+              <div class="font-semibold text-blue-600">${accessibilityData.lowSeverity || 0}</div>
+              <div class="text-gray-600">Low Priority</div>
+            </div>
+            <div class="bg-white p-2 rounded">
+              <div class="font-semibold text-green-600">${accessibilityData.issues ? accessibilityData.issues.filter(i => i.wcag).length : 0}</div>
+              <div class="text-gray-600">WCAG Tagged</div>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Code Scan Issues Section -->
+      ${codeScanIssues.length > 0 ? `
+        <div class="p-6 border-b">
+          <h3 class="text-lg font-semibold mb-4 flex items-center space-x-2">
+            <span class="text-blue-600">📁</span>
+            <span>Code Scan Issues (${codeScanIssues.length})</span>
+            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Static Analysis</span>
+            <span class="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">${uniqueFiles.size} files</span>
+          </h3>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issue</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Line</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">WCAG</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                ${codeScanIssues.map(issue => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4">
+                      <div class="text-sm font-medium text-gray-900">${escapeHtml(issue.message)}</div>
+                      ${issue.recommendation ? `<div class="text-sm text-gray-500 mt-1">💡 ${escapeHtml(issue.recommendation)}</div>` : ''}
+                      ${issue.code ? `<div class="text-xs text-gray-400 mt-1 font-mono bg-gray-100 p-1 rounded">${escapeHtml(issue.code)}</div>` : ''}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${issue.file || 'N/A'}</td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${issue.line || 'N/A'}</td>
+                    <td class="px-6 py-4">
+                      <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getSeverityClass(issue.severity)}">
+                        ${issue.severity}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">
+                      ${issue.wcag ? `<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">${issue.wcag}</span>` : 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${issue.type || 'N/A'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Live URL Issues Section -->
+      ${liveUrlIssues.length > 0 ? `
+        <div class="p-6">
+          <h3 class="text-lg font-semibold mb-4 flex items-center space-x-2">
+            <span class="text-green-600">🌐</span>
+            <span>Live URL Issues (${liveUrlIssues.length})</span>
+            <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Dynamic Testing</span>
+          </h3>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issue</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Impact</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                ${liveUrlIssues.map(issue => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4">
+                      <div class="text-sm font-medium text-gray-900">${escapeHtml(issue.message)}</div>
+                      ${issue.recommendation ? `<div class="text-sm text-gray-500 mt-1">💡 ${escapeHtml(issue.recommendation)}</div>` : ''}
+                      ${issue.context ? `<div class="text-sm text-gray-400 mt-1">${escapeHtml(issue.context)}</div>` : ''}
+                      ${issue.code ? `<div class="text-xs text-gray-400 mt-1 font-mono bg-gray-100 p-1 rounded">${escapeHtml(issue.code)}</div>` : ''}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-blue-600">
+                      <a href="${issue.url}" target="_blank" class="hover:underline">${issue.url}</a>
+                    </td>
+                    <td class="px-6 py-4">
+                      <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getSourceClass(issue.source)}">
+                        ${getSourceDisplayName(issue.source)}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4">
+                      <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getSeverityClass(issue.severity)}">
+                        ${issue.severity}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${issue.impact || 'N/A'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+    container.innerHTML = html;
+
+    // Render pagination
+    renderAccessibilityPagination();
+  }
+
+  /**
+   * Update accessibility overview in the main dashboard
+   */
+  function updateAccessibilityOverview() {
+    const totalElement = document.getElementById('accessibilityTotal');
+    if (totalElement && accessibilityData) {
+      const totalIssues = accessibilityData.totalIssues || (accessibilityData.issues ? accessibilityData.issues.length : 0);
+      totalElement.textContent = totalIssues;
+      
+      // Also update the overview container with detailed breakdown if available
+      const overviewContainer = document.getElementById('accessibilityOverview');
+      if (overviewContainer && accessibilityData.summary) {
+        overviewContainer.innerHTML = `
+        <div class="text-center">
+          <div class="text-3xl font-bold text-blue-600">${totalIssues}</div>
+          <div class="text-sm text-gray-500">Total Issues</div>
+          <div class="text-xs text-gray-400 mt-1">
+            Code: ${accessibilityData.summary.codeScanIssues || 0} | 
+            Live: ${accessibilityData.summary.liveUrlIssues || 0}
+          </div>
+        </div>
+      `;
+      }
+    }
+  }
+
+  /**
+   * Setup search and filter functionality
+   */
+  function setupAccessibilitySearchAndFilter() {
+    const searchInput = document.getElementById('accessibilitySearch');
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      
+      filteredAccessibilityData = accessibilityData.issues.filter(issue => {
+        const matchesSearch = !searchTerm || 
+          issue.message.toLowerCase().includes(searchTerm) ||
+          (issue.file && issue.file.toLowerCase().includes(searchTerm)) ||
+          (issue.url && issue.url.toLowerCase().includes(searchTerm)) ||
+          (issue.type && issue.type.toLowerCase().includes(searchTerm)) ||
+          (issue.source && issue.source.toLowerCase().includes(searchTerm));
+        
+        return matchesSearch;
+      });
+
+      currentAccessibilityPage = 1;
+      displayAccessibilityData();
+    });
+  }
+
+  /**
+   * Render pagination for accessibility issues
+   */
+  function renderAccessibilityPagination() {
+    const paginationContainer = document.getElementById('accessibilityPagination');
+    if (!paginationContainer) return;
+
+    const totalPages = Math.ceil(filteredAccessibilityData.length / accessibilityPageSize);
+    
+    if (totalPages <= 1) {
+      paginationContainer.innerHTML = '';
+      return;
+    }
+
+    let paginationHtml = '<div class="flex items-center space-x-2">';
+    
+    // Previous button
+    paginationHtml += `
+    <button onclick="changeAccessibilityPage(${currentAccessibilityPage - 1})" 
+            class="px-3 py-1 border rounded ${currentAccessibilityPage <= 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'}">
+      Previous
+    </button>
+  `;
+
+    // Page numbers
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || (i >= currentAccessibilityPage - 2 && i <= currentAccessibilityPage + 2)) {
+        paginationHtml += `
+        <button onclick="changeAccessibilityPage(${i})" 
+                class="px-3 py-1 border rounded ${i === currentAccessibilityPage ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}">
+          ${i}
+        </button>
+      `;
+      } else if (i === currentAccessibilityPage - 3 || i === currentAccessibilityPage + 3) {
+        paginationHtml += '<span class="px-2 text-gray-500">...</span>';
+      }
+    }
+
+    // Next button
+    paginationHtml += `
+    <button onclick="changeAccessibilityPage(${currentAccessibilityPage + 1})" 
+            class="px-3 py-1 border rounded ${currentAccessibilityPage >= totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'}">
+      Next
+    </button>
+  `;
+
+    paginationHtml += '</div>';
+    paginationContainer.innerHTML = paginationHtml;
+  }
+
+  /**
+   * Change accessibility page
+   */
+  function changeAccessibilityPage(page) {
+    const totalPages = Math.ceil(filteredAccessibilityData.length / accessibilityPageSize);
+    if (page >= 1 && page <= totalPages) {
+      currentAccessibilityPage = page;
+      displayAccessibilityData();
+    }
+  }
+
+  /**
+   * Show accessibility section
+   */
+  function showAccessibilitySection() {
+    // Hide all sections first
+    ['overviewSection', 'eslintSection', 'stylelintSection', 'npmSection', 'securitySection', 'performanceSection', 'accessibilitySection', 'lighthouseSection', 'testingSection', 'dependencySection', 'comprehensiveSection', 'excludedRulesSection'].forEach(sec => {
+      const el = document.getElementById(sec);
+      if (el) el.classList.add('hidden');
+    });
+    
+    // Show accessibility section
+    const accessibilitySection = document.getElementById('accessibilitySection');
+    if (accessibilitySection) {
+      accessibilitySection.classList.remove('hidden');
+    }
+    
+    // Set active sidebar
+    const sidebarItems = document.querySelectorAll('#sidebarMenu a');
+    sidebarItems.forEach(a => a.classList.remove('bg-blue-100', 'font-bold'));
+    const accessibilityTab = document.getElementById('accessibilityAuditReport');
+    if (accessibilityTab) {
+      accessibilityTab.classList.add('bg-blue-100', 'font-bold');
+    }
+    
+    // Load accessibility report if not already loaded
+    if (accessibilityData.length === 0) {
+      loadAccessibilityReport();
+    }
+  }
+
+  /**
+   * Show accessibility message
+   */
+  function showAccessibilityMessage(message) {
+    const container = document.getElementById('accessibilityTableWrap');
+    if (container) {
+      container.innerHTML = `
+      <div class="bg-white rounded-lg shadow p-8 text-center">
+        <div class="text-4xl mb-4">⚠️</div>
+        <h3 class="text-xl font-semibold text-gray-900 mb-2">Accessibility Report Not Available</h3>
+        <p class="text-gray-600">${message}</p>
+      </div>
+    `;
+    }
+  }
+
+  /**
+   * Get severity class for styling
+   */
+  function getSeverityClass(severity) {
+    switch (severity?.toLowerCase()) {
+      case 'high':
+        return 'bg-red-100 text-red-800';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'low':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  }
+
+  /**
+   * Get source class for styling
+   */
+  function getSourceClass(source) {
+    switch (source) {
+      case 'axe-core':
+        return 'bg-purple-100 text-purple-800';
+      case 'lighthouse':
+        return 'bg-blue-100 text-blue-800';
+      case 'custom':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  }
+
+  /**
+   * Get source display name
+   */
+  function getSourceDisplayName(source) {
+    switch (source) {
+      case 'axe-core':
+        return 'Axe-Core';
+      case 'lighthouse':
+        return 'Lighthouse';
+      case 'custom':
+        return 'Code Scan';
+      default:
+        return source || 'Unknown';
+    }
+  }
+
+  /**
+   * Escape HTML to prevent XSS
+   */
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
 
   // Load configuration for exclude rules
   let configExcludeRules = {};
@@ -1255,6 +1941,9 @@
     { id: 'comprehensiveAuditReport', section: 'comprehensiveSection', type: 'comprehensive-audit', search: null, pagination: null, table: 'comprehensiveTableWrap' },
   ];
 
+  // Global function for accessibility pagination
+  window.changeAccessibilityPage = changeAccessibilityPage;
+
   // Utility to show/hide sections
   function showSection(id) {
     ['overviewSection', ...REPORTS.map(r => r.section), 'excludedRulesSection'].forEach(sec => {
@@ -1279,6 +1968,47 @@
     }
   }
 
+  // Helper function to get lighthouse total issues
+  async function getLighthouseTotal() {
+    try {
+      const response = await fetch('./lightHouseCombine-report.json');
+      if (response.ok) {
+        const data = await response.json();
+        let totalIssues = 0;
+        
+        data.forEach(item => {
+          // Count desktop issues
+          if (item.desktop && item.desktop.issues) {
+            totalIssues += item.desktop.issues.length;
+          }
+          // Count mobile issues
+          if (item.mobile && item.mobile.issues) {
+            totalIssues += item.mobile.issues.length;
+          }
+        });
+        
+        return totalIssues;
+      }
+    } catch (error) {
+      console.error('Error loading lighthouse data for overview:', error);
+    }
+    return 0;
+  }
+
+  // Refresh Lighthouse overview
+  async function refreshLighthouseOverview$1() {
+    const lighthouseTotal = document.getElementById('lighthouseTotal');
+    if (lighthouseTotal) {
+      try {
+        const total = await getLighthouseTotal();
+        lighthouseTotal.textContent = total;
+      } catch (error) {
+        console.error('Error refreshing lighthouse overview:', error);
+        lighthouseTotal.textContent = '0';
+      }
+    }
+  }
+
   // Render comprehensive audit overview
   function renderComprehensiveOverview(comprehensiveData, individualAuditData = {}) {
     // If comprehensiveData is missing or doesn't have categories, use individual audit data
@@ -1291,27 +2021,66 @@
     const testingTotal = document.getElementById('testingTotal');
     const dependencyTotal = document.getElementById('dependencyTotal');
 
-    // Helper to get total issues from either comprehensive or individual report
     function getTotalIssues(category, individualKey) {
-      if (categories[category] && typeof categories[category].totalIssues === 'number') {
+      if (categories[category] && categories[category].totalIssues !== undefined) {
         return categories[category].totalIssues;
       }
-      // Fallback to individual audit data
-      const data = individualAuditData[individualKey];
-      if (data && typeof data.totalIssues === 'number') {
-        return data.totalIssues;
-      }
-      if (data && Array.isArray(data.issues)) {
-        return data.issues.length;
+      if (individualAuditData[individualKey] && individualAuditData[individualKey].totalIssues !== undefined) {
+        return individualAuditData[individualKey].totalIssues;
       }
       return 0;
     }
 
-    if (securityTotal) securityTotal.textContent = getTotalIssues('security', 'security');
-    if (performanceTotal) performanceTotal.textContent = getTotalIssues('performance', 'performance');
-    if (accessibilityTotal) accessibilityTotal.textContent = getTotalIssues('accessibility', 'accessibility');
-    if (testingTotal) testingTotal.textContent = getTotalIssues('testing', 'testing');
-    if (dependencyTotal) dependencyTotal.textContent = getTotalIssues('dependency', 'dependency');
+    if (securityTotal) securityTotal.textContent = getTotalIssues('security', 'security-audit');
+    if (performanceTotal) performanceTotal.textContent = getTotalIssues('performance', 'performance-audit');
+    if (accessibilityTotal) accessibilityTotal.textContent = getTotalIssues('accessibility', 'accessibility-audit');
+    if (testingTotal) testingTotal.textContent = getTotalIssues('testing', 'testing-audit');
+    if (dependencyTotal) dependencyTotal.textContent = getTotalIssues('dependency', 'dependency-audit');
+
+    // Update accessibility overview with detailed breakdown if available
+    if (accessibilityTotal && individualAuditData['accessibility-audit']) {
+      const accessibilityData = individualAuditData['accessibility-audit'];
+      if (accessibilityData.summary) {
+        // Update the overview with detailed breakdown
+        const overviewContainer = document.getElementById('accessibilityOverview');
+        if (overviewContainer) {
+          overviewContainer.innerHTML = `
+          <div class="text-center">
+            <div class="text-3xl font-bold text-blue-600">${accessibilityData.totalIssues || 0}</div>
+            <div class="text-sm text-gray-500">Total Issues</div>
+            <div class="text-xs text-gray-400 mt-1">
+              Code: ${accessibilityData.summary.codeScanIssues || 0} | 
+              Live: ${accessibilityData.summary.liveUrlIssues || 0}
+            </div>
+          </div>
+        `;
+        }
+      }
+    }
+
+    // Update security overview with detailed breakdown if available
+    if (securityTotal && individualAuditData['security-audit']) {
+      const securityData = individualAuditData['security-audit'];
+      if (securityData.issues) {
+        const codeScanIssues = securityData.issues.filter(issue => !issue.source || issue.source === 'custom');
+        const liveUrlIssues = securityData.issues.filter(issue => issue.source === 'live-url');
+        
+        // Update the overview with detailed breakdown
+        const overviewContainer = document.getElementById('securityOverview');
+        if (overviewContainer) {
+          overviewContainer.innerHTML = `
+          <div class="text-center">
+            <div class="text-3xl font-bold text-red-600">${securityData.totalIssues || securityData.issues.length}</div>
+            <div class="text-sm text-gray-500">Total Issues</div>
+            <div class="text-xs text-gray-400 mt-1">
+              Code: ${codeScanIssues.length} | 
+              Live: ${liveUrlIssues.length}
+            </div>
+          </div>
+        `;
+        }
+      }
+    }
   }
 
   // Render overview charts
@@ -1464,8 +2233,14 @@
       '<th class="py-2 px-4 text-left">Type</th>' +
       '<th class="py-2 px-4 text-left">File</th>' +
       '<th class="py-2 px-4 text-left">Line</th>' +
-      '<th class="py-2 px-4 text-left">Severity</th>' +
-      '<th class="py-2 px-4 text-left">Message</th>' +
+      '<th class="py-2 px-4 text-left">Severity</th>';
+    
+    // Add Source column for security audits
+    if (auditType === 'security') {
+      html += '<th class="py-2 px-4 text-left">Source</th>';
+    }
+    
+    html += '<th class="py-2 px-4 text-left">Message</th>' +
       '<th class="py-2 px-4 text-left">Code</th>' +
       '</tr></thead><tbody>';
 
@@ -1515,12 +2290,28 @@
       if (fileCell.length > 40) {
         fileCell = `<span title="${issue.file}">${fileCell.slice(0, 18)}...${fileCell.slice(-18)}</span>`;
       }
+      
+      // Determine source for security audits
+      let sourceCell = '';
+      if (auditType === 'security') {
+        const source = issue.source || 'custom';
+        const sourceLabel = source === 'live-url' ? 'Live URL' : 'Code Scan';
+        const sourceColor = source === 'live-url' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800';
+        sourceCell = `<td class="py-2 px-4"><span class="px-2 py-1 text-xs font-medium rounded-full ${sourceColor}">${sourceLabel}</span></td>`;
+      }
+      
       html += `<tr class="border-b border-gray-200 hover:bg-gray-100">` +
         `<td class="py-2 px-4 max-w-xs break-all">${vuln.label}</td>` +
         `<td class="py-2 px-4 max-w-xs break-all">${fileCell}</td>` +
         `<td class="py-2 px-4">${issue.line || 'N/A'}</td>` +
-        `<td class="py-2 px-4"><span class="font-semibold ${severityColor}">${issue.severity || 'N/A'}</span></td>` +
-        `<td class="py-2 px-4 max-w-md break-words">${issue.message || 'N/A'}</td>` +
+        `<td class="py-2 px-4"><span class="font-semibold ${severityColor}">${issue.severity || 'N/A'}</span></td>`;
+      
+      // Add source column for security audits
+      if (auditType === 'security') {
+        html += sourceCell;
+      }
+      
+      html += `<td class="py-2 px-4 max-w-md break-words">${issue.message || 'N/A'}</td>` +
         `<td class="py-2 px-4 max-w-md">${codeDisplay}</td>` +
         '</tr>';
     });
@@ -1630,6 +2421,12 @@
       }
     }
 
+    // Check for Lighthouse report
+    const lighthouseExists = await reportExists('lightHouseCombine');
+    if (!lighthouseExists) {
+      hideReportTabAndSection({ id: 'lighthouseAuditReport', section: 'lighthouseSection' });
+    }
+
     // Fetch data for overview charts only for available reports
     const eslintData = reportExistence['eslint'] ? await fetchData('eslint') : null;
     const stylelintData = reportExistence['stylelint'] ? await fetchData('stylelint') : null;
@@ -1657,13 +2454,18 @@
       npmData,
       comprehensiveData,
       {
-        security: securityData,
-        performance: performanceData,
-        accessibility: accessibilityData,
-        testing: testingData,
-        dependency: dependencyData
+        'security-audit': securityData,
+        'performance-audit': performanceData,
+        'accessibility-audit': accessibilityData,
+        'testing-audit': testingData,
+        'dependency-audit': dependencyData
       }
     );
+
+    // Update Lighthouse overview if report exists
+    if (lighthouseExists) {
+      await refreshLighthouseOverview$1();
+    }
 
     // Sidebar navigation
     document.getElementById('mainPage').addEventListener('click', e => {
@@ -2135,7 +2937,7 @@
     }
 
     // Add comprehensive audit event listeners
-    const auditTypes = ['security', 'performance', 'accessibility', 'testing', 'dependency'];
+    const auditTypes = ['security', 'performance', 'testing', 'dependency'];
     
     auditTypes.forEach(type => {
       if (reportExistence[`${type}-audit`]) {
@@ -2184,6 +2986,115 @@
         }
       }
     });
+
+    // Special handling for accessibility audit
+    if (reportExistence['accessibility-audit']) {
+      document.getElementById('accessibilityAuditReport').addEventListener('click', async (e) => {
+        e.preventDefault();
+        showAccessibilitySection();
+      });
+    }
+
+    // Special handling for security audit filtering
+    if (reportExistence['security-audit']) {
+      let securityData = null;
+      let securityFilteredData = [];
+      let securityFilter = 'all';
+
+      // Load and filter security data
+      async function loadAndFilterSecurityData() {
+        try {
+          if (!securityData) {
+            securityData = await fetchData('security-audit');
+          }
+          
+          // Apply filter
+          if (securityFilter === 'code-scan') {
+            securityFilteredData = securityData.issues.filter(issue => !issue.source || issue.source === 'custom');
+          } else if (securityFilter === 'live-url') {
+            securityFilteredData = securityData.issues.filter(issue => issue.source === 'live-url');
+          } else {
+            securityFilteredData = [...securityData.issues];
+          }
+
+          // Render with filtered data
+          const filteredData = {
+            ...securityData,
+            issues: securityFilteredData
+          };
+          renderAuditTable(filteredData, 'securityTableWrap', 'securityPagination', 10, 'security');
+        } catch (error) {
+          console.error('Error loading security audit:', error);
+          document.getElementById('securityTableWrap').innerHTML = '<div class="text-red-500 p-4">Error loading security audit data.</div>';
+        }
+      }
+
+      // Security filter dropdown
+      const securityFilterSelect = document.getElementById('securityFilter');
+      if (securityFilterSelect) {
+        securityFilterSelect.addEventListener('change', (e) => {
+          securityFilter = e.target.value;
+          loadAndFilterSecurityData();
+        });
+      }
+
+      // Override the generic security audit click handler
+      const securityReportElement = document.getElementById('securityAuditReport');
+      if (securityReportElement) {
+        // Remove existing event listeners by cloning the element
+        const newSecurityReportElement = securityReportElement.cloneNode(true);
+        securityReportElement.parentNode.replaceChild(newSecurityReportElement, securityReportElement);
+        
+        newSecurityReportElement.addEventListener('click', async (e) => {
+          e.preventDefault();
+          setActiveSidebar('securityAuditReport');
+          showSection('securitySection');
+          await loadAndFilterSecurityData();
+        });
+      }
+
+      // Override the generic security search handler
+      const securitySearchInput = document.getElementById('securitySearch');
+      if (securitySearchInput) {
+        securitySearchInput.addEventListener('input', async (e) => {
+          try {
+            if (!securityData) {
+              securityData = await fetchData('security-audit');
+            }
+            
+            const searchTerm = e.target.value.toLowerCase();
+            
+            if (searchTerm) {
+              const searchFilteredData = securityData.issues.filter(issue => 
+                issue.message?.toLowerCase().includes(searchTerm) ||
+                issue.file?.toLowerCase().includes(searchTerm) ||
+                issue.type?.toLowerCase().includes(searchTerm) ||
+                issue.url?.toLowerCase().includes(searchTerm)
+              );
+              
+              // Apply current filter
+              if (securityFilter === 'code-scan') {
+                securityFilteredData = searchFilteredData.filter(issue => !issue.source || issue.source === 'custom');
+              } else if (securityFilter === 'live-url') {
+                securityFilteredData = searchFilteredData.filter(issue => issue.source === 'live-url');
+              } else {
+                securityFilteredData = searchFilteredData;
+              }
+
+              const filteredData = {
+                ...securityData,
+                issues: securityFilteredData
+              };
+              renderAuditTable(filteredData, 'securityTableWrap', 'securityPagination', 10, 'security');
+            } else {
+              await loadAndFilterSecurityData();
+            }
+          } catch (error) {
+            console.error('Error filtering security audit:', error);
+          }
+        });
+      }
+    }
 
     // Comprehensive audit report
     if (reportExistence['comprehensive-audit']) {
@@ -2507,6 +3418,7 @@
     chartInit();
     eslintDom();
     stylelintDom();
+    lighthouseDom.init();
     globalInit();
     packageReportInit();
     // componentUsageDom();

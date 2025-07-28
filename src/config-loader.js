@@ -1,7 +1,38 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { defaultJsFilePathPattern, defaultHtmlFilePathPattern, defaultScssFilePathPattern } from './audits/file-globs.js';
+
+// Default patterns - moved here to break circular dependency
+const defaultJsFilePathPattern = [
+  '**/*.{js,ts,jsx,tsx}',
+  '!**/node_modules/**',
+  '!**/dist/**',
+  '!**/build/**',
+  '!**/coverage/**',
+  '!**/report/**',
+  '!**/*.min.js',
+  '!**/tools/**'
+];
+
+const defaultHtmlFilePathPattern = [
+  '**/*.{html,htm}',
+  '!**/node_modules/**',
+  '!**/dist/**',
+  '!**/build/**',
+  '!**/coverage/**',
+  '!**/report/**',
+  '!**/tools/**'
+];
+
+const defaultScssFilePathPattern = [
+  '**/*.{css,scss,sass,less}',
+  '!**/node_modules/**',
+  '!**/dist/**',
+  '!**/build/**',
+  '!**/coverage/**',
+  '!**/report/**',
+  '!**/tools/**'
+];
 
 let cachedConfig = null;
 let warnedAboutDefaultConfig = false;

@@ -1,19 +1,26 @@
 # Exclude generated reports and test files
 report/
+reports/
 test/
 coverage/
 docs/
+web/
 
 # Exclude config and local environment files
 .vscode/
 .github/
 *.log
 *.env
+.env.local
+.env.development
+.env.test
+.env.production
 
 # Exclude source maps, SCSS, and configs not needed by consumers
 *.scss
 *.map
 rollup.config.js
+.gitignore
 
 # Exclude node_modules (never published, but safe)
 node_modules/
@@ -22,4 +29,48 @@ node_modules/
 *.md
 !README.md
 
+# Exclude test files in root directory
+test-*.js
+test-*.json
+test-*.html
+test-*.log
+
+# Exclude specific audit files that are not needed in published package
 src/audits/checklist-audit.js
+
+# Exclude development and debugging files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Exclude temporary and cache files
+.tmp/
+.cache/
+.temp/
+
+# Exclude IDE and editor files
+.idea/
+*.sublime-*
+.vscode/
+*.code-workspace
+
+# Exclude package lock files (not needed in published package)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Exclude build artifacts that are not needed
+build/bundle.js.map
+build/bundle.css.map
+
+# Exclude configuration files that users should create themselves
+ui-code-insight.config.json
+ui-code-insight-urls.json
+
+
+# Exclude any remaining test files
+**/test-*.js
+**/test-*.json
+**/test-*.html
