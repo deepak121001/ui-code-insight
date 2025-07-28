@@ -125,7 +125,7 @@ const ESLINTRC_TSREACT = "eslintrc.tsreact.json";
 const getLintConfigFile = (recommendedLintRules, projectType = '') => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  let configFileName = ESLINTRC_JSON;
+  let configFileName = 'eslintrc.simple.json'; // Default to simple config
 
   if (projectType.toLowerCase() === 'react') {
     configFileName = ESLINTRC_REACT;
@@ -140,11 +140,20 @@ const getLintConfigFile = (recommendedLintRules, projectType = '') => {
   }
 
   const configFilePath = path.join(__dirname, CONFIG_FOLDER, configFileName);
+  
+  // Check if the target config exists, otherwise fallback to simple config
   if (fs.existsSync(configFilePath)) {
     return configFilePath;
   }
 
-  // fallback to default logic
+  // Fallback to simple config to avoid module resolution issues
+  const simpleConfigPath = path.join(__dirname, CONFIG_FOLDER, 'eslintrc.simple.json');
+  if (fs.existsSync(simpleConfigPath)) {
+    console.log(chalk.yellow(`⚠️  Using simplified ESLint config to avoid module resolution issues`));
+    return simpleConfigPath;
+  }
+
+  // Final fallback to default logic
   const recommendedLintRulesConfigFile = path.join(
     __dirname,
     CONFIG_FOLDER,
@@ -202,23 +211,45 @@ const lintFile = async (filePath, eslint) => {
       filePath,
     });
 
-    // if (messages[0].errorCount) {
-    //   logError(filePath);
-    // } else if (messages[0].warningCount) {
-    //   logWarning(filePath);
-    // } else {
-    //   logSuccess(filePath);
-    // }
+    // Check if messages array exists and has content
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      console.warn(chalk.yellow(`⚠️  No lint results for ${filePath}`));
+      return {
+        filePath,
+        errorCount: 0,
+        warningCount: 0,
+        messages: [],
+      };
+    }
+
+    const firstMessage = messages[0];
+    
+    // Check if the message object has the expected properties
+    if (!firstMessage || typeof firstMessage !== 'object') {
+      console.warn(chalk.yellow(`⚠️  Invalid lint result for ${filePath}`));
+      return {
+        filePath,
+        errorCount: 0,
+        warningCount: 0,
+        messages: [],
+      };
+    }
 
     return {
       filePath,
-      errorCount: messages[0].errorCount,
-      warningCount: messages[0].warningCount,
-      messages: messages[0].messages,
+      errorCount: firstMessage.errorCount || 0,
+      warningCount: firstMessage.warningCount || 0,
+      messages: firstMessage.messages || [],
     };
   } catch (err) {
-    console.error(chalk.red(`Error reading file ${filePath}: ${err}`));
-    return null;
+    console.error(chalk.red(`❌ Error processing file ${filePath}: ${err.message}`));
+    return {
+      filePath,
+      errorCount: 0,
+      warningCount: 0,
+      messages: [],
+      error: err.message
+    };
   }
 };
 
@@ -244,14 +275,43 @@ const lintAllFiles = async (files, folderPath, eslint, projectType, reports) => 
 
   let results = [];
   let processed = 0;
+  let errorCount = 0;
+  
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
     const batch = files.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(batch.map(async (filePath) => {
-      processed++;
-      process.stdout.write(`\r[ESLint] Progress: ${processed}/${files.length} files checked`);
-      return await lintFile(filePath, eslint);
-    }));
-    results.push(...batchResults);
+    
+    try {
+      const batchResults = await Promise.all(batch.map(async (filePath) => {
+        processed++;
+        process.stdout.write(`\r[ESLint] Progress: ${processed}/${files.length} files checked`);
+        
+        try {
+          return await lintFile(filePath, eslint);
+        } catch (fileError) {
+          errorCount++;
+          console.error(chalk.red(`❌ Error processing file ${filePath}: ${fileError.message}`));
+          return {
+            filePath,
+            errorCount: 0,
+            warningCount: 0,
+            messages: [],
+            error: fileError.message
+          };
+        }
+      }));
+      
+      // Filter out null results and add valid ones
+      const validResults = batchResults.filter(result => result !== null && result !== undefined);
+      results.push(...validResults);
+      
+    } catch (batchError) {
+      console.error(chalk.red(`❌ Error processing batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batchError.message}`));
+      errorCount += batch.length;
+    }
+  }
+  
+  if (errorCount > 0) {
+    console.log(chalk.yellow(`⚠️  ${errorCount} files had processing errors`));
   }
   process.stdout.write(`\r[ESLint] Progress: ${files.length}/${files.length} files checked\n`);
 
@@ -281,9 +341,28 @@ const lintAllFiles = async (files, folderPath, eslint, projectType, reports) => 
       count: excludeRules.length
     },
     results: results
+      .filter(result => result !== null && result !== undefined) // Filter out null/undefined results
       .map((result) => {
-        let filteredMessages = result?.messages
-          .filter(message => !excludeRules.includes(message.ruleId))
+        // Ensure result has the expected structure
+        if (!result || typeof result !== 'object') {
+          console.warn(chalk.yellow(`⚠️  Skipping invalid result for file: ${result?.filePath || 'unknown'}`));
+          return null;
+        }
+
+        // Ensure messages array exists
+        const messages = result.messages || [];
+        if (!Array.isArray(messages)) {
+          console.warn(chalk.yellow(`⚠️  Invalid messages array for file: ${result.filePath}`));
+          return {
+            filePath: result.filePath,
+            errorCount: 0,
+            warningCount: 0,
+            messages: [],
+          };
+        }
+
+        let filteredMessages = messages
+          .filter(message => message && !excludeRules.includes(message.ruleId))
           .map((message) => ({
             ruleId: message.ruleId,
             severity: message.severity,
@@ -303,18 +382,20 @@ const lintAllFiles = async (files, folderPath, eslint, projectType, reports) => 
               : '',
             configSource: message.ruleId && configRuleMap[message.ruleId] ? configRuleMap[message.ruleId] : [],
           }));
+
         // If errorCount > 0 but messages is empty, omit this file from the report
-        if ((result?.errorCount > 0) && (!filteredMessages || filteredMessages.length === 0)) {
+        if ((result.errorCount > 0) && (!filteredMessages || filteredMessages.length === 0)) {
           return null;
         }
+
         return {
-          filePath: result?.filePath,
+          filePath: result.filePath,
           errorCount: filteredMessages.length,
           warningCount: 0,
           messages: filteredMessages,
         };
       })
-      .filter(Boolean),
+      .filter(Boolean), // Remove null results
   };
 
   await writeFile(
@@ -337,26 +418,72 @@ export const generateESLintReport = async (
   projectType = '',
   reports = []
 ) => {
-  const lintConfigFile = getLintConfigFile(recommendedLintRules, projectType);
-  if (!lintConfigFile) {
-    throw new Error(".eslintrc file is missing");
+  try {
+    const lintConfigFile = getLintConfigFile(recommendedLintRules, projectType);
+    if (!lintConfigFile) {
+      throw new Error(".eslintrc file is missing");
+    }
+
+    console.log(chalk.blue(`Using ESLint config: ${lintConfigFile}`));
+
+    let eslint;
+    try {
+      eslint = new ESLint({
+        useEslintrc: false,
+        overrideConfigFile: lintConfigFile,
+        // Add error handling for module resolution
+        errorOnUnmatchedPattern: false,
+        allowInlineConfig: false,
+      });
+    } catch (error) {
+      console.error(chalk.red(`❌ ESLint initialization error: ${error.message}`));
+      console.log(chalk.yellow(`🔄 Trying with simplified configuration...`));
+      
+      // Try with simplified config
+      const simpleConfigPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'config', 'eslintrc.simple.json');
+      eslint = new ESLint({
+        useEslintrc: false,
+        overrideConfigFile: simpleConfigPath,
+        errorOnUnmatchedPattern: false,
+        allowInlineConfig: false,
+      });
+    }
+
+    const files = await globby(getConfigPattern('jsFilePathPattern'));
+    console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${getConfigPattern('jsFilePathPattern').join(', ')}`));
+    
+    await lintAllFiles(files, folderPath, eslint, projectType, reports);
+    
+    console.log(chalk.green(`✅ ESLint report generated successfully`));
+    
+  } catch (error) {
+    console.error(chalk.red(`❌ Error during ESLint report generation: ${error.message}`));
+    
+    // Create a minimal error report
+    const errorReport = {
+      projectType,
+      reports,
+      error: error.message,
+      results: [],
+      excludeRules: {
+        enabled: false,
+        rules: [],
+        count: 0
+      }
+    };
+    
+    try {
+      await writeFile(
+        path.join(folderPath, "eslint-report.json"),
+        JSON.stringify(errorReport, null, 2)
+      );
+      console.log(chalk.yellow(`⚠️  Created error report with minimal data`));
+    } catch (writeError) {
+      console.error(chalk.red(`❌ Failed to write error report: ${writeError.message}`));
+    }
+    
+    throw error; // Re-throw to maintain error handling in calling code
   }
-
-  console.log(chalk.blue(`Using ESLint config: ${lintConfigFile}`));
-
-  const eslint = new ESLint({
-    useEslintrc: false,
-    overrideConfigFile: lintConfigFile,
-  });
-
-  const files = await globby(getConfigPattern('jsFilePathPattern'));
-  console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${getConfigPattern('jsFilePathPattern').join(', ')}`));
-  // console.log(chalk.gray(`Files being processed:`));
-  // files.slice(0, 10).forEach(file => console.log(chalk.gray(`  - ${file}`)));
-  // if (files.length > 10) {
-  //   console.log(chalk.gray(`  ... and ${files.length - 10} more files`));
-  // }
-  await lintAllFiles(files, folderPath, eslint, projectType, reports);
 
   try {
     const auditOutput = execSync('npm audit --json', {

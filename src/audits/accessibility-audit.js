@@ -6,8 +6,57 @@ import { writeFile } from 'fs/promises';
 import { getConfigPattern } from '../config-loader.js';
 import fsp from 'fs/promises';
 import puppeteer from 'puppeteer';
+import { 
+  getAccessibleComponents, 
+  getAccessibilityProps, 
+  shouldIgnoreLine,
+  isAccessibleComponent 
+} from './accessibility-config.js';
 
-const BATCH_SIZE = 5;
+// Memory optimization: Ultra-aggressive settings for very large projects
+const BATCH_SIZE = process.env.ACCESSIBILITY_BATCH_SIZE ? 
+  parseInt(process.env.ACCESSIBILITY_BATCH_SIZE) : 
+  (process.env.NODE_ENV === 'production' ? 1 : 2);
+const MAX_FILES_PER_BATCH = 500; // Reduced from 1000 to 500
+const MEMORY_THRESHOLD = process.env.ACCESSIBILITY_MEMORY_THRESHOLD ? 
+  parseFloat(process.env.ACCESSIBILITY_MEMORY_THRESHOLD) : 0.6;
+const MAX_IN_MEMORY_ISSUES = 2500; // Reduced from 5000 to 2500
+const FORCE_GC_INTERVAL = 25; // Force GC every 25 files instead of every batch
+
+/**
+ * Memory management utility
+ */
+class MemoryManager {
+  static getMemoryUsage() {
+    const usage = process.memoryUsage();
+    return {
+      heapUsed: usage.heapUsed / 1024 / 1024, // MB
+      heapTotal: usage.heapTotal / 1024 / 1024, // MB
+      external: usage.external / 1024 / 1024, // MB
+      rss: usage.rss / 1024 / 1024 // MB
+    };
+  }
+
+  static isMemoryHigh() {
+    const usage = this.getMemoryUsage();
+    return usage.heapUsed / usage.heapTotal > MEMORY_THRESHOLD;
+  }
+
+  static async forceGarbageCollection() {
+    if (global.gc) {
+      global.gc();
+      // Force multiple GC cycles for better cleanup
+      await new Promise(resolve => setTimeout(resolve, 50));
+      if (global.gc) global.gc();
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
+
+  static logMemoryUsage(label = '') {
+    const usage = this.getMemoryUsage();
+    console.log(chalk.gray(`[Memory] ${label}: Heap ${usage.heapUsed.toFixed(1)}MB / ${usage.heapTotal.toFixed(1)}MB`));
+  }
+}
 
 /**
  * Accessibility audit module for detecting accessibility issues
@@ -46,6 +95,8 @@ export class AccessibilityAudit {
   constructor(folderPath) {
     this.folderPath = folderPath;
     this.accessibilityIssues = [];
+    this.currentAuditType = '';
+    this.currentBatchIndex = 0;
     
     // Ensure the reports directory exists
     if (!fs.existsSync(this.folderPath)) {
@@ -70,8 +121,10 @@ export class AccessibilityAudit {
   }
 
   async addAccessibilityIssue(issue) {
-    // Add to in-memory array
-    this.accessibilityIssues.push(issue);
+    // Add to in-memory array (with size limit)
+    if (this.accessibilityIssues.length < MAX_IN_MEMORY_ISSUES) { // Limit in-memory issues
+      this.accessibilityIssues.push(issue);
+    }
     
     // Write to file if stream is available
     if (this.issueStream) {
@@ -83,6 +136,55 @@ export class AccessibilityAudit {
     } else {
       console.warn(chalk.yellow('Issue stream not initialized, issue added to memory only.'));
     }
+  }
+
+  /**
+   * Process files in batches to manage memory
+   */
+  async processFilesInBatches(files, processor, auditType = '') {
+    const batches = [];
+    for (let i = 0; i < files.length; i += MAX_FILES_PER_BATCH) {
+      batches.push(files.slice(i, i + MAX_FILES_PER_BATCH));
+    }
+
+    console.log(chalk.blue(`📁 Processing ${files.length} files in ${batches.length} batches for ${auditType}`));
+    
+    let batchProcessedFiles = 0;
+    let filesSinceLastGC = 0;
+    
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      // Check memory before processing batch
+      if (MemoryManager.isMemoryHigh()) {
+        console.log(chalk.yellow(`⚠️  High memory usage detected, forcing garbage collection...`));
+        await MemoryManager.forceGarbageCollection();
+        MemoryManager.logMemoryUsage(`Before batch ${batchIndex + 1}`);
+      }
+      
+      console.log(chalk.gray(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} files)`));
+      
+      // Process batch
+      for (let i = 0; i < batch.length; i += BATCH_SIZE) {
+        const subBatch = batch.slice(i, i + BATCH_SIZE);
+        await Promise.all(subBatch.map(processor));
+        
+        batchProcessedFiles += subBatch.length;
+        filesSinceLastGC += subBatch.length;
+        process.stdout.write(`\r[Progress] ${batchProcessedFiles}/${files.length} files processed`);
+        
+        // Force GC more frequently
+        if (filesSinceLastGC >= FORCE_GC_INTERVAL) {
+          await MemoryManager.forceGarbageCollection();
+          filesSinceLastGC = 0;
+        }
+      }
+      
+      // Force garbage collection after each batch
+      await MemoryManager.forceGarbageCollection();
+    }
+    
+    console.log(`\n✅ ${auditType} processing completed`);
   }
 
   /**
@@ -497,6 +599,10 @@ export class AccessibilityAudit {
       /<Image[^>]*\/>/gi,
     ];
 
+    // Get accessible components from configuration
+    const accessibleComponents = getAccessibleComponents();
+    const accessibilityProps = getAccessibilityProps();
+
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
       ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
@@ -507,20 +613,46 @@ export class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for image accessibility issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Image Accessibility] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
         for (let index = 0; index < lines.length; index++) {
           const line = lines[index];
+          
+          // Check if this line should be ignored based on configuration
+          if (shouldIgnoreLine(line)) {
+            continue;
+          }
+          
+          // Check for accessible custom components first
+          const hasAccessibleComponent = accessibleComponents.some(component => 
+            line.includes(`<${component}`) || line.includes(`<${component}/`)
+          );
+          
+          // Skip if this line contains an accessible custom component
+          if (hasAccessibleComponent) {
+            continue;
+          }
+          
+          // Check for custom components with accessibility props
+          const customComponentPattern = /<([A-Z][a-zA-Z]*)[^>]*>/g;
+          const customMatches = line.match(customComponentPattern);
+          if (customMatches) {
+            for (const match of customMatches) {
+              // Check if component has accessibility-related props
+              const hasAccessibilityProps = accessibilityProps.some(prop => 
+                match.includes(`${prop}=`)
+              );
+              
+              // Skip if component has accessibility props
+              if (hasAccessibilityProps) {
+                continue;
+              }
+            }
+          }
+          
           for (const pattern of imagePatterns) {
             const matches = line.match(pattern);
             if (matches) {
@@ -582,10 +714,7 @@ export class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-      // batch memory is released here
-    }
-    process.stdout.write(`\r[Image Accessibility] Progress: ${files.length}/${files.length} files checked\n`);
+    }, 'Image Accessibility');
   }
 
   /**
@@ -613,14 +742,7 @@ export class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for heading structure issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Heading Structure] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -680,9 +802,8 @@ export class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Heading Structure] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -709,14 +830,7 @@ export class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for form accessibility issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Form Accessibility] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -838,9 +952,8 @@ export class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Form Accessibility] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -866,14 +979,7 @@ export class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for color contrast issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Color Contrast] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -902,9 +1008,8 @@ export class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Color Contrast] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -929,14 +1034,7 @@ export class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for keyboard navigation issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Keyboard Navigation] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -972,9 +1070,8 @@ export class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Keyboard Navigation] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -997,14 +1094,7 @@ export class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for ARIA usage issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[ARIA Usage] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -1037,9 +1127,8 @@ export class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[ARIA Usage] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -1065,14 +1154,8 @@ export class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for tab order and focus issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Tab Order] Progress: ${processed}/${files.length} files checked`);
+    this.totalFiles = files.length; // Set total files for progress tracking
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -1102,9 +1185,8 @@ export class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Tab Order] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -1133,14 +1215,8 @@ export class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for landmarks and skip links`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Landmarks] Progress: ${processed}/${files.length} files checked`);
+    this.totalFiles = files.length; // Set total files for progress tracking
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -1168,9 +1244,8 @@ export class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Landmarks] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -1210,14 +1285,8 @@ export class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for semantic HTML and ARIA issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Semantic HTML & ARIA] Progress: ${processed}/${files.length} files checked`);
+    this.totalFiles = files.length; // Set total files for progress tracking
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -1314,9 +1383,8 @@ export class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Semantic HTML & ARIA] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**

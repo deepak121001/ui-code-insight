@@ -10,7 +10,12 @@ export const defaultJsFilePathPattern = [
   '!**/coverage/**',
   '!**/report/**',
   '!**/*.min.js',
-  '!**/tools/**'
+  '!**/tools/**',
+  '!**/__tests__/**',
+  '!**/test/**',
+  '!**/tests/**',
+  '!**/*.test.{js,ts,jsx,tsx}',
+  '!**/*.spec.{js,ts,jsx,tsx}'
 ];
 
 export const defaultHtmlFilePathPattern = [
@@ -20,7 +25,10 @@ export const defaultHtmlFilePathPattern = [
   '!**/build/**',
   '!**/coverage/**',
   '!**/report/**',
-  '!**/tools/**'
+  '!**/tools/**',
+  '!**/__tests__/**',
+  '!**/test/**',
+  '!**/tests/**'
 ];
 
 export const defaultScssFilePathPattern = [
@@ -30,7 +38,10 @@ export const defaultScssFilePathPattern = [
   '!**/build/**',
   '!**/coverage/**',
   '!**/report/**',
-  '!**/tools/**'
+  '!**/tools/**',
+  '!**/__tests__/**',
+  '!**/test/**',
+  '!**/tests/**'
 ];
 
 // ============================================================================
@@ -251,6 +262,11 @@ export function getCommonExclusions() {
     '**/.git/**',
     '**/report/**',
     '**/tools/**',
+    '**/__tests__/**',
+    '**/test/**',
+    '**/tests/**',
+    '**/*.test.{js,ts,jsx,tsx}',
+    '**/*.spec.{js,ts,jsx,tsx}',
     '**/*.min.js',
     '**/*.min.css',
     '**/webpack.config.js',
@@ -269,6 +285,13 @@ export function getDevelopmentExclusions() {
     '**/cypress/**',
     '**/__mocks__/**',
     '**/__dropins__/**',
+    '**/__tests__/**',
+    '**/test/**',
+    '**/tests/**',
+    '**/jest.config.js',
+    '**/jest.setup.js',
+    '**/vitest.config.js',
+    '**/playwright.config.js',
     '**/bin/**'
   ];
 }

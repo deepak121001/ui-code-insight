@@ -4,6 +4,7 @@
     "./src/**/*.ts",
     "./src/**/*.jsx",
     "./src/**/*.tsx",
+    "!**/node_modules/**",
     "!**/webpack.config.js",
     "!**/webpack.*.js",
     "!**/webpack.config.*.js",

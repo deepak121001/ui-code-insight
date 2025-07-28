@@ -10,7 +10,18 @@
   "type": "module",
   "scripts": {
     "build": "rollup -c",
-    "install-peers": "npx install-peers"
+    "install-peers": "npx install-peers",
+    "audit:accessibility": "node --max-old-space-size=8192 --expose-gc scripts/run-accessibility-audit.js",
+    "audit:accessibility:large": "node --max-old-space-size=16384 --expose-gc scripts/run-accessibility-audit.js --batch-size 500",
+    "audit:accessibility:ultra": "node --max-old-space-size=16384 --expose-gc --optimize-for-size scripts/run-accessibility-audit-ultra.js",
+    "audit:accessibility:urls": "node --max-old-space-size=8192 --expose-gc scripts/run-accessibility-audit.js --live-url-test",
+    "audit:security": "node --max-old-space-size=8192 --expose-gc scripts/run-security-audit.js",
+    "audit:security:large": "node --max-old-space-size=16384 --expose-gc scripts/run-security-audit.js --batch-size 10 --memory-limit 0.6",
+    "audit:performance": "node --max-old-space-size=8192 --expose-gc scripts/run-performance-audit.js",
+    "audit:performance:large": "node --max-old-space-size=16384 --expose-gc scripts/run-performance-audit.js --batch-size 10 --memory-limit 0.6",
+    "test:eslint": "node scripts/test-eslint.js",
+    "test:exclusions": "node scripts/test-file-exclusions.js",
+    "test:security": "node scripts/test-security-audit.js"
   },
   "keywords": [
     "eslint",

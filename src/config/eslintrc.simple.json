@@ -1,0 +1,53 @@
+{
+  "env": {
+    "browser": true,
+    "es6": true,
+    "node": true
+  },
+  "extends": [
+    "eslint:recommended"
+  ],
+  "parserOptions": {
+    "ecmaFeatures": {
+      "jsx": true
+    },
+    "ecmaVersion": 2020,
+    "sourceType": "module"
+  },
+  "plugins": [
+    "security"
+  ],
+  "rules": {
+    "yoda": 0,
+    "curly": 1,
+    "consistent-return": 0,
+    "func-names": 0,
+    "max-len": [1, 120],
+    "new-parens": 1,
+    "no-bitwise": 1,
+    "no-cond-assign": 1,
+    "no-trailing-spaces": 0,
+    "eol-last": 1,
+    "semi": 1,
+    "no-var": 0,
+    "complexity": ["warn", 10],
+    "max-params": ["warn", 4],
+    "max-depth": ["warn", 3],
+    "security/detect-object-injection": "warn",
+    "security/detect-unsafe-regex": "warn",
+    "security/detect-buffer-noassert": "warn",
+    "security/detect-child-process": "warn",
+    "security/detect-disable-mustache-escape": "warn",
+    "security/detect-eval-with-expression": "warn",
+    "security/detect-new-buffer": "warn",
+    "security/detect-no-csrf-before-method-override": "warn",
+    "security/detect-non-literal-fs-filename": "warn",
+    "security/detect-non-literal-regexp": "warn",
+    "security/detect-non-literal-require": "warn",
+    "security/detect-possible-timing-attacks": "warn",
+    "security/detect-pseudoRandomBytes": "warn"
+  },
+  "globals": {
+    "google": true
+  }
+} 

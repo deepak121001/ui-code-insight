@@ -10,15 +10,99 @@ import fsp from "fs/promises";
 import { ESLint } from "eslint";
 import { fileURLToPath } from "url";
 
+// Memory management constants
+const BATCH_SIZE = process.env.PERFORMANCE_BATCH_SIZE ? 
+  parseInt(process.env.PERFORMANCE_BATCH_SIZE) : 
+  (process.env.NODE_ENV === 'production' ? 25 : 50);
+const MAX_FILES_PER_BATCH = 500;
+const MEMORY_THRESHOLD = process.env.PERFORMANCE_MEMORY_THRESHOLD ? 
+  parseFloat(process.env.PERFORMANCE_MEMORY_THRESHOLD) : 0.7;
+const MAX_IN_MEMORY_ISSUES = 5000;
+const FORCE_GC_INTERVAL = 50;
+
+// Memory management class
+class MemoryManager {
+  static getMemoryUsage() {
+    const usage = process.memoryUsage();
+    return {
+      heapUsed: usage.heapUsed / 1024 / 1024,
+      heapTotal: usage.heapTotal / 1024 / 1024,
+      external: usage.external / 1024 / 1024
+    };
+  }
+
+  static isMemoryHigh() {
+    const usage = this.getMemoryUsage();
+    return usage.heapUsed / usage.heapTotal > MEMORY_THRESHOLD;
+  }
+
+  static async forceGarbageCollection() {
+    if (global.gc) {
+      global.gc();
+      // Force multiple GC cycles for better cleanup
+      await new Promise(resolve => setTimeout(resolve, 50));
+      if (global.gc) global.gc();
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
+
+  static logMemoryUsage(label = '') {
+    const usage = this.getMemoryUsage();
+    console.log(chalk.gray(`[Memory] ${label}: Heap ${usage.heapUsed.toFixed(1)}MB / ${usage.heapTotal.toFixed(1)}MB`));
+  }
+}
+
 const CONFIG_FOLDER = "config";
 const ESLINTRC_JSON = ".eslintrc.json";
 const getLintConfigFile = (recommendedLintRules = false, projectType = '') => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  let configFileName = ESLINTRC_JSON;
+  let configFileName = 'eslintrc.simple.json'; // Default to simple config
+
+  if (projectType && typeof projectType === 'string') {
+    const type = projectType.toLowerCase();
+    if (type === 'react') configFileName = ESLINTRC_REACT;
+    else if (type === 'node') configFileName = ESLINTRC_NODE;
+    else if (type === 'vanilla') configFileName = ESLINTRC_VANILLA;
+    else if (type === 'typescript') configFileName = ESLINTRC_TS;
+    else if (type === 'typescript + react' || type === 'tsreact') configFileName = ESLINTRC_TSREACT;
+  }
+
   const configFilePath = path.join(__dirname, CONFIG_FOLDER, configFileName);
-  if (fs.existsSync(configFilePath)) return configFilePath;
-  return null;
+  
+  // Check if the target config exists, otherwise fallback to simple config
+  if (fs.existsSync(configFilePath)) {
+    return configFilePath;
+  }
+
+  // Fallback to simple config to avoid module resolution issues
+  const simpleConfigPath = path.join(__dirname, CONFIG_FOLDER, 'eslintrc.simple.json');
+  if (fs.existsSync(simpleConfigPath)) {
+    console.log(chalk.yellow(`⚠️  Using simplified ESLint config to avoid module resolution issues`));
+    return simpleConfigPath;
+  }
+
+  // Final fallback to default logic
+  const recommendedLintRulesConfigFile = path.join(__dirname, CONFIG_FOLDER, ESLINTRC_JSON);
+  const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
+  const eslintLintFilePathFromModule = path.join(moduleDir, ESLINTRC_JSON);
+
+  if (recommendedLintRules) {
+    return recommendedLintRulesConfigFile;
+  }
+
+  const configFiles = [
+    ESLINTRC,
+    ESLINTRC_JS,
+    ESLINTRC_YML,
+    ESLINTRC_JSON,
+    eslintLintFilePathFromModule,
+  ];
+
+  const foundConfig = configFiles.find((file) => fs.existsSync(file));
+  
+  // If no config found, return simple config to avoid node_modules
+  return foundConfig || simpleConfigPath;
 };
 
 async function getCodeContext(filePath, line, contextRadius = 2) {
@@ -50,13 +134,65 @@ export class PerformanceAudit {
     this.folderPath = folderPath;
     this.performanceIssues = [];
     this.issuesFile = path.join(this.folderPath, 'performance-issues.jsonl');
+    this.issueCount = 0;
     // Remove file if it exists from previous runs
     if (fs.existsSync(this.issuesFile)) fs.unlinkSync(this.issuesFile);
     this.issueStream = fs.createWriteStream(this.issuesFile, { flags: 'a' });
   }
 
   async addPerformanceIssue(issue) {
+    // Limit in-memory issues
+    if (this.issueCount >= MAX_IN_MEMORY_ISSUES) {
+      console.warn(chalk.yellow('⚠️ Maximum in-memory issues reached, skipping further issues'));
+      return;
+    }
+    
     this.issueStream.write(JSON.stringify(issue) + '\n');
+    this.issueCount++;
+  }
+
+  /**
+   * Process files in batches with memory management
+   */
+  async processFilesInBatches(files, processor, auditType = 'performance') {
+    const batches = [];
+    for (let i = 0; i < files.length; i += MAX_FILES_PER_BATCH) {
+      batches.push(files.slice(i, i + MAX_FILES_PER_BATCH));
+    }
+
+    let batchProcessedFiles = 0;
+    let filesSinceLastGC = 0;
+
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      // Check memory before processing batch
+      if (MemoryManager.isMemoryHigh()) {
+        console.log(chalk.yellow('⚠️ High memory usage detected, forcing garbage collection...'));
+        MemoryManager.logMemoryUsage(`Before batch ${batchIndex + 1}`);
+        await MemoryManager.forceGarbageCollection();
+      }
+
+      console.log(chalk.gray(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} files)`));
+      
+      // Process sub-batches for better memory control
+      for (let i = 0; i < batch.length; i += BATCH_SIZE) {
+        const subBatch = batch.slice(i, i + BATCH_SIZE);
+        await Promise.all(subBatch.map(processor));
+        
+        batchProcessedFiles += subBatch.length;
+        filesSinceLastGC += subBatch.length;
+        process.stdout.write(`\r[Progress] ${batchProcessedFiles}/${files.length} files processed`);
+        
+        // Force GC more frequently
+        if (filesSinceLastGC >= FORCE_GC_INTERVAL) {
+          await MemoryManager.forceGarbageCollection();
+          filesSinceLastGC = 0;
+        }
+      }
+    }
+    
+    console.log(chalk.green(`\n✅ ${auditType} audit completed: ${batchProcessedFiles} files processed`));
   }
 
   /**
@@ -142,10 +278,12 @@ export class PerformanceAudit {
 
     try {
       const files = await globby(getConfigPattern('jsFilePathPattern'), { absolute: true });
-      for (const file of files) {
+      
+      const processor = async (file) => {
         try {
           const content = await fsp.readFile(file, 'utf8');
           const lines = content.split('\n');
+          
           for (let index = 0; index < lines.length; index++) {
             const line = lines[index];
             for (const { pattern, message, severity } of inefficientPatterns) {
@@ -164,10 +302,16 @@ export class PerformanceAudit {
               }
             }
           }
+          
+          // Clear lines array to free memory
+          lines.length = 0;
         } catch (err) {
           console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
         }
-      }
+      };
+      
+      await this.processFilesInBatches(files, processor, 'inefficient_operations');
+      
     } catch (err) {
       console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
@@ -198,10 +342,12 @@ export class PerformanceAudit {
 
     try {
       const files = await globby(getConfigPattern('jsFilePathPattern'), { absolute: true });
-      for (const file of files) {
+      
+      const processor = async (file) => {
         try {
           const content = await fsp.readFile(file, 'utf8');
           const lines = content.split('\n');
+          
           for (let index = 0; index < lines.length; index++) {
             const line = lines[index];
             for (const { pattern, message, severity } of memoryLeakPatterns) {
@@ -220,10 +366,16 @@ export class PerformanceAudit {
               }
             }
           }
+          
+          // Clear lines array to free memory
+          lines.length = 0;
         } catch (err) {
           console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
         }
-      }
+      };
+      
+      await this.processFilesInBatches(files, processor, 'memory_leaks');
+      
     } catch (err) {
       console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
@@ -276,14 +428,52 @@ export class PerformanceAudit {
       if (!eslintConfig) {
         throw new Error(".eslintrc file is missing");
       }
-      const eslint = new ESLint({
-        useEslintrc: false,
-        overrideConfigFile: eslintConfig,
-      });
+      
+      let eslint;
+      try {
+        eslint = new ESLint({
+          useEslintrc: false,
+          overrideConfigFile: eslintConfig,
+          errorOnUnmatchedPattern: false,
+          allowInlineConfig: false
+        });
+      } catch (initError) {
+        console.warn(chalk.yellow(`⚠️ ESLint initialization failed with config ${eslintConfig}, falling back to simple config`));
+        const simpleConfigPath = path.join(__dirname, CONFIG_FOLDER, 'eslintrc.simple.json');
+        if (fs.existsSync(simpleConfigPath)) {
+          eslint = new ESLint({
+            useEslintrc: false,
+            overrideConfigFile: simpleConfigPath,
+            errorOnUnmatchedPattern: false,
+            allowInlineConfig: false
+          });
+        } else {
+          throw new Error("No valid ESLint configuration found");
+        }
+      }
+      
       const files = await globby(getConfigPattern('jsFilePathPattern'));
       const results = await eslint.lintFiles(files);
+      
+      // Validate results before processing
+      if (!results || !Array.isArray(results)) {
+        console.warn(chalk.yellow('⚠️ Invalid ESLint results for unused code check'));
+        return;
+      }
+      
       for (const file of results) {
+        // Validate file structure
+        if (!file || !file.messages || !Array.isArray(file.messages)) {
+          console.warn(chalk.yellow('⚠️ Invalid ESLint file result structure'));
+          continue;
+        }
+        
         for (const message of file.messages) {
+          // Validate message structure
+          if (!message || !message.ruleId) {
+            continue;
+          }
+          
           if (
             message.ruleId === 'no-unused-vars' ||
             message.ruleId === '@typescript-eslint/no-unused-vars'
@@ -409,18 +599,56 @@ export class PerformanceAudit {
       if (!eslintConfig) {
         throw new Error(".eslintrc file is missing");
       }
-      const eslint = new ESLint({
-        useEslintrc: false,
-        overrideConfigFile: eslintConfig,
-      });
+      
+      let eslint;
+      try {
+        eslint = new ESLint({
+          useEslintrc: false,
+          overrideConfigFile: eslintConfig,
+          errorOnUnmatchedPattern: false,
+          allowInlineConfig: false
+        });
+      } catch (initError) {
+        console.warn(chalk.yellow(`⚠️ ESLint initialization failed with config ${eslintConfig}, falling back to simple config`));
+        const simpleConfigPath = path.join(__dirname, CONFIG_FOLDER, 'eslintrc.simple.json');
+        if (fs.existsSync(simpleConfigPath)) {
+          eslint = new ESLint({
+            useEslintrc: false,
+            overrideConfigFile: simpleConfigPath,
+            errorOnUnmatchedPattern: false,
+            allowInlineConfig: false
+          });
+        } else {
+          throw new Error("No valid ESLint configuration found");
+        }
+      }
+      
       const files = await globby(getConfigPattern('jsFilePathPattern'));
-      let processed = 0;
-      for (const file of files) {
+      
+      const processor = async (file) => {
         try {
           const results = await eslint.lintFiles([file]);
+          
+          // Validate results before processing
+          if (!results || !Array.isArray(results)) {
+            console.warn(chalk.yellow(`⚠️ Invalid ESLint results for file ${file}`));
+            return;
+          }
+          
           for (const result of results) {
+            // Validate result structure
+            if (!result || !result.messages || !Array.isArray(result.messages)) {
+              console.warn(chalk.yellow(`⚠️ Invalid ESLint result structure for file ${file}`));
+              continue;
+            }
+            
             for (const message of result.messages) {
-              if (message.ruleId && message.ruleId.startsWith('promise/')) {
+              // Validate message structure
+              if (!message || !message.ruleId) {
+                continue;
+              }
+              
+              if (message.ruleId.startsWith('promise/')) {
                 const { code, context } = await getCodeContext(result.filePath, message.line);
                 await this.addPerformanceIssue({
                   type: 'eslint_promise',
@@ -439,12 +667,10 @@ export class PerformanceAudit {
         } catch (err) {
           console.warn(chalk.yellow(`⚠️ ESLint failed on file ${file}: ${err.message}`));
         }
-        processed++;
-        if (processed % 10 === 0 || processed === files.length) {
-          process.stdout.write(`\rESLint Promise Progress: ${processed}/${files.length} files checked`);
-        }
-      }
-      process.stdout.write(`\rESLint Promise Progress: ${files.length}/${files.length} files checked\n`);
+      };
+      
+      await this.processFilesInBatches(files, processor, 'eslint_promise');
+      
     } catch (error) {
       console.warn(chalk.yellow('Warning: Could not run ESLint for promise plugin checks'));
       if (error && error.message) {

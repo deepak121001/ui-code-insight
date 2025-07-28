@@ -6,7 +6,7 @@ import { execSync } from 'child_process';
 import { globby } from 'globby';
 import { fileURLToPath } from 'url';
 import { ESLint } from 'eslint';
-import pLimit from 'p-limit';
+import 'p-limit';
 import puppeteer from 'puppeteer';
 import lighthouse from 'lighthouse';
 import { createRequire } from 'module';
@@ -137,37 +137,48 @@ function getMergedExcludeRules(auditType, defaultRules) {
 }
 
 const __filename$1 = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename$1);
+const __dirname$1 = path.dirname(__filename$1);
 
 const CONFIG_FOLDER$3 = "config";
 const ESLINTRC_JSON$2 = ".eslintrc.json";
-const ESLINTRC_JS$1 = ".eslintrc.js";
-const ESLINTRC_YML$1 = ".eslintrc.yml";
-const ESLINTRC$1 = ".eslintrc";
-const ESLINTRC_REACT$1 = "eslintrc.react.json";
-const ESLINTRC_NODE$1 = "eslintrc.node.json";
-const ESLINTRC_VANILLA$1 = "eslintrc.vanilla.json";
-const ESLINTRC_TS$1 = "eslintrc.typescript.json";
-const ESLINTRC_TSREACT$1 = "eslintrc.tsreact.json";
+const ESLINTRC_JS$2 = ".eslintrc.js";
+const ESLINTRC_YML$2 = ".eslintrc.yml";
+const ESLINTRC$2 = ".eslintrc";
+const ESLINTRC_REACT$2 = "eslintrc.react.json";
+const ESLINTRC_NODE$2 = "eslintrc.node.json";
+const ESLINTRC_VANILLA$2 = "eslintrc.vanilla.json";
+const ESLINTRC_TS$2 = "eslintrc.typescript.json";
+const ESLINTRC_TSREACT$2 = "eslintrc.tsreact.json";
 
 const getLintConfigFile$3 = (recommendedLintRules = false, projectType = '') => {
-  let configFileName = ESLINTRC_JSON$2;
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  let configFileName = 'eslintrc.simple.json'; // Default to simple config
 
   if (projectType && typeof projectType === 'string') {
     const type = projectType.toLowerCase();
-    if (type === 'react') configFileName = ESLINTRC_REACT$1;
-    else if (type === 'node') configFileName = ESLINTRC_NODE$1;
-    else if (type === 'vanilla') configFileName = ESLINTRC_VANILLA$1;
-    else if (type === 'typescript') configFileName = ESLINTRC_TS$1;
-    else if (type === 'typescript + react' || type === 'tsreact') configFileName = ESLINTRC_TSREACT$1;
+    if (type === 'react') configFileName = ESLINTRC_REACT$2;
+    else if (type === 'node') configFileName = ESLINTRC_NODE$2;
+    else if (type === 'vanilla') configFileName = ESLINTRC_VANILLA$2;
+    else if (type === 'typescript') configFileName = ESLINTRC_TS$2;
+    else if (type === 'typescript + react' || type === 'tsreact') configFileName = ESLINTRC_TSREACT$2;
   }
 
   const configFilePath = path.join(__dirname, CONFIG_FOLDER$3, configFileName);
+  
+  // Check if the target config exists, otherwise fallback to simple config
   if (fs.existsSync(configFilePath)) {
     return configFilePath;
   }
 
-  // fallback to default logic
+  // Fallback to simple config to avoid module resolution issues
+  const simpleConfigPath = path.join(__dirname, CONFIG_FOLDER$3, 'eslintrc.simple.json');
+  if (fs.existsSync(simpleConfigPath)) {
+    console.log(chalk.yellow(`⚠️  Using simplified ESLint config to avoid module resolution issues`));
+    return simpleConfigPath;
+  }
+
+  // Final fallback to default logic
   const recommendedLintRulesConfigFile = path.join(__dirname, CONFIG_FOLDER$3, ESLINTRC_JSON$2);
   const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
   const eslintLintFilePathFromModule = path.join(moduleDir, ESLINTRC_JSON$2);
@@ -177,14 +188,17 @@ const getLintConfigFile$3 = (recommendedLintRules = false, projectType = '') => 
   }
 
   const configFiles = [
-    ESLINTRC$1,
-    ESLINTRC_JS$1,
-    ESLINTRC_YML$1,
+    ESLINTRC$2,
+    ESLINTRC_JS$2,
+    ESLINTRC_YML$2,
     ESLINTRC_JSON$2,
     eslintLintFilePathFromModule,
   ];
 
-  return configFiles.find((file) => fs.existsSync(file));
+  const foundConfig = configFiles.find((file) => fs.existsSync(file));
+  
+  // If no config found, return simple config to avoid node_modules
+  return foundConfig || simpleConfigPath;
 };
 
 // Helper to get code and context lines
@@ -209,11 +223,98 @@ async function getCodeContext$1(filePath, line, contextRadius = 2) {
   }
 }
 
+// Memory management constants
+const BATCH_SIZE$6 = process.env.SECURITY_BATCH_SIZE ? 
+  parseInt(process.env.SECURITY_BATCH_SIZE) : 
+  (process.env.NODE_ENV === 'production' ? 25 : 50);
+const MAX_FILES_PER_BATCH$2 = 500;
+const MEMORY_THRESHOLD$2 = process.env.SECURITY_MEMORY_THRESHOLD ? 
+  parseFloat(process.env.SECURITY_MEMORY_THRESHOLD) : 0.7;
+const MAX_IN_MEMORY_ISSUES$2 = 5000;
+const FORCE_GC_INTERVAL$2 = 50;
+
+// Memory management class
+class MemoryManager$2 {
+  static getMemoryUsage() {
+    const usage = process.memoryUsage();
+    return {
+      heapUsed: usage.heapUsed / 1024 / 1024,
+      heapTotal: usage.heapTotal / 1024 / 1024,
+      external: usage.external / 1024 / 1024
+    };
+  }
+
+  static isMemoryHigh() {
+    const usage = this.getMemoryUsage();
+    return usage.heapUsed / usage.heapTotal > MEMORY_THRESHOLD$2;
+  }
+
+  static async forceGarbageCollection() {
+    if (global.gc) {
+      global.gc();
+      // Force multiple GC cycles for better cleanup
+      await new Promise(resolve => setTimeout(resolve, 50));
+      if (global.gc) global.gc();
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
+
+  static logMemoryUsage(label = '') {
+    const usage = this.getMemoryUsage();
+    console.log(chalk.gray(`[Memory] ${label}: Heap ${usage.heapUsed.toFixed(1)}MB / ${usage.heapTotal.toFixed(1)}MB`));
+  }
+}
+
 class SecurityAudit {
   constructor(folderPath) {
     this.folderPath = folderPath;
     this.securityIssues = [];
     this.browser = null;
+    this.issueCount = 0;
+  }
+
+  /**
+   * Process files in batches with memory management
+   */
+  async processFilesInBatches(files, processor, auditType = 'security') {
+    const batches = [];
+    for (let i = 0; i < files.length; i += MAX_FILES_PER_BATCH$2) {
+      batches.push(files.slice(i, i + MAX_FILES_PER_BATCH$2));
+    }
+
+    let batchProcessedFiles = 0;
+    let filesSinceLastGC = 0;
+
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      // Check memory before processing batch
+      if (MemoryManager$2.isMemoryHigh()) {
+        console.log(chalk.yellow('⚠️ High memory usage detected, forcing garbage collection...'));
+        MemoryManager$2.logMemoryUsage(`Before batch ${batchIndex + 1}`);
+        await MemoryManager$2.forceGarbageCollection();
+      }
+
+      console.log(chalk.gray(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} files)`));
+      
+      // Process sub-batches for better memory control
+      for (let i = 0; i < batch.length; i += BATCH_SIZE$6) {
+        const subBatch = batch.slice(i, i + BATCH_SIZE$6);
+        await Promise.all(subBatch.map(processor));
+        
+        batchProcessedFiles += subBatch.length;
+        filesSinceLastGC += subBatch.length;
+        process.stdout.write(`\r[Progress] ${batchProcessedFiles}/${files.length} files processed`);
+        
+        // Force GC more frequently
+        if (filesSinceLastGC >= FORCE_GC_INTERVAL$2) {
+          await MemoryManager$2.forceGarbageCollection();
+          filesSinceLastGC = 0;
+        }
+      }
+    }
+    
+    console.log(chalk.green(`\n✅ ${auditType} audit completed: ${batchProcessedFiles} files processed`));
   }
 
   /**
@@ -269,60 +370,60 @@ class SecurityAudit {
       /\b(const|let|var)\s+\w*(api|access|secret|auth|token|key)\w*\s*=\s*['"][\w\-]{16,}['"]/i,
     ];
   
-    const CONCURRENCY = 10; // Limit number of files processed in parallel
-    const BATCH_SIZE = 50; // Process files in batches
     try {
       const files = await globby(getConfigPattern('jsFilePathPattern'), {
         absolute: true,
       });
       console.log(chalk.gray(`📁 Scanning ${files.length} files for secrets...`));
-      const limit = pLimit(CONCURRENCY);
-      let processed = 0;
-      for (let i = 0; i < files.length; i += BATCH_SIZE) {
-        const batch = files.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(file => limit(async () => {
-          try {
-            const content = await fsp.readFile(file, 'utf8');
-            const lines = content.split('\n');
-            lines.forEach((line, index) => {
-              const trimmed = line.trim();
-              if (!trimmed || trimmed.startsWith('//')) return;
-              for (const pattern of secretPatterns) {
-                if (
-                  pattern.test(trimmed) &&
-                  /=\s*['"][^'"`]+['"]/ .test(trimmed) &&
-                  !/(===|!==|==|!=)/.test(trimmed) &&
-                  !/\w+\s*\(/.test(trimmed) &&
-                  !/`.*`/.test(trimmed)
-                ) {
-                  this.securityIssues.push({
-                    type: 'hardcoded_secret',
-                    file,
-                    line: index + 1,
-                    severity: 'high',
-                    message: 'Potential hardcoded secret detected',
-                    code: trimmed,
-                    context: this.printContext(lines, index),
-                  });
-                  break;
+      
+      const processor = async (file) => {
+        try {
+          const content = await fsp.readFile(file, 'utf8');
+          const lines = content.split('\n');
+          
+          for (let index = 0; index < lines.length; index++) {
+            const line = lines[index];
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('//')) continue;
+            
+            for (const pattern of secretPatterns) {
+              if (
+                pattern.test(trimmed) &&
+                /=\s*['"][^'"`]+['"]/ .test(trimmed) &&
+                !/(===|!==|==|!=)/.test(trimmed) &&
+                !/\w+\s*\(/.test(trimmed) &&
+                !/`.*`/.test(trimmed)
+              ) {
+                // Limit in-memory issues
+                if (this.issueCount >= MAX_IN_MEMORY_ISSUES$2) {
+                  console.warn(chalk.yellow('⚠️ Maximum in-memory issues reached, skipping further issues'));
+                  return;
                 }
+                
+                this.securityIssues.push({
+                  type: 'hardcoded_secret',
+                  file,
+                  line: index + 1,
+                  severity: 'high',
+                  message: 'Potential hardcoded secret detected',
+                  code: trimmed,
+                  context: this.printContext(lines, index),
+                });
+                this.issueCount++;
+                break;
               }
-            });
-            // Release memory
-            for (let j = 0; j < lines.length; j++) lines[j] = null;
-          } catch (err) {
-            console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+            }
           }
-          processed++;
-          if (processed % 25 === 0 || processed === files.length) {
-            process.stdout.write(`\rProgress: ${processed}/${files.length} files processed`);
-          }
-        })));
-        // Optionally force garbage collection if available
-        if (global.gc) global.gc();
-      }
-      // Final progress output
-      process.stdout.write(`\rProgress: ${files.length}/${files.length} files processed\n`);
+          
+          // Clear lines array to free memory
+          lines.length = 0;
+        } catch (err) {
+          console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+        }
+      };
+      
+      await this.processFilesInBatches(files, processor, 'secrets');
+      
     } catch (err) {
       console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
@@ -332,47 +433,46 @@ class SecurityAudit {
    * Common function to scan files with given patterns
    */
   async patternScan(files, patterns, type) {
-    const CONCURRENCY = 10;
-    const BATCH_SIZE = 50;
-    const limit = pLimit(CONCURRENCY);
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
-      await Promise.all(batch.map(file => limit(async () => {
-        try {
-          const content = await fs.readFile(file, 'utf8');
-          const lines = content.split('\n');
-          lines.forEach((line, index) => {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith('//')) return;
-            patterns.forEach(({ pattern, message, severity }) => {
-              if (pattern.test(trimmed)) {
-                this.securityIssues.push({
-                  type,
-                  file,
-                  line: index + 1,
-                  severity,
-                  message,
-                  code: trimmed,
-                  context: this.printContext(lines, index)
-                });
+    const processor = async (file) => {
+      try {
+        const content = await fs.readFile(file, 'utf8');
+        const lines = content.split('\n');
+        
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('//')) continue;
+          
+          for (const { pattern, message, severity } of patterns) {
+            if (pattern.test(trimmed)) {
+              // Limit in-memory issues
+              if (this.issueCount >= MAX_IN_MEMORY_ISSUES$2) {
+                console.warn(chalk.yellow('⚠️ Maximum in-memory issues reached, skipping further issues'));
+                return;
               }
-            });
-          });
-          // Release memory
-          for (let j = 0; j < lines.length; j++) lines[j] = null;
-        } catch {
-          console.warn(chalk.yellow(`⚠️ Could not read file ${file}`));
+              
+              this.securityIssues.push({
+                type,
+                file,
+                line: index + 1,
+                severity,
+                message,
+                code: trimmed,
+                context: this.printContext(lines, index)
+              });
+              this.issueCount++;
+            }
+          }
         }
-        processed++;
-        if (processed % 25 === 0 || processed === files.length) {
-          process.stdout.write(`\rProgress: ${processed}/${files.length} files processed`);
-        }
-      })));
-      if (global.gc) global.gc();
-    }
-    // Final progress output
-    process.stdout.write(`\rProgress: ${files.length}/${files.length} files processed\n`);
+        
+        // Clear lines array to free memory
+        lines.length = 0;
+      } catch (err) {
+        console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
+      }
+    };
+    
+    await this.processFilesInBatches(files, processor, type);
   }
 
 /**
@@ -449,25 +549,59 @@ async checkDependencyVulnerabilities() {
       if (!eslintConfig) {
         throw new Error(".eslintrc file is missing");
       }
-      const eslint = new ESLint({
-        useEslintrc: false,
-        overrideConfigFile: eslintConfig,
-      });
+      
+      let eslint;
+      try {
+        eslint = new ESLint({
+          useEslintrc: false,
+          overrideConfigFile: eslintConfig,
+          errorOnUnmatchedPattern: false,
+          allowInlineConfig: false
+        });
+      } catch (initError) {
+        console.warn(chalk.yellow(`⚠️ ESLint initialization failed with config ${eslintConfig}, falling back to simple config`));
+        const simpleConfigPath = path.join(__dirname$1, CONFIG_FOLDER$3, 'eslintrc.simple.json');
+        if (fs.existsSync(simpleConfigPath)) {
+          eslint = new ESLint({
+            useEslintrc: false,
+            overrideConfigFile: simpleConfigPath,
+            errorOnUnmatchedPattern: false,
+            allowInlineConfig: false
+          });
+        } else {
+          throw new Error("No valid ESLint configuration found");
+        }
+      }
       const files = await globby(getConfigPattern('jsFilePathPattern'));
       let processed = 0;
       for (const file of files) {
         try {
           const results = await eslint.lintFiles([file]);
+          
+          // Validate results before processing
+          if (!results || !Array.isArray(results)) {
+            console.warn(chalk.yellow(`⚠️ Invalid ESLint results for file ${file}`));
+            continue;
+          }
+          
           for (const result of results) {
+            // Validate result structure
+            if (!result || !result.messages || !Array.isArray(result.messages)) {
+              console.warn(chalk.yellow(`⚠️ Invalid ESLint result structure for file ${file}`));
+              continue;
+            }
+            
             for (const message of result.messages) {
+              // Validate message structure
+              if (!message || !message.ruleId) {
+                continue;
+              }
+              
               if (
-                message.ruleId &&
-                (
-                  message.ruleId.startsWith('security/') ||
-                  message.ruleId.startsWith('no-unsanitized/') ||
-                  message.ruleId === 'no-unsanitized/method' ||
-                  message.ruleId === 'no-unsanitized/property'
-                )
+                message.ruleId.startsWith('security/') ||
+                message.ruleId.startsWith('no-unsanitized/') ||
+                message.ruleId === 'no-unsanitized/method' ||
+                message.ruleId === 'no-unsanitized/property'
               ) {
                 const { code, context } = await getCodeContext$1(result.filePath, message.line);
                 const issue = {
@@ -848,16 +982,25 @@ async checkDependencyVulnerabilities() {
     ];
     
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    for (const file of jsFiles) {
+    
+    const processor = async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
-        lines.forEach((line, index) => {
+        
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index];
           const trimmed = line.trim();
-          if (!trimmed) return;
+          if (!trimmed) continue;
           
           for (const rule of SUSPICIOUS_PATTERNS) {
             if (rule.pattern.test(trimmed)) {
+              // Limit in-memory issues
+              if (this.issueCount >= MAX_IN_MEMORY_ISSUES$2) {
+                console.warn(chalk.yellow('⚠️ Maximum in-memory issues reached, skipping further issues'));
+                return;
+              }
+              
               this.securityIssues.push({
                 type: rule.type,
                 file,
@@ -867,13 +1010,19 @@ async checkDependencyVulnerabilities() {
                 code: trimmed,
                 context: this.printContext(lines, index)
               });
+              this.issueCount++;
             }
           }
-        });
+        }
+        
+        // Clear lines array to free memory
+        lines.length = 0;
       } catch (err) {
         console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
       }
-    }
+    };
+    
+    await this.processFilesInBatches(jsFiles, processor, 'enhanced_patterns');
   }
     
   
@@ -978,15 +1127,99 @@ function getAssetPatterns() {
 // Legacy exports for backward compatibility
 const assetGlobs = getAssetPatterns();
 
+// Memory management constants
+const BATCH_SIZE$5 = process.env.PERFORMANCE_BATCH_SIZE ? 
+  parseInt(process.env.PERFORMANCE_BATCH_SIZE) : 
+  (process.env.NODE_ENV === 'production' ? 25 : 50);
+const MAX_FILES_PER_BATCH$1 = 500;
+const MEMORY_THRESHOLD$1 = process.env.PERFORMANCE_MEMORY_THRESHOLD ? 
+  parseFloat(process.env.PERFORMANCE_MEMORY_THRESHOLD) : 0.7;
+const MAX_IN_MEMORY_ISSUES$1 = 5000;
+const FORCE_GC_INTERVAL$1 = 50;
+
+// Memory management class
+class MemoryManager$1 {
+  static getMemoryUsage() {
+    const usage = process.memoryUsage();
+    return {
+      heapUsed: usage.heapUsed / 1024 / 1024,
+      heapTotal: usage.heapTotal / 1024 / 1024,
+      external: usage.external / 1024 / 1024
+    };
+  }
+
+  static isMemoryHigh() {
+    const usage = this.getMemoryUsage();
+    return usage.heapUsed / usage.heapTotal > MEMORY_THRESHOLD$1;
+  }
+
+  static async forceGarbageCollection() {
+    if (global.gc) {
+      global.gc();
+      // Force multiple GC cycles for better cleanup
+      await new Promise(resolve => setTimeout(resolve, 50));
+      if (global.gc) global.gc();
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
+
+  static logMemoryUsage(label = '') {
+    const usage = this.getMemoryUsage();
+    console.log(chalk.gray(`[Memory] ${label}: Heap ${usage.heapUsed.toFixed(1)}MB / ${usage.heapTotal.toFixed(1)}MB`));
+  }
+}
+
 const CONFIG_FOLDER$2 = "config";
 const ESLINTRC_JSON$1 = ".eslintrc.json";
 const getLintConfigFile$2 = (recommendedLintRules = false, projectType = '') => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  let configFileName = ESLINTRC_JSON$1;
+  let configFileName = 'eslintrc.simple.json'; // Default to simple config
+
+  if (projectType && typeof projectType === 'string') {
+    const type = projectType.toLowerCase();
+    if (type === 'react') configFileName = ESLINTRC_REACT;
+    else if (type === 'node') configFileName = ESLINTRC_NODE;
+    else if (type === 'vanilla') configFileName = ESLINTRC_VANILLA;
+    else if (type === 'typescript') configFileName = ESLINTRC_TS;
+    else if (type === 'typescript + react' || type === 'tsreact') configFileName = ESLINTRC_TSREACT;
+  }
+
   const configFilePath = path.join(__dirname, CONFIG_FOLDER$2, configFileName);
-  if (fs.existsSync(configFilePath)) return configFilePath;
-  return null;
+  
+  // Check if the target config exists, otherwise fallback to simple config
+  if (fs.existsSync(configFilePath)) {
+    return configFilePath;
+  }
+
+  // Fallback to simple config to avoid module resolution issues
+  const simpleConfigPath = path.join(__dirname, CONFIG_FOLDER$2, 'eslintrc.simple.json');
+  if (fs.existsSync(simpleConfigPath)) {
+    console.log(chalk.yellow(`⚠️  Using simplified ESLint config to avoid module resolution issues`));
+    return simpleConfigPath;
+  }
+
+  // Final fallback to default logic
+  const recommendedLintRulesConfigFile = path.join(__dirname, CONFIG_FOLDER$2, ESLINTRC_JSON$1);
+  const moduleDir = path.join(process.cwd(), "node_modules", "ui-code-insight");
+  const eslintLintFilePathFromModule = path.join(moduleDir, ESLINTRC_JSON$1);
+
+  if (recommendedLintRules) {
+    return recommendedLintRulesConfigFile;
+  }
+
+  const configFiles = [
+    ESLINTRC,
+    ESLINTRC_JS,
+    ESLINTRC_YML,
+    ESLINTRC_JSON$1,
+    eslintLintFilePathFromModule,
+  ];
+
+  const foundConfig = configFiles.find((file) => fs.existsSync(file));
+  
+  // If no config found, return simple config to avoid node_modules
+  return foundConfig || simpleConfigPath;
 };
 
 async function getCodeContext(filePath, line, contextRadius = 2) {
@@ -1018,13 +1251,65 @@ class PerformanceAudit {
     this.folderPath = folderPath;
     this.performanceIssues = [];
     this.issuesFile = path.join(this.folderPath, 'performance-issues.jsonl');
+    this.issueCount = 0;
     // Remove file if it exists from previous runs
     if (fs.existsSync(this.issuesFile)) fs.unlinkSync(this.issuesFile);
     this.issueStream = fs.createWriteStream(this.issuesFile, { flags: 'a' });
   }
 
   async addPerformanceIssue(issue) {
+    // Limit in-memory issues
+    if (this.issueCount >= MAX_IN_MEMORY_ISSUES$1) {
+      console.warn(chalk.yellow('⚠️ Maximum in-memory issues reached, skipping further issues'));
+      return;
+    }
+    
     this.issueStream.write(JSON.stringify(issue) + '\n');
+    this.issueCount++;
+  }
+
+  /**
+   * Process files in batches with memory management
+   */
+  async processFilesInBatches(files, processor, auditType = 'performance') {
+    const batches = [];
+    for (let i = 0; i < files.length; i += MAX_FILES_PER_BATCH$1) {
+      batches.push(files.slice(i, i + MAX_FILES_PER_BATCH$1));
+    }
+
+    let batchProcessedFiles = 0;
+    let filesSinceLastGC = 0;
+
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      // Check memory before processing batch
+      if (MemoryManager$1.isMemoryHigh()) {
+        console.log(chalk.yellow('⚠️ High memory usage detected, forcing garbage collection...'));
+        MemoryManager$1.logMemoryUsage(`Before batch ${batchIndex + 1}`);
+        await MemoryManager$1.forceGarbageCollection();
+      }
+
+      console.log(chalk.gray(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} files)`));
+      
+      // Process sub-batches for better memory control
+      for (let i = 0; i < batch.length; i += BATCH_SIZE$5) {
+        const subBatch = batch.slice(i, i + BATCH_SIZE$5);
+        await Promise.all(subBatch.map(processor));
+        
+        batchProcessedFiles += subBatch.length;
+        filesSinceLastGC += subBatch.length;
+        process.stdout.write(`\r[Progress] ${batchProcessedFiles}/${files.length} files processed`);
+        
+        // Force GC more frequently
+        if (filesSinceLastGC >= FORCE_GC_INTERVAL$1) {
+          await MemoryManager$1.forceGarbageCollection();
+          filesSinceLastGC = 0;
+        }
+      }
+    }
+    
+    console.log(chalk.green(`\n✅ ${auditType} audit completed: ${batchProcessedFiles} files processed`));
   }
 
   /**
@@ -1110,10 +1395,12 @@ class PerformanceAudit {
 
     try {
       const files = await globby(getConfigPattern('jsFilePathPattern'), { absolute: true });
-      for (const file of files) {
+      
+      const processor = async (file) => {
         try {
           const content = await fsp.readFile(file, 'utf8');
           const lines = content.split('\n');
+          
           for (let index = 0; index < lines.length; index++) {
             const line = lines[index];
             for (const { pattern, message, severity } of inefficientPatterns) {
@@ -1132,10 +1419,16 @@ class PerformanceAudit {
               }
             }
           }
+          
+          // Clear lines array to free memory
+          lines.length = 0;
         } catch (err) {
           console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
         }
-      }
+      };
+      
+      await this.processFilesInBatches(files, processor, 'inefficient_operations');
+      
     } catch (err) {
       console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
@@ -1166,10 +1459,12 @@ class PerformanceAudit {
 
     try {
       const files = await globby(getConfigPattern('jsFilePathPattern'), { absolute: true });
-      for (const file of files) {
+      
+      const processor = async (file) => {
         try {
           const content = await fsp.readFile(file, 'utf8');
           const lines = content.split('\n');
+          
           for (let index = 0; index < lines.length; index++) {
             const line = lines[index];
             for (const { pattern, message, severity } of memoryLeakPatterns) {
@@ -1188,10 +1483,16 @@ class PerformanceAudit {
               }
             }
           }
+          
+          // Clear lines array to free memory
+          lines.length = 0;
         } catch (err) {
           console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
         }
-      }
+      };
+      
+      await this.processFilesInBatches(files, processor, 'memory_leaks');
+      
     } catch (err) {
       console.error(chalk.red(`❌ Failed to glob files: ${err.message}`));
     }
@@ -1244,14 +1545,52 @@ class PerformanceAudit {
       if (!eslintConfig) {
         throw new Error(".eslintrc file is missing");
       }
-      const eslint = new ESLint({
-        useEslintrc: false,
-        overrideConfigFile: eslintConfig,
-      });
+      
+      let eslint;
+      try {
+        eslint = new ESLint({
+          useEslintrc: false,
+          overrideConfigFile: eslintConfig,
+          errorOnUnmatchedPattern: false,
+          allowInlineConfig: false
+        });
+      } catch (initError) {
+        console.warn(chalk.yellow(`⚠️ ESLint initialization failed with config ${eslintConfig}, falling back to simple config`));
+        const simpleConfigPath = path.join(__dirname, CONFIG_FOLDER$2, 'eslintrc.simple.json');
+        if (fs.existsSync(simpleConfigPath)) {
+          eslint = new ESLint({
+            useEslintrc: false,
+            overrideConfigFile: simpleConfigPath,
+            errorOnUnmatchedPattern: false,
+            allowInlineConfig: false
+          });
+        } else {
+          throw new Error("No valid ESLint configuration found");
+        }
+      }
+      
       const files = await globby(getConfigPattern('jsFilePathPattern'));
       const results = await eslint.lintFiles(files);
+      
+      // Validate results before processing
+      if (!results || !Array.isArray(results)) {
+        console.warn(chalk.yellow('⚠️ Invalid ESLint results for unused code check'));
+        return;
+      }
+      
       for (const file of results) {
+        // Validate file structure
+        if (!file || !file.messages || !Array.isArray(file.messages)) {
+          console.warn(chalk.yellow('⚠️ Invalid ESLint file result structure'));
+          continue;
+        }
+        
         for (const message of file.messages) {
+          // Validate message structure
+          if (!message || !message.ruleId) {
+            continue;
+          }
+          
           if (
             message.ruleId === 'no-unused-vars' ||
             message.ruleId === '@typescript-eslint/no-unused-vars'
@@ -1376,18 +1715,56 @@ class PerformanceAudit {
       if (!eslintConfig) {
         throw new Error(".eslintrc file is missing");
       }
-      const eslint = new ESLint({
-        useEslintrc: false,
-        overrideConfigFile: eslintConfig,
-      });
+      
+      let eslint;
+      try {
+        eslint = new ESLint({
+          useEslintrc: false,
+          overrideConfigFile: eslintConfig,
+          errorOnUnmatchedPattern: false,
+          allowInlineConfig: false
+        });
+      } catch (initError) {
+        console.warn(chalk.yellow(`⚠️ ESLint initialization failed with config ${eslintConfig}, falling back to simple config`));
+        const simpleConfigPath = path.join(__dirname, CONFIG_FOLDER$2, 'eslintrc.simple.json');
+        if (fs.existsSync(simpleConfigPath)) {
+          eslint = new ESLint({
+            useEslintrc: false,
+            overrideConfigFile: simpleConfigPath,
+            errorOnUnmatchedPattern: false,
+            allowInlineConfig: false
+          });
+        } else {
+          throw new Error("No valid ESLint configuration found");
+        }
+      }
+      
       const files = await globby(getConfigPattern('jsFilePathPattern'));
-      let processed = 0;
-      for (const file of files) {
+      
+      const processor = async (file) => {
         try {
           const results = await eslint.lintFiles([file]);
+          
+          // Validate results before processing
+          if (!results || !Array.isArray(results)) {
+            console.warn(chalk.yellow(`⚠️ Invalid ESLint results for file ${file}`));
+            return;
+          }
+          
           for (const result of results) {
+            // Validate result structure
+            if (!result || !result.messages || !Array.isArray(result.messages)) {
+              console.warn(chalk.yellow(`⚠️ Invalid ESLint result structure for file ${file}`));
+              continue;
+            }
+            
             for (const message of result.messages) {
-              if (message.ruleId && message.ruleId.startsWith('promise/')) {
+              // Validate message structure
+              if (!message || !message.ruleId) {
+                continue;
+              }
+              
+              if (message.ruleId.startsWith('promise/')) {
                 const { code, context } = await getCodeContext(result.filePath, message.line);
                 await this.addPerformanceIssue({
                   type: 'eslint_promise',
@@ -1406,12 +1783,10 @@ class PerformanceAudit {
         } catch (err) {
           console.warn(chalk.yellow(`⚠️ ESLint failed on file ${file}: ${err.message}`));
         }
-        processed++;
-        if (processed % 10 === 0 || processed === files.length) {
-          process.stdout.write(`\rESLint Promise Progress: ${processed}/${files.length} files checked`);
-        }
-      }
-      process.stdout.write(`\rESLint Promise Progress: ${files.length}/${files.length} files checked\n`);
+      };
+      
+      await this.processFilesInBatches(files, processor, 'eslint_promise');
+      
     } catch (error) {
       console.warn(chalk.yellow('Warning: Could not run ESLint for promise plugin checks'));
       if (error && error.message) {
@@ -1486,7 +1861,146 @@ class PerformanceAudit {
   }
 }
 
-const BATCH_SIZE$4 = 5;
+/**
+ * Accessibility Audit Configuration
+ * 
+ * This file allows customization of accessibility audit settings
+ */
+
+const ACCESSIBILITY_CONFIG = {
+  // Custom components that handle accessibility properly
+  accessibleComponents: [
+    'ImageOnly',
+    'AccessibleImage', 
+    'ImageWithAlt',
+    'ResponsiveImage',
+    'OptimizedImage',
+    'AccessibleImg',
+    'ImgWithAlt',
+    'Picture',
+    'Figure',
+    'AccessibleFigure'
+  ],
+
+  // Accessibility-related props that indicate proper handling
+  accessibilityProps: [
+    'imgSrc',
+    'imgAlt', 
+    'alt',
+    'aria-label',
+    'aria-labelledby',
+    'aria-describedby',
+    'accessibility',
+    'accessible',
+    'screenReaderText',
+    'altText'
+  ],
+
+  // Patterns to ignore (components that are known to be accessible)
+  ignorePatterns: [
+    /<ImageOnly[^>]*imgSrc=[^>]*imgAlt=[^>]*>/gi,
+    /<AccessibleImage[^>]*>/gi,
+    /<ImageWithAlt[^>]*>/gi,
+    /<ResponsiveImage[^>]*>/gi,
+    /<OptimizedImage[^>]*>/gi
+  ],
+
+  // Severity levels for different issues
+  severityLevels: {
+    missing_alt: 'high',
+    empty_alt: 'medium', 
+    generic_alt: 'medium',
+    multiple_h1: 'medium',
+    empty_heading: 'low',
+    missing_label: 'high',
+    missing_aria: 'medium',
+    keyboard_navigation: 'medium',
+    color_contrast: 'medium',
+    tab_order: 'medium'
+  },
+
+  // WCAG guidelines mapping
+  wcagMapping: {
+    missing_alt: '1.1.1',
+    empty_alt: '1.1.1',
+    generic_alt: '1.1.1',
+    multiple_h1: '1.3.1',
+    empty_heading: '1.3.1',
+    missing_label: '3.3.2',
+    missing_aria: '4.1.2',
+    keyboard_navigation: '2.1.1',
+    color_contrast: '1.4.3',
+    tab_order: '2.4.3'
+  }
+};
+
+/**
+ * Get accessible components list
+ */
+function getAccessibleComponents() {
+  return ACCESSIBILITY_CONFIG.accessibleComponents;
+}
+
+/**
+ * Get accessibility props list
+ */
+function getAccessibilityProps() {
+  return ACCESSIBILITY_CONFIG.accessibilityProps;
+}
+
+/**
+ * Check if a line should be ignored
+ */
+function shouldIgnoreLine(line) {
+  return ACCESSIBILITY_CONFIG.ignorePatterns.some(pattern => 
+    pattern.test(line)
+  );
+}
+
+// Memory optimization: Ultra-aggressive settings for very large projects
+const BATCH_SIZE$4 = process.env.ACCESSIBILITY_BATCH_SIZE ? 
+  parseInt(process.env.ACCESSIBILITY_BATCH_SIZE) : 
+  (process.env.NODE_ENV === 'production' ? 1 : 2);
+const MAX_FILES_PER_BATCH = 500; // Reduced from 1000 to 500
+const MEMORY_THRESHOLD = process.env.ACCESSIBILITY_MEMORY_THRESHOLD ? 
+  parseFloat(process.env.ACCESSIBILITY_MEMORY_THRESHOLD) : 0.6;
+const MAX_IN_MEMORY_ISSUES = 2500; // Reduced from 5000 to 2500
+const FORCE_GC_INTERVAL = 25; // Force GC every 25 files instead of every batch
+
+/**
+ * Memory management utility
+ */
+class MemoryManager {
+  static getMemoryUsage() {
+    const usage = process.memoryUsage();
+    return {
+      heapUsed: usage.heapUsed / 1024 / 1024, // MB
+      heapTotal: usage.heapTotal / 1024 / 1024, // MB
+      external: usage.external / 1024 / 1024, // MB
+      rss: usage.rss / 1024 / 1024 // MB
+    };
+  }
+
+  static isMemoryHigh() {
+    const usage = this.getMemoryUsage();
+    return usage.heapUsed / usage.heapTotal > MEMORY_THRESHOLD;
+  }
+
+  static async forceGarbageCollection() {
+    if (global.gc) {
+      global.gc();
+      // Force multiple GC cycles for better cleanup
+      await new Promise(resolve => setTimeout(resolve, 50));
+      if (global.gc) global.gc();
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
+
+  static logMemoryUsage(label = '') {
+    const usage = this.getMemoryUsage();
+    console.log(chalk.gray(`[Memory] ${label}: Heap ${usage.heapUsed.toFixed(1)}MB / ${usage.heapTotal.toFixed(1)}MB`));
+  }
+}
 
 /**
  * Accessibility audit module for detecting accessibility issues
@@ -1525,6 +2039,8 @@ class AccessibilityAudit {
   constructor(folderPath) {
     this.folderPath = folderPath;
     this.accessibilityIssues = [];
+    this.currentAuditType = '';
+    this.currentBatchIndex = 0;
     
     // Ensure the reports directory exists
     if (!fs.existsSync(this.folderPath)) {
@@ -1549,8 +2065,10 @@ class AccessibilityAudit {
   }
 
   async addAccessibilityIssue(issue) {
-    // Add to in-memory array
-    this.accessibilityIssues.push(issue);
+    // Add to in-memory array (with size limit)
+    if (this.accessibilityIssues.length < MAX_IN_MEMORY_ISSUES) { // Limit in-memory issues
+      this.accessibilityIssues.push(issue);
+    }
     
     // Write to file if stream is available
     if (this.issueStream) {
@@ -1562,6 +2080,55 @@ class AccessibilityAudit {
     } else {
       console.warn(chalk.yellow('Issue stream not initialized, issue added to memory only.'));
     }
+  }
+
+  /**
+   * Process files in batches to manage memory
+   */
+  async processFilesInBatches(files, processor, auditType = '') {
+    const batches = [];
+    for (let i = 0; i < files.length; i += MAX_FILES_PER_BATCH) {
+      batches.push(files.slice(i, i + MAX_FILES_PER_BATCH));
+    }
+
+    console.log(chalk.blue(`📁 Processing ${files.length} files in ${batches.length} batches for ${auditType}`));
+    
+    let batchProcessedFiles = 0;
+    let filesSinceLastGC = 0;
+    
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      // Check memory before processing batch
+      if (MemoryManager.isMemoryHigh()) {
+        console.log(chalk.yellow(`⚠️  High memory usage detected, forcing garbage collection...`));
+        await MemoryManager.forceGarbageCollection();
+        MemoryManager.logMemoryUsage(`Before batch ${batchIndex + 1}`);
+      }
+      
+      console.log(chalk.gray(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} files)`));
+      
+      // Process batch
+      for (let i = 0; i < batch.length; i += BATCH_SIZE$4) {
+        const subBatch = batch.slice(i, i + BATCH_SIZE$4);
+        await Promise.all(subBatch.map(processor));
+        
+        batchProcessedFiles += subBatch.length;
+        filesSinceLastGC += subBatch.length;
+        process.stdout.write(`\r[Progress] ${batchProcessedFiles}/${files.length} files processed`);
+        
+        // Force GC more frequently
+        if (filesSinceLastGC >= FORCE_GC_INTERVAL) {
+          await MemoryManager.forceGarbageCollection();
+          filesSinceLastGC = 0;
+        }
+      }
+      
+      // Force garbage collection after each batch
+      await MemoryManager.forceGarbageCollection();
+    }
+    
+    console.log(`\n✅ ${auditType} processing completed`);
   }
 
   /**
@@ -1976,6 +2543,10 @@ class AccessibilityAudit {
       /<Image[^>]*\/>/gi,
     ];
 
+    // Get accessible components from configuration
+    const accessibleComponents = getAccessibleComponents();
+    const accessibilityProps = getAccessibilityProps();
+
     // Use both JS and HTML file patterns for accessibility scanning
     const jsFiles = await globby(getConfigPattern('jsFilePathPattern'), {
       ignore: ['**/dist/**', '**/build/**', '**/out/**', '**/node_modules/**', '**/*.min.js', 'report/**', '**/tools/**'],
@@ -1986,20 +2557,46 @@ class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for image accessibility issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
-      const batch = files.slice(i, i + BATCH_SIZE$4);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Image Accessibility] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
         
         for (let index = 0; index < lines.length; index++) {
           const line = lines[index];
+          
+          // Check if this line should be ignored based on configuration
+          if (shouldIgnoreLine(line)) {
+            continue;
+          }
+          
+          // Check for accessible custom components first
+          const hasAccessibleComponent = accessibleComponents.some(component => 
+            line.includes(`<${component}`) || line.includes(`<${component}/`)
+          );
+          
+          // Skip if this line contains an accessible custom component
+          if (hasAccessibleComponent) {
+            continue;
+          }
+          
+          // Check for custom components with accessibility props
+          const customComponentPattern = /<([A-Z][a-zA-Z]*)[^>]*>/g;
+          const customMatches = line.match(customComponentPattern);
+          if (customMatches) {
+            for (const match of customMatches) {
+              // Check if component has accessibility-related props
+              const hasAccessibilityProps = accessibilityProps.some(prop => 
+                match.includes(`${prop}=`)
+              );
+              
+              // Skip if component has accessibility props
+              if (hasAccessibilityProps) {
+                continue;
+              }
+            }
+          }
+          
           for (const pattern of imagePatterns) {
             const matches = line.match(pattern);
             if (matches) {
@@ -2061,10 +2658,7 @@ class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-      // batch memory is released here
-    }
-    process.stdout.write(`\r[Image Accessibility] Progress: ${files.length}/${files.length} files checked\n`);
+    }, 'Image Accessibility');
   }
 
   /**
@@ -2092,14 +2686,7 @@ class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for heading structure issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
-      const batch = files.slice(i, i + BATCH_SIZE$4);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Heading Structure] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -2159,9 +2746,8 @@ class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Heading Structure] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -2188,14 +2774,7 @@ class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for form accessibility issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
-      const batch = files.slice(i, i + BATCH_SIZE$4);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Form Accessibility] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -2317,9 +2896,8 @@ class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Form Accessibility] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -2345,14 +2923,7 @@ class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for color contrast issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
-      const batch = files.slice(i, i + BATCH_SIZE$4);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Color Contrast] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -2381,9 +2952,8 @@ class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Color Contrast] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -2408,14 +2978,7 @@ class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for keyboard navigation issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
-      const batch = files.slice(i, i + BATCH_SIZE$4);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Keyboard Navigation] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -2451,9 +3014,8 @@ class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Keyboard Navigation] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -2476,14 +3038,7 @@ class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for ARIA usage issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
-      const batch = files.slice(i, i + BATCH_SIZE$4);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[ARIA Usage] Progress: ${processed}/${files.length} files checked`);
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -2516,9 +3071,8 @@ class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[ARIA Usage] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -2544,14 +3098,8 @@ class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for tab order and focus issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
-      const batch = files.slice(i, i + BATCH_SIZE$4);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Tab Order] Progress: ${processed}/${files.length} files checked`);
+    this.totalFiles = files.length; // Set total files for progress tracking
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -2581,9 +3129,8 @@ class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Tab Order] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -2612,14 +3159,8 @@ class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for landmarks and skip links`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
-      const batch = files.slice(i, i + BATCH_SIZE$4);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Landmarks] Progress: ${processed}/${files.length} files checked`);
+    this.totalFiles = files.length; // Set total files for progress tracking
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -2647,9 +3188,8 @@ class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Landmarks] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -2689,14 +3229,8 @@ class AccessibilityAudit {
     });
     
     const files = [...jsFiles, ...htmlFiles];
-    console.log(chalk.gray(`  📁 Scanning ${files.length} files for semantic HTML and ARIA issues`));
-    
-    let processed = 0;
-    for (let i = 0; i < files.length; i += BATCH_SIZE$4) {
-      const batch = files.slice(i, i + BATCH_SIZE$4);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Semantic HTML & ARIA] Progress: ${processed}/${files.length} files checked`);
+    this.totalFiles = files.length; // Set total files for progress tracking
+    await this.processFilesInBatches(files, async (file) => {
       try {
         const content = await fsp.readFile(file, 'utf8');
         const lines = content.split('\n');
@@ -2793,9 +3327,8 @@ class AccessibilityAudit {
       } catch (error) {
         console.warn(chalk.yellow(`Warning: Could not read file ${file}`));
       }
-      }));
-    }
-    process.stdout.write(`\r[Semantic HTML & ARIA] Progress: ${files.length}/${files.length} files checked\n`);
+    });
+    
   }
 
   /**
@@ -5419,14 +5952,14 @@ function getConfigExtends(configPath) {
 // Constants for configuration files
 const CONFIG_FOLDER$1 = "config";
 const ESLINTRC_JSON = ".eslintrc.json";
-const ESLINTRC_JS = ".eslintrc.js";
-const ESLINTRC_YML = ".eslintrc.yml";
-const ESLINTRC = ".eslintrc";
-const ESLINTRC_REACT = "eslintrc.react.json";
-const ESLINTRC_NODE = "eslintrc.node.json";
-const ESLINTRC_VANILLA = "eslintrc.vanilla.json";
-const ESLINTRC_TS = "eslintrc.typescript.json";
-const ESLINTRC_TSREACT = "eslintrc.tsreact.json";
+const ESLINTRC_JS$1 = ".eslintrc.js";
+const ESLINTRC_YML$1 = ".eslintrc.yml";
+const ESLINTRC$1 = ".eslintrc";
+const ESLINTRC_REACT$1 = "eslintrc.react.json";
+const ESLINTRC_NODE$1 = "eslintrc.node.json";
+const ESLINTRC_VANILLA$1 = "eslintrc.vanilla.json";
+const ESLINTRC_TS$1 = "eslintrc.typescript.json";
+const ESLINTRC_TSREACT$1 = "eslintrc.tsreact.json";
 
 /**
  * Function to determine ESLint configuration file path
@@ -5437,26 +5970,35 @@ const ESLINTRC_TSREACT = "eslintrc.tsreact.json";
 const getLintConfigFile$1 = (recommendedLintRules, projectType = '') => {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  let configFileName = ESLINTRC_JSON;
+  let configFileName = 'eslintrc.simple.json'; // Default to simple config
 
   if (projectType.toLowerCase() === 'react') {
-    configFileName = ESLINTRC_REACT;
+    configFileName = ESLINTRC_REACT$1;
   } else if (projectType.toLowerCase() === 'node') {
-    configFileName = ESLINTRC_NODE;
+    configFileName = ESLINTRC_NODE$1;
   } else if (projectType.toLowerCase() === 'vanilla') {
-    configFileName = ESLINTRC_VANILLA;
+    configFileName = ESLINTRC_VANILLA$1;
   } else if (projectType.toLowerCase() === 'typescript') {
-    configFileName = ESLINTRC_TS;
+    configFileName = ESLINTRC_TS$1;
   } else if (projectType.toLowerCase() === 'typescript + react' || projectType.toLowerCase() === 'tsreact') {
-    configFileName = ESLINTRC_TSREACT;
+    configFileName = ESLINTRC_TSREACT$1;
   }
 
   const configFilePath = path.join(__dirname, CONFIG_FOLDER$1, configFileName);
+  
+  // Check if the target config exists, otherwise fallback to simple config
   if (fs.existsSync(configFilePath)) {
     return configFilePath;
   }
 
-  // fallback to default logic
+  // Fallback to simple config to avoid module resolution issues
+  const simpleConfigPath = path.join(__dirname, CONFIG_FOLDER$1, 'eslintrc.simple.json');
+  if (fs.existsSync(simpleConfigPath)) {
+    console.log(chalk.yellow(`⚠️  Using simplified ESLint config to avoid module resolution issues`));
+    return simpleConfigPath;
+  }
+
+  // Final fallback to default logic
   const recommendedLintRulesConfigFile = path.join(
     __dirname,
     CONFIG_FOLDER$1,
@@ -5470,9 +6012,9 @@ const getLintConfigFile$1 = (recommendedLintRules, projectType = '') => {
   }
 
   const configFiles = [
-    ESLINTRC,
-    ESLINTRC_JS,
-    ESLINTRC_YML,
+    ESLINTRC$1,
+    ESLINTRC_JS$1,
+    ESLINTRC_YML$1,
     ESLINTRC_JSON,
     eslintLintFilePathFromModule,
   ];
@@ -5496,23 +6038,45 @@ const lintFile$1 = async (filePath, eslint) => {
       filePath,
     });
 
-    // if (messages[0].errorCount) {
-    //   logError(filePath);
-    // } else if (messages[0].warningCount) {
-    //   logWarning(filePath);
-    // } else {
-    //   logSuccess(filePath);
-    // }
+    // Check if messages array exists and has content
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      console.warn(chalk.yellow(`⚠️  No lint results for ${filePath}`));
+      return {
+        filePath,
+        errorCount: 0,
+        warningCount: 0,
+        messages: [],
+      };
+    }
+
+    const firstMessage = messages[0];
+    
+    // Check if the message object has the expected properties
+    if (!firstMessage || typeof firstMessage !== 'object') {
+      console.warn(chalk.yellow(`⚠️  Invalid lint result for ${filePath}`));
+      return {
+        filePath,
+        errorCount: 0,
+        warningCount: 0,
+        messages: [],
+      };
+    }
 
     return {
       filePath,
-      errorCount: messages[0].errorCount,
-      warningCount: messages[0].warningCount,
-      messages: messages[0].messages,
+      errorCount: firstMessage.errorCount || 0,
+      warningCount: firstMessage.warningCount || 0,
+      messages: firstMessage.messages || [],
     };
   } catch (err) {
-    console.error(chalk.red(`Error reading file ${filePath}: ${err}`));
-    return null;
+    console.error(chalk.red(`❌ Error processing file ${filePath}: ${err.message}`));
+    return {
+      filePath,
+      errorCount: 0,
+      warningCount: 0,
+      messages: [],
+      error: err.message
+    };
   }
 };
 
@@ -5538,14 +6102,43 @@ const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) =
 
   let results = [];
   let processed = 0;
+  let errorCount = 0;
+  
   for (let i = 0; i < files.length; i += BATCH_SIZE$1) {
     const batch = files.slice(i, i + BATCH_SIZE$1);
-    const batchResults = await Promise.all(batch.map(async (filePath) => {
-      processed++;
-      process.stdout.write(`\r[ESLint] Progress: ${processed}/${files.length} files checked`);
-      return await lintFile$1(filePath, eslint);
-    }));
-    results.push(...batchResults);
+    
+    try {
+      const batchResults = await Promise.all(batch.map(async (filePath) => {
+        processed++;
+        process.stdout.write(`\r[ESLint] Progress: ${processed}/${files.length} files checked`);
+        
+        try {
+          return await lintFile$1(filePath, eslint);
+        } catch (fileError) {
+          errorCount++;
+          console.error(chalk.red(`❌ Error processing file ${filePath}: ${fileError.message}`));
+          return {
+            filePath,
+            errorCount: 0,
+            warningCount: 0,
+            messages: [],
+            error: fileError.message
+          };
+        }
+      }));
+      
+      // Filter out null results and add valid ones
+      const validResults = batchResults.filter(result => result !== null && result !== undefined);
+      results.push(...validResults);
+      
+    } catch (batchError) {
+      console.error(chalk.red(`❌ Error processing batch ${Math.floor(i / BATCH_SIZE$1) + 1}: ${batchError.message}`));
+      errorCount += batch.length;
+    }
+  }
+  
+  if (errorCount > 0) {
+    console.log(chalk.yellow(`⚠️  ${errorCount} files had processing errors`));
   }
   process.stdout.write(`\r[ESLint] Progress: ${files.length}/${files.length} files checked\n`);
 
@@ -5575,9 +6168,28 @@ const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) =
       count: excludeRules.length
     },
     results: results
+      .filter(result => result !== null && result !== undefined) // Filter out null/undefined results
       .map((result) => {
-        let filteredMessages = result?.messages
-          .filter(message => !excludeRules.includes(message.ruleId))
+        // Ensure result has the expected structure
+        if (!result || typeof result !== 'object') {
+          console.warn(chalk.yellow(`⚠️  Skipping invalid result for file: ${result?.filePath || 'unknown'}`));
+          return null;
+        }
+
+        // Ensure messages array exists
+        const messages = result.messages || [];
+        if (!Array.isArray(messages)) {
+          console.warn(chalk.yellow(`⚠️  Invalid messages array for file: ${result.filePath}`));
+          return {
+            filePath: result.filePath,
+            errorCount: 0,
+            warningCount: 0,
+            messages: [],
+          };
+        }
+
+        let filteredMessages = messages
+          .filter(message => message && !excludeRules.includes(message.ruleId))
           .map((message) => ({
             ruleId: message.ruleId,
             severity: message.severity,
@@ -5597,18 +6209,20 @@ const lintAllFiles$1 = async (files, folderPath, eslint, projectType, reports) =
               : '',
             configSource: message.ruleId && configRuleMap[message.ruleId] ? configRuleMap[message.ruleId] : [],
           }));
+
         // If errorCount > 0 but messages is empty, omit this file from the report
-        if ((result?.errorCount > 0) && (!filteredMessages || filteredMessages.length === 0)) {
+        if ((result.errorCount > 0) && (!filteredMessages || filteredMessages.length === 0)) {
           return null;
         }
+
         return {
-          filePath: result?.filePath,
+          filePath: result.filePath,
           errorCount: filteredMessages.length,
           warningCount: 0,
           messages: filteredMessages,
         };
       })
-      .filter(Boolean),
+      .filter(Boolean), // Remove null results
   };
 
   await writeFile(
@@ -5631,26 +6245,72 @@ const generateESLintReport = async (
   projectType = '',
   reports = []
 ) => {
-  const lintConfigFile = getLintConfigFile$1(recommendedLintRules, projectType);
-  if (!lintConfigFile) {
-    throw new Error(".eslintrc file is missing");
+  try {
+    const lintConfigFile = getLintConfigFile$1(recommendedLintRules, projectType);
+    if (!lintConfigFile) {
+      throw new Error(".eslintrc file is missing");
+    }
+
+    console.log(chalk.blue(`Using ESLint config: ${lintConfigFile}`));
+
+    let eslint;
+    try {
+      eslint = new ESLint({
+        useEslintrc: false,
+        overrideConfigFile: lintConfigFile,
+        // Add error handling for module resolution
+        errorOnUnmatchedPattern: false,
+        allowInlineConfig: false,
+      });
+    } catch (error) {
+      console.error(chalk.red(`❌ ESLint initialization error: ${error.message}`));
+      console.log(chalk.yellow(`🔄 Trying with simplified configuration...`));
+      
+      // Try with simplified config
+      const simpleConfigPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'config', 'eslintrc.simple.json');
+      eslint = new ESLint({
+        useEslintrc: false,
+        overrideConfigFile: simpleConfigPath,
+        errorOnUnmatchedPattern: false,
+        allowInlineConfig: false,
+      });
+    }
+
+    const files = await globby(getConfigPattern('jsFilePathPattern'));
+    console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${getConfigPattern('jsFilePathPattern').join(', ')}`));
+    
+    await lintAllFiles$1(files, folderPath, eslint, projectType, reports);
+    
+    console.log(chalk.green(`✅ ESLint report generated successfully`));
+    
+  } catch (error) {
+    console.error(chalk.red(`❌ Error during ESLint report generation: ${error.message}`));
+    
+    // Create a minimal error report
+    const errorReport = {
+      projectType,
+      reports,
+      error: error.message,
+      results: [],
+      excludeRules: {
+        enabled: false,
+        rules: [],
+        count: 0
+      }
+    };
+    
+    try {
+      await writeFile(
+        path.join(folderPath, "eslint-report.json"),
+        JSON.stringify(errorReport, null, 2)
+      );
+      console.log(chalk.yellow(`⚠️  Created error report with minimal data`));
+    } catch (writeError) {
+      console.error(chalk.red(`❌ Failed to write error report: ${writeError.message}`));
+    }
+    
+    throw error; // Re-throw to maintain error handling in calling code
   }
-
-  console.log(chalk.blue(`Using ESLint config: ${lintConfigFile}`));
-
-  const eslint = new ESLint({
-    useEslintrc: false,
-    overrideConfigFile: lintConfigFile,
-  });
-
-  const files = await globby(getConfigPattern('jsFilePathPattern'));
-  console.log(chalk.blue(`📁 ESLint scanning ${files.length} files with pattern: ${getConfigPattern('jsFilePathPattern').join(', ')}`));
-  // console.log(chalk.gray(`Files being processed:`));
-  // files.slice(0, 10).forEach(file => console.log(chalk.gray(`  - ${file}`)));
-  // if (files.length > 10) {
-  //   console.log(chalk.gray(`  ... and ${files.length - 10} more files`));
-  // }
-  await lintAllFiles$1(files, folderPath, eslint, projectType, reports);
 
   try {
     const auditOutput = execSync('npm audit --json', {
