@@ -74,3 +74,7 @@ ui-code-insight-urls.json
 **/test-*.js
 **/test-*.json
 **/test-*.html
+
+# Exclude additional unwanted folders
+test-output/
+bin/

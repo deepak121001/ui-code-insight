@@ -1,56 +1,16 @@
 {
+  "ignoreFile": ".ui-code-insight-ignore",
   "jsFilePathPattern": [
     "./src/**/*.js",
     "./src/**/*.ts",
     "./src/**/*.jsx",
-    "./src/**/*.tsx",
-    "!**/node_modules/**",
-    "!**/webpack.config.js",
-    "!**/webpack.*.js",
-    "!**/webpack.config.*.js",
-    "!**/report/**",
-    "!./dist/**",
-    "!./build/**",
-    "!./target/**",
-    "!./cypress/**",
-    "!./ui.frontend/dist/**",
-    "!./ui.tests/test-module/cypress/**",
-    "!**/*.min.js",
-    "!**/tools/**"
+    "./src/**/*.tsx"
   ],
   "htmlFilePathPattern": [
-    "**/*.{html,js,ts,jsx,tsx}",
-    "!**/node_modules/**",
-    "!**/.storybook/**",
-    "!**/storybook/**",
-    "!**/report/**",
-    "!build/**",
-    "!dist/**",
-    "!coverage/**",
-    "!.git/**",
-    "!bin/**",
-    "!**/__mocks__/**",
-    "!**/__dropins__/**",
-    "!**/webpack.config.js",
-    "!**/webpack.*.js",
-    "!**/webpack.config.*.js"
+    "**/*.{html,js,ts,jsx,tsx}"
   ],
   "scssFilePathPattern": [
-    "**/*.{scss,css,less}",
-    "!**/node_modules/**",
-    "!**/.storybook/**",
-    "!**/storybook/**",
-    "!**/report/**",
-    "!build/**",
-    "!dist/**",
-    "!coverage/**",
-    "!.git/**",
-    "!bin/**",
-    "!**/__mocks__/**",
-    "!**/__dropins__/**",
-    "!**/webpack.config.js",
-    "!**/webpack.*.js",
-    "!**/webpack.config.*.js"
+    "**/*.{scss,css,less}"
   ],
   "excludeRules": {
     "eslint": {
@@ -103,5 +63,10 @@
         "custom-dependency-rule"
       ]
     }
+  },
+  "ignoreFileConfig": {
+    "enabled": true,
+    "fallbackToDefault": true,
+    "customIgnoreFile": null
   }
 } 

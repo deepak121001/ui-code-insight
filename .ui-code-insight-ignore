@@ -1,0 +1,71 @@
+# UI Code Insight Ignore File
+# This file specifies which files and folders should be excluded from audits
+# Similar to .eslintignore, .stylelintignore, etc.
+
+# Node.js dependencies and build artifacts
+node_modules/
+dist/
+build/
+out/
+coverage/
+
+# Reports and test outputs
+report
+*.log
+
+# Development and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Configuration files that shouldn't be audited
+.env*
+*.config.js
+webpack.config.js
+rollup.config.js
+vite.config.js
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Generated files
+*.min.js
+*.min.css
+*.bundle.js
+*.bundle.css
+
+# Test files (exclude from main audits)
+__tests__/
+test/
+tests/
+*.test.js
+*.test.ts
+*.test.jsx
+*.test.tsx
+*.spec.js
+*.spec.ts
+*.spec.jsx
+*.spec.tsx
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Temporary files
+.tmp/
+.cache/
+.temp/
+
+# Git
+.git/
+
+# Specific project exclusions (customize as needed)
+# vendor/
+# third-party/
+# legacy/ 

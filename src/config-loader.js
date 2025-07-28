@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { IgnoreHandler } from './utils/ignore-handler.js';
 
 // Default patterns - moved here to break circular dependency
 const defaultJsFilePathPattern = [
@@ -92,10 +93,26 @@ function loadConfig() {
 
 export function getConfigPattern(key) {
   const config = loadConfig();
-  if (key === 'jsFilePathPattern') return config.jsFilePathPattern || defaultJsFilePathPattern;
-  if (key === 'htmlFilePathPattern') return config.htmlFilePathPattern || defaultHtmlFilePathPattern;
-  if (key === 'scssFilePathPattern') return config.scssFilePathPattern || defaultScssFilePathPattern;
-  return [];
+  let patterns = [];
+  
+  if (key === 'jsFilePathPattern') {
+    patterns = config.jsFilePathPattern || defaultJsFilePathPattern;
+  } else if (key === 'htmlFilePathPattern') {
+    patterns = config.htmlFilePathPattern || defaultHtmlFilePathPattern;
+  } else if (key === 'scssFilePathPattern') {
+    patterns = config.scssFilePathPattern || defaultScssFilePathPattern;
+  } else {
+    return [];
+  }
+
+  // Apply ignore file patterns if enabled
+  const ignoreConfig = config.ignoreFileConfig;
+  if (ignoreConfig && ignoreConfig.enabled !== false) {
+    const ignoreHandler = new IgnoreHandler(process.cwd());
+    patterns = ignoreHandler.applyIgnorePatterns(patterns);
+  }
+
+  return patterns;
 }
 
 export function getExcludeRules(auditType) {

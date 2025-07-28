@@ -172,6 +172,7 @@ Create `ui-code-insight.config.json` in your project root:
 
 ```json
 {
+  "ignoreFile": ".ui-code-insight-ignore",
   "jsFilePathPattern": [
     "./src/**/*.js",
     "./src/**/*.ts",
@@ -199,6 +200,44 @@ Create `ui-code-insight.config.json` in your project root:
       "overrideDefault": false,
       "additionalRules": ["custom-security-rule"]
     }
+  },
+  "ignoreFileConfig": {
+    "enabled": true,
+    "fallbackToDefault": true,
+    "customIgnoreFile": null,
+    "ignorePatterns": [
+      "node_modules/",
+      "dist/",
+      "build/",
+      "coverage/",
+      "report/",
+      "reports/",
+      "*.log",
+      ".vscode/",
+      ".idea/",
+      "*.min.js",
+      "*.min.css",
+      "*.bundle.js",
+      "*.bundle.css",
+      "__tests__/",
+      "test/",
+      "tests/",
+      "*.test.js",
+      "*.test.ts",
+      "*.test.jsx",
+      "*.test.tsx",
+      "*.spec.js",
+      "*.spec.ts",
+      "*.spec.jsx",
+      "*.spec.tsx",
+      "docs/",
+      "*.md",
+      "!.README.md",
+      ".tmp/",
+      ".cache/",
+      ".temp/",
+      ".git/"
+    ]
   }
 }
 ```
@@ -209,6 +248,85 @@ Create `ui-code-insight.config.json` in your project root:
 - **📁 Report Folder Integration**: Configurations saved alongside reports
 - **🎛️ Multiple Configurations**: Support for different testing scenarios
 - **⚡ Batch Processing**: Test multiple URLs simultaneously
+
+### **📁 File Exclusion with `.ui-code-insight-ignore`**
+Like `.eslintignore` and `.stylelintignore`, you can exclude files and folders from audits:
+
+**Create `.ui-code-insight-ignore` in your project root:**
+```bash
+# Node.js dependencies and build artifacts
+node_modules/
+dist/
+build/
+out/
+coverage/
+
+# Reports and test outputs
+report/
+reports/
+test-output/
+*.log
+
+# Development and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Configuration files that shouldn't be audited
+.env*
+*.config.js
+webpack.config.js
+rollup.config.js
+vite.config.js
+
+# Generated files
+*.min.js
+*.min.css
+*.bundle.js
+*.bundle.css
+
+# Test files (exclude from main audits)
+__tests__/
+test/
+tests/
+*.test.js
+*.test.ts
+*.test.jsx
+*.test.tsx
+*.spec.js
+*.spec.ts
+*.spec.jsx
+*.spec.tsx
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Temporary files
+.tmp/
+.cache/
+.temp/
+
+# Git
+.git/
+
+# Custom exclusions for your project
+scripts/
+vendor/
+third-party/
+legacy/
+```
+
+**Features:**
+- **🔍 Smart Pattern Matching**: Supports glob patterns and negation (`!`)
+- **📁 Automatic Integration**: Works with all audit types automatically
+- **⚡ Performance Boost**: Excludes unnecessary files for faster audits
+- **🎯 Project-Specific**: Customize exclusions per project
+- **🔄 Fallback Support**: Uses default patterns if ignore file is missing
 
 ---
 
@@ -363,6 +481,9 @@ A: All modern browsers via Puppeteer, with mobile and desktop emulation support.
 
 **Q: How fast is the tool on large projects?**  
 A: Optimized with batch processing, async operations, and memory management for efficient large project handling.
+
+**Q: How do I exclude files from audits?**  
+A: Create a `.ui-code-insight-ignore` file in your project root (similar to `.eslintignore`). Add patterns like `scripts/`, `vendor/`, `*.temp.js` to exclude specific files and folders from all audits.
 
 ---
 

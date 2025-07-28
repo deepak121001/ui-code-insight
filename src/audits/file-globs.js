@@ -1,6 +1,8 @@
 // Centralized file patterns for all audits
 // This is the single source of truth for all file patterns used across the audit system
 
+import { IgnoreHandler } from '../utils/ignore-handler.js';
+
 // Default patterns - defined here to avoid circular dependency
 export const defaultJsFilePathPattern = [
   '**/*.{js,ts,jsx,tsx}',
@@ -346,6 +348,17 @@ export function getMultiAuditPatterns(auditTypes) {
 export function getPatternsWithExclusions(basePatterns, additionalExclusions = []) {
   const exclusions = [...getCommonExclusions(), ...additionalExclusions];
   return [...basePatterns, ...exclusions.map(exclusion => `!${exclusion}`)];
+}
+
+/**
+ * Get patterns with ignore file support
+ * @param {string[]} basePatterns - Base file patterns
+ * @param {string} projectRoot - Project root directory
+ * @returns {string[]} Patterns with ignore file exclusions
+ */
+export function getPatternsWithIgnoreFile(basePatterns, projectRoot = process.cwd()) {
+  const ignoreHandler = new IgnoreHandler(projectRoot);
+  return ignoreHandler.applyIgnorePatterns(basePatterns);
 }
 
 // ============================================================================
