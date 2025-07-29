@@ -8,6 +8,7 @@ import { EnhancedPerformanceAudit } from './enhanced-performance-audit.js';
 import { AccessibilityAudit } from './accessibility-audit.js';
 import { LighthouseAudit } from './lighthouse-audit.js';
 import { DependencyAudit } from './dependency-audit.js';
+import { ReportStandardizer } from '../utils/report-standardizer.js';
 
 /**
  * Main audit orchestrator that runs all audit categories
@@ -197,20 +198,66 @@ export class AuditOrchestrator {
    * Generate comprehensive audit report
    */
   async generateAuditReport() {
-    console.log(chalk.blue('\n📊 Generating Optimized Audit Report...'));
-    
-    const reportPath = path.join(this.folderPath, 'comprehensive-audit-report.json');
+    console.log(chalk.blue('\n📊 Generating Standardized Audit Report...'));
     
     try {
-      // Create optimized report with only essential dashboard data
-      const optimizedReport = this.createOptimizedReport();
+      // Use the new ReportStandardizer to create industry-standard reports
+      const standardizer = new ReportStandardizer();
       
-      await writeFile(reportPath, JSON.stringify(optimizedReport, null, 2));
-      console.log(chalk.green(`✅ Optimized comprehensive audit report saved to: ${reportPath}`));
-      console.log(chalk.gray(`📊 Report size optimized: ${this.getReportSize(optimizedReport)}`));
+      // Get project information
+      const projectInfo = this.getProjectInfo();
+      
+      const standardizedReport = standardizer.createStandardReport(
+        this.auditResults.categories,
+        {
+          projectName: projectInfo.name,
+          projectVersion: projectInfo.version,
+          auditTimestamp: this.auditResults.timestamp,
+          auditDuration: this.auditResults.duration,
+          totalFiles: this.auditResults.quickStats?.totalFiles || 0,
+          totalLines: this.auditResults.quickStats?.totalLines || 0
+        }
+      );
+
+      // Save the standardized report
+      const standardizedReportPath = path.join(this.folderPath, 'standardized-report.json');
+      await writeFile(standardizedReportPath, JSON.stringify(standardizedReport, null, 2));
+      
+      // Also save the legacy format for backward compatibility
+      const legacyReport = this.createOptimizedReport();
+      const legacyReportPath = path.join(this.folderPath, 'comprehensive-audit-report.json');
+      await writeFile(legacyReportPath, JSON.stringify(legacyReport, null, 2));
+      
+      console.log(chalk.green('✅ Standardized audit report generated successfully!'));
+      console.log(chalk.blue('📊 New standardized format: standardized-report.json'));
+      console.log(chalk.blue('📊 Legacy format: comprehensive-audit-report.json'));
+      console.log(chalk.gray(`📊 Report size optimized: ${this.getReportSize(standardizedReport)}`));
     } catch (error) {
       console.error(chalk.red('Error saving audit report:', error.message));
     }
+  }
+
+  /**
+   * Get project information for the report
+   */
+  getProjectInfo() {
+    try {
+      const packageJsonPath = path.join(process.cwd(), 'package.json');
+      if (fs.existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        return {
+          name: packageJson.name || 'Unknown Project',
+          version: packageJson.version || '1.0.0'
+        };
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('⚠️  Could not read package.json:', error.message));
+    }
+    
+    return {
+      name: 'Unknown Project',
+      version: '1.0.0'
+    };
   }
 
   /**
