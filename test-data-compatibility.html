@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Compatibility Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Data Compatibility Test</h1>
+    <div id="results"></div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            resultsDiv.appendChild(div);
+        }
+
+        async function testDataCompatibility() {
+            addResult('🔍 Testing data compatibility with dashboard...', 'info');
+
+            try {
+                // Test ESLint data structure
+                addResult('📋 Testing ESLint data structure...', 'info');
+                const eslintResponse = await fetch('./eslint-report.json');
+                if (eslintResponse.ok) {
+                    const eslintData = await eslintResponse.json();
+                    
+                    if (eslintData.results && Array.isArray(eslintData.results)) {
+                        const totalMessages = eslintData.results.reduce((total, result) => {
+                            return total + (result.messages ? result.messages.length : 0);
+                        }, 0);
+                        
+                        addResult(`✅ ESLint structure compatible: ${eslintData.results.length} files, ${totalMessages} total messages`, 'success');
+                        
+                        if (eslintData.results.length > 0) {
+                            const firstResult = eslintData.results[0];
+                            const sampleMessage = firstResult.messages?.[0];
+                            if (sampleMessage) {
+                                addResult(`📝 Sample message: ${sampleMessage.message} (${sampleMessage.ruleId})`, 'info');
+                            }
+                        }
+                    } else {
+                        addResult(`❌ ESLint structure incompatible: missing 'results' array`, 'error');
+                    }
+                } else {
+                    addResult(`❌ Failed to load ESLint data: ${eslintResponse.status}`, 'error');
+                }
+
+                // Test Stylelint data structure
+                addResult('🎨 Testing Stylelint data structure...', 'info');
+                const stylelintResponse = await fetch('./stylelint-report.json');
+                if (stylelintResponse.ok) {
+                    const stylelintData = await stylelintResponse.json();
+                    
+                    if (stylelintData.results && Array.isArray(stylelintData.results)) {
+                        const totalMessages = stylelintData.results.reduce((total, result) => {
+                            return total + (result.messages ? result.messages.length : 0);
+                        }, 0);
+                        
+                        addResult(`✅ Stylelint structure compatible: ${stylelintData.results.length} files, ${totalMessages} total messages`, 'success');
+                    } else {
+                        addResult(`❌ Stylelint structure incompatible: missing 'results' array`, 'error');
+                    }
+                } else {
+                    addResult(`❌ Failed to load Stylelint data: ${stylelintResponse.status}`, 'error');
+                }
+
+                // Test Security data structure
+                addResult('🛡️ Testing Security data structure...', 'info');
+                const securityResponse = await fetch('./security-audit-report.json');
+                if (securityResponse.ok) {
+                    const securityData = await securityResponse.json();
+                    
+                    if (securityData.issues && Array.isArray(securityData.issues)) {
+                        addResult(`✅ Security structure compatible: ${securityData.issues.length} issues`, 'success');
+                        
+                        if (securityData.issues.length > 0) {
+                            const sampleIssue = securityData.issues[0];
+                            addResult(`📝 Sample issue: ${sampleIssue.type} - ${sampleIssue.severity}`, 'info');
+                        }
+                    } else {
+                        addResult(`❌ Security structure incompatible: missing 'issues' array`, 'error');
+                    }
+                } else {
+                    addResult(`❌ Failed to load Security data: ${securityResponse.status}`, 'error');
+                }
+
+                // Test Performance data structure
+                addResult('⚡ Testing Performance data structure...', 'info');
+                const performanceResponse = await fetch('./performance-audit-report.json');
+                if (performanceResponse.ok) {
+                    const performanceData = await performanceResponse.json();
+                    
+                    if (performanceData.issues && Array.isArray(performanceData.issues)) {
+                        addResult(`✅ Performance structure compatible: ${performanceData.issues.length} issues`, 'success');
+                    } else {
+                        addResult(`❌ Performance structure incompatible: missing 'issues' array`, 'error');
+                    }
+                } else {
+                    addResult(`❌ Failed to load Performance data: ${performanceResponse.status}`, 'error');
+                }
+
+                // Test Accessibility data structure
+                addResult('♿ Testing Accessibility data structure...', 'info');
+                const accessibilityResponse = await fetch('./accessibility-audit-report.json');
+                if (accessibilityResponse.ok) {
+                    const accessibilityData = await accessibilityResponse.json();
+                    
+                    if (accessibilityData.issues && Array.isArray(accessibilityData.issues)) {
+                        addResult(`✅ Accessibility structure compatible: ${accessibilityData.issues.length} issues`, 'success');
+                    } else {
+                        addResult(`❌ Accessibility structure incompatible: missing 'issues' array`, 'error');
+                    }
+                } else {
+                    addResult(`❌ Failed to load Accessibility data: ${accessibilityResponse.status}`, 'error');
+                }
+
+                addResult('🎉 Data compatibility test completed!', 'success');
+
+            } catch (error) {
+                addResult(`❌ Test failed with error: ${error.message}`, 'error');
+                console.error('Test error:', error);
+            }
+        }
+
+        // Run the test when page loads
+        testDataCompatibility();
+    </script>
+</body>
+</html> 

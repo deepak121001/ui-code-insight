@@ -11,7 +11,6 @@ import puppeteer from 'puppeteer';
 import lighthouse from 'lighthouse';
 import { createRequire } from 'module';
 import stylelint from 'stylelint';
-import fetch from 'node-fetch';
 
 const __filename$2 = fileURLToPath(import.meta.url);
 path.dirname(__filename$2);
@@ -466,7 +465,7 @@ async function getCodeContext$1(filePath, line, contextRadius = 2) {
 }
 
 // Memory management constants
-const BATCH_SIZE$6 = process.env.SECURITY_BATCH_SIZE ? 
+const BATCH_SIZE$5 = process.env.SECURITY_BATCH_SIZE ? 
   parseInt(process.env.SECURITY_BATCH_SIZE) : 
   (process.env.NODE_ENV === 'production' ? 25 : 50);
 const MAX_FILES_PER_BATCH$2 = 500;
@@ -540,8 +539,8 @@ class SecurityAudit {
       console.log(chalk.gray(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} files)`));
       
       // Process sub-batches for better memory control
-      for (let i = 0; i < batch.length; i += BATCH_SIZE$6) {
-        const subBatch = batch.slice(i, i + BATCH_SIZE$6);
+      for (let i = 0; i < batch.length; i += BATCH_SIZE$5) {
+        const subBatch = batch.slice(i, i + BATCH_SIZE$5);
         await Promise.all(subBatch.map(processor));
         
         batchProcessedFiles += subBatch.length;
@@ -1370,7 +1369,7 @@ function getAssetPatterns() {
 const assetGlobs = getAssetPatterns();
 
 // Memory management constants
-const BATCH_SIZE$5 = process.env.PERFORMANCE_BATCH_SIZE ? 
+const BATCH_SIZE$4 = process.env.PERFORMANCE_BATCH_SIZE ? 
   parseInt(process.env.PERFORMANCE_BATCH_SIZE) : 
   (process.env.NODE_ENV === 'production' ? 25 : 50);
 const MAX_FILES_PER_BATCH$1 = 500;
@@ -1535,8 +1534,8 @@ class PerformanceAudit {
       console.log(chalk.gray(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} files)`));
       
       // Process sub-batches for better memory control
-      for (let i = 0; i < batch.length; i += BATCH_SIZE$5) {
-        const subBatch = batch.slice(i, i + BATCH_SIZE$5);
+      for (let i = 0; i < batch.length; i += BATCH_SIZE$4) {
+        const subBatch = batch.slice(i, i + BATCH_SIZE$4);
         await Promise.all(subBatch.map(processor));
         
         batchProcessedFiles += subBatch.length;
@@ -2200,7 +2199,7 @@ function shouldIgnoreLine(line) {
 }
 
 // Memory optimization: Ultra-aggressive settings for very large projects
-const BATCH_SIZE$4 = process.env.ACCESSIBILITY_BATCH_SIZE ? 
+const BATCH_SIZE$3 = process.env.ACCESSIBILITY_BATCH_SIZE ? 
   parseInt(process.env.ACCESSIBILITY_BATCH_SIZE) : 
   (process.env.NODE_ENV === 'production' ? 1 : 2);
 const MAX_FILES_PER_BATCH = 500; // Reduced from 1000 to 500
@@ -2351,8 +2350,8 @@ class AccessibilityAudit {
       console.log(chalk.gray(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} files)`));
       
       // Process batch
-      for (let i = 0; i < batch.length; i += BATCH_SIZE$4) {
-        const subBatch = batch.slice(i, i + BATCH_SIZE$4);
+      for (let i = 0; i < batch.length; i += BATCH_SIZE$3) {
+        const subBatch = batch.slice(i, i + BATCH_SIZE$3);
         await Promise.all(subBatch.map(processor));
         
         batchProcessedFiles += subBatch.length;
@@ -4862,407 +4861,6 @@ class LighthouseAudit {
   }
 }
 
-const BATCH_SIZE$3 = 5;
-
-/**
- * Testing audit module for detecting testing practices and coverage
- */
-class TestingAudit {
-  constructor(folderPath) {
-    this.folderPath = folderPath;
-    this.testingIssues = [];
-    this.issuesFile = path.join(this.folderPath, 'testing-issues.jsonl');
-    // Remove file if it exists from previous runs
-    if (fs.existsSync(this.issuesFile)) fs.unlinkSync(this.issuesFile);
-    this.issueStream = fs.createWriteStream(this.issuesFile, { flags: 'a' });
-  }
-
-  async addTestingIssue(issue) {
-    this.issueStream.write(JSON.stringify(issue) + '\n');
-  }
-
-  /**
-   * Check for test files and testing framework usage
-   */
-  async checkTestFiles() {
-    console.log(chalk.blue('🧪 Checking test files...'));
-    
-    const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    
-    if (testFiles.length === 0) {
-      await this.addTestingIssue({
-        type: 'no_test_files',
-        severity: 'high',
-        message: 'No test files found',
-        recommendation: 'Create test files with .test.js or .spec.js extensions'
-      });
-    } else {
-      await this.addTestingIssue({
-        type: 'test_files_found',
-        severity: 'info',
-        message: `Found ${testFiles.length} test files`,
-        positive: true
-      });
-    }
-
-    // Check for testing frameworks
-    try {
-      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-      
-      const testingFrameworks = [
-        'jest', 'mocha', 'vitest', 'ava', 'tape', 'jasmine',
-        '@testing-library/react', '@testing-library/jest-dom',
-        'cypress', 'playwright', 'puppeteer'
-      ];
-      
-      const foundFrameworks = testingFrameworks.filter(framework => allDeps[framework]);
-      
-      if (foundFrameworks.length === 0) {
-        await this.addTestingIssue({
-          type: 'no_testing_framework',
-          severity: 'high',
-          message: 'No testing framework detected',
-          recommendation: 'Install a testing framework like Jest, Mocha, or Vitest'
-        });
-      } else {
-        await this.addTestingIssue({
-          type: 'testing_framework_found',
-          severity: 'info',
-          message: `Testing frameworks detected: ${foundFrameworks.join(', ')}`,
-          positive: true
-        });
-      }
-    } catch (error) {
-      console.warn(chalk.yellow('Warning: Could not read package.json'));
-    }
-  }
-
-  /**
-   * Check for test coverage
-   */
-  async checkTestCoverage() {
-    console.log(chalk.blue('🧪 Checking test coverage...'));
-    
-    try {
-      // Try to run test coverage if available
-      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-      const scripts = packageJson.scripts || {};
-      
-      const coverageScripts = Object.keys(scripts).filter(script => 
-        script.includes('test') && (script.includes('coverage') || script.includes('cov'))
-      );
-      
-      if (coverageScripts.length > 0) {
-        try {
-          const coverageScript = coverageScripts[0];
-          execSync(`npm run ${coverageScript}`, { stdio: 'pipe' });
-          
-          // Look for coverage reports
-          const coverageDirs = ['coverage', '.nyc_output'];
-          for (const dir of coverageDirs) {
-            if (fs.existsSync(dir)) {
-              await this.addTestingIssue({
-                type: 'coverage_report_generated',
-                severity: 'info',
-                message: 'Test coverage report generated',
-                positive: true
-              });
-              break;
-            }
-          }
-        } catch (error) {
-          await this.addTestingIssue({
-            type: 'coverage_failed',
-            severity: 'medium',
-            message: 'Test coverage generation failed',
-            recommendation: 'Check test configuration and ensure tests pass'
-          });
-        }
-      } else {
-        await this.addTestingIssue({
-          type: 'no_coverage_script',
-          severity: 'medium',
-          message: 'No test coverage script found',
-          recommendation: 'Add a coverage script to package.json (e.g., "test:coverage": "jest --coverage")'
-        });
-      }
-    } catch (error) {
-      console.warn(chalk.yellow('Warning: Could not check test coverage'));
-    }
-  }
-
-  /**
-   * Check for common testing patterns
-   */
-  async checkTestingPatterns() {
-    console.log(chalk.blue('🧪 Checking testing patterns...'));
-    
-    const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    let processed = 0;
-    for (let i = 0; i < testFiles.length; i += BATCH_SIZE$3) {
-      const batch = testFiles.slice(i, i + BATCH_SIZE$3);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Test Patterns] Progress: ${processed}/${testFiles.length} files checked`);
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        
-        lines.forEach((line, index) => {
-          getConfigPattern('testPatterns').forEach(({ pattern, name, positive }) => {
-            if (pattern.test(line)) {
-              if (positive) {
-                this.testingIssues.push({
-                  type: 'testing_pattern_found',
-                  file,
-                  line: index + 1,
-                  severity: 'info',
-                  message: `Testing ${name} detected`,
-                  code: line.trim(),
-                  positive: true
-                });
-              }
-            }
-          });
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
-      }
-      }));
-    }
-    process.stdout.write(`\r[Test Patterns] Progress: ${testFiles.length}/${testFiles.length} files checked\n`);
-  }
-
-  /**
-   * Check for mocking and stubbing patterns
-   */
-  async checkMockingPatterns() {
-    console.log(chalk.blue('🧪 Checking mocking patterns...'));
-    
-    const testFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    let processed = 0;
-    for (let i = 0; i < testFiles.length; i += BATCH_SIZE$3) {
-      const batch = testFiles.slice(i, i + BATCH_SIZE$3);
-      await Promise.all(batch.map(async (file) => {
-        processed++;
-        process.stdout.write(`\r[Mocking Patterns] Progress: ${processed}/${testFiles.length} files checked`);
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        const lines = content.split('\n');
-        
-        lines.forEach((line, index) => {
-          getConfigPattern('mockPatterns').forEach(({ pattern, name, positive }) => {
-            if (pattern.test(line)) {
-              if (positive) {
-                this.testingIssues.push({
-                  type: 'mocking_pattern_found',
-                  file,
-                  line: index + 1,
-                  severity: 'info',
-                  message: `${name} detected`,
-                  code: line.trim(),
-                  positive: true
-                });
-              }
-            }
-          });
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read test file ${file}`));
-      }
-      }));
-    }
-    process.stdout.write(`\r[Mocking Patterns] Progress: ${testFiles.length}/${testFiles.length} files checked\n`);
-  }
-
-  /**
-   * Check for E2E testing setup
-   */
-  async checkE2ETesting() {
-    console.log(chalk.blue('🧪 Checking E2E testing setup...'));
-    
-    try {
-      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-      const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-      
-      const e2eFrameworks = ['cypress', 'playwright', 'puppeteer', 'selenium-webdriver'];
-      const foundE2EFrameworks = e2eFrameworks.filter(framework => allDeps[framework]);
-      
-      if (foundE2EFrameworks.length === 0) {
-        this.testingIssues.push({
-          type: 'no_e2e_framework',
-          severity: 'medium',
-          message: 'No E2E testing framework detected',
-          recommendation: 'Consider adding Cypress, Playwright, or Puppeteer for E2E testing'
-        });
-      } else {
-        this.testingIssues.push({
-          type: 'e2e_framework_found',
-          severity: 'info',
-          message: `E2E testing framework detected: ${foundE2EFrameworks.join(', ')}`,
-          positive: true
-        });
-      }
-    } catch (error) {
-      console.warn(chalk.yellow('Warning: Could not check E2E testing setup'));
-    }
-  }
-
-  /**
-   * Check for test configuration files
-   */
-  async checkTestConfiguration() {
-    console.log(chalk.blue('🧪 Checking test configuration...'));
-    
-    const configFiles = [
-      'jest.config.js', 'jest.config.ts', 'jest.config.json',
-      'cypress.config.js', 'cypress.config.ts',
-      'playwright.config.js', 'playwright.config.ts',
-      'vitest.config.js', 'vitest.config.ts',
-      '.mocharc.js', '.mocharc.json'
-    ];
-    
-    const foundConfigs = configFiles.filter(file => fs.existsSync(file));
-    
-    if (foundConfigs.length === 0) {
-      this.testingIssues.push({
-        type: 'no_test_config',
-        severity: 'medium',
-        message: 'No test configuration file found',
-        recommendation: 'Create a configuration file for your testing framework'
-      });
-    } else {
-      this.testingIssues.push({
-        type: 'test_config_found',
-        severity: 'info',
-        message: `Test configuration files found: ${foundConfigs.join(', ')}`,
-        positive: true
-      });
-    }
-  }
-
-  /**
-   * Run all testing checks
-   */
-  async runTestingAudit() {
-    console.log(chalk.blue('🧪 Starting Testing Audit...'));
-
-    // Check for common test folders or files before running the rest of the audit
-    const testPatterns = [
-      '**/__tests__/**',
-      '**/test/**',
-      '**/tests/**',
-      '**/*.test.js',
-      '**/*.spec.js',
-      '**/*.test.ts',
-      '**/*.spec.ts',
-      '**/*.test.tsx',
-      '**/*.spec.tsx',
-    ];
-    const foundTestFiles = (await globby(testPatterns, { ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/out/**'] })).length > 0;
-    if (!foundTestFiles) {
-      await this.addTestingIssue({
-        type: 'no_test_files',
-        severity: 'high',
-        message: 'No test files or folders found. Test case not written.',
-        recommendation: 'Create test files in __tests__, test, or tests folders, or use .test.js/.spec.js/.test.ts file naming.'
-      });
-      this.issueStream.end();
-      // Write minimal report and return
-      const results = {
-        timestamp: new Date().toISOString(),
-        totalIssues: 1,
-        positivePractices: 0,
-        highSeverity: 1,
-        mediumSeverity: 0,
-        lowSeverity: 0,
-        issues: [
-          {
-            type: 'no_test_files',
-            severity: 'high',
-            message: 'No test files or folders found. Test case not written.',
-            recommendation: 'Create test files in __tests__, test, or tests folders, or use .test.js/.spec.js/.test.ts file naming.'
-          }
-        ]
-      };
-      try {
-        const reportPath = path.join(this.folderPath, 'testing-audit-report.json');
-        await writeFile(reportPath, JSON.stringify(results, null, 2));
-        console.log(chalk.green(`✅ Testing audit report saved to: ${reportPath}`));
-      } catch (error) {
-        console.error(chalk.red('Error saving testing audit report:', error.message));
-      }
-      // Display summary
-      console.log(chalk.blue('\n🧪 TESTING AUDIT SUMMARY'));
-      console.log(chalk.blue('='.repeat(40)));
-      console.log(chalk.white('Total Issues: 1'));
-      console.log(chalk.green('Positive Practices: 0'));
-      console.log(chalk.red('High Severity: 1'));
-      console.log(chalk.yellow('Medium Severity: 0'));
-      console.log(chalk.blue('Low Severity: 0'));
-      return results;
-    }
-    
-    await this.checkTestFiles();
-    await this.checkTestCoverage();
-    await this.checkTestingPatterns();
-    await this.checkMockingPatterns();
-    await this.checkE2ETesting();
-    await this.checkTestConfiguration();
-    
-    this.issueStream.end();
-    // Load issues from file
-    if (fs.existsSync(this.issuesFile)) {
-      const lines = fs.readFileSync(this.issuesFile, 'utf8').split('\n').filter(Boolean);
-      const seen = new Set();
-      const uniqueIssues = [];
-      for (const line of lines) {
-        try {
-          const issue = JSON.parse(line);
-          if (!issue.source) issue.source = 'custom';
-          const key = `${issue.file || ''}:${issue.line || ''}:${issue.type}:${issue.message}`;
-          if (!seen.has(key)) {
-            uniqueIssues.push(issue);
-            seen.add(key);
-          }
-        } catch {}
-      }
-      this.testingIssues = uniqueIssues;
-    }
-
-    const results = {
-      timestamp: new Date().toISOString(),
-      totalIssues: this.testingIssues.length,
-      positivePractices: this.testingIssues.filter(issue => issue.positive).length,
-      highSeverity: this.testingIssues.filter(issue => issue.severity === 'high').length,
-      mediumSeverity: this.testingIssues.filter(issue => issue.severity === 'medium').length,
-      lowSeverity: this.testingIssues.filter(issue => issue.severity === 'low').length,
-      issues: this.testingIssues
-    };
-
-    // Generate JSON report
-    try {
-      const reportPath = path.join(this.folderPath, 'testing-audit-report.json');
-      await writeFile(reportPath, JSON.stringify(results, null, 2));
-      console.log(chalk.green(`✅ Testing audit report saved to: ${reportPath}`));
-    } catch (error) {
-      console.error(chalk.red('Error saving testing audit report:', error.message));
-    }
-
-    // Display summary
-    console.log(chalk.blue('\n🧪 TESTING AUDIT SUMMARY'));
-    console.log(chalk.blue('='.repeat(40)));
-    console.log(chalk.white(`Total Issues: ${results.totalIssues}`));
-    console.log(chalk.green(`Positive Practices: ${results.positivePractices}`));
-    console.log(chalk.red(`High Severity: ${results.highSeverity}`));
-    console.log(chalk.yellow(`Medium Severity: ${results.mediumSeverity}`));
-    console.log(chalk.blue(`Low Severity: ${results.lowSeverity}`));
-
-    return results;
-  }
-}
-
 const BATCH_SIZE$2 = 5;
 
 /**
@@ -5732,6 +5330,7 @@ class DependencyAudit {
 
 /**
  * Main audit orchestrator that runs all audit categories
+ * Focused on core audit types: Security, Performance, Accessibility, Lighthouse, Dependencies
  */
 class AuditOrchestrator {
   constructor(folderPath, lighthouseUrl = null, accessibilityUrls = [], securityUrls = []) {
@@ -5751,7 +5350,7 @@ class AuditOrchestrator {
     const startTime = Date.now();
     
     try {
-      // Run all audit categories with error handling
+      // Run core audit categories with error handling
       const auditPromises = [
         this.runSecurityAudit().catch(error => {
           console.warn(chalk.yellow('⚠️  Security audit failed:', error.message));
@@ -5769,10 +5368,6 @@ class AuditOrchestrator {
           console.warn(chalk.yellow('⚠️  Lighthouse audit failed:', error.message));
           return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
         }),
-        this.runTestingAudit().catch(error => {
-          console.warn(chalk.yellow('⚠️  Testing audit failed:', error.message));
-          return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
-        }),
         this.runDependencyAudit().catch(error => {
           console.warn(chalk.yellow('⚠️  Dependency audit failed:', error.message));
           return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
@@ -5784,11 +5379,8 @@ class AuditOrchestrator {
         performanceResults,
         accessibilityResults,
         lighthouseResults,
-        testingResults,
         dependencyResults
       ] = await Promise.all(auditPromises);
-
-
 
       // Compile results
       this.auditResults = {
@@ -5806,7 +5398,6 @@ class AuditOrchestrator {
           performance: performanceResults,
           accessibility: accessibilityResults,
           lighthouse: lighthouseResults,
-          testing: testingResults,
           dependency: dependencyResults
         }
       };
@@ -5904,15 +5495,6 @@ class AuditOrchestrator {
   }
 
   /**
-   * Run testing audit
-   */
-  async runTestingAudit() {
-    console.log(chalk.blue('🧪 Running Testing Audit...'));
-    const testingAudit = new TestingAudit(this.folderPath);
-    return await testingAudit.runTestingAudit();
-  }
-
-  /**
    * Run dependency audit
    */
   async runDependencyAudit() {
@@ -5988,7 +5570,6 @@ class AuditOrchestrator {
       performance: '⚡',
       accessibility: '♿',
       lighthouse: '🚀',
-      testing: '🧪',
       dependency: '📦'
     };
     return icons[category] || '📋';
@@ -6023,11 +5604,6 @@ class AuditOrchestrator {
       console.log(chalk.magenta('🚀 Lighthouse: Optimize your website for better performance and accessibility'));
     }
     
-    // Testing recommendations
-    if (categories.testing && categories.testing.highSeverity > 0) {
-      console.log(chalk.magenta('🧪 Testing: Add test files and testing framework'));
-    }
-    
     // Dependency recommendations
     if (categories.dependency && categories.dependency.highSeverity > 0) {
       console.log(chalk.cyan('📦 Dependencies: Install missing dependencies and update outdated packages'));
@@ -6045,7 +5621,6 @@ class AuditOrchestrator {
       performance: () => this.runPerformanceAudit(),
       accessibility: () => this.runAccessibilityAudit(),
       lighthouse: () => this.runLighthouseAudit(),
-      testing: () => this.runTestingAudit(),
       dependency: () => this.runDependencyAudit()
     };
 
@@ -6908,92 +6483,1212 @@ const generateStyleLintReport = async (
   await lintAllFiles(files, folderPath, lintStyleConfigFile, projectType, reports);
 };
 
-const kbToMb = (kilobytes) => kilobytes / 1024;
+/**
+ * Enhanced configuration system for UI Code Insight
+ * Provides better defaults, validation, and customization options
+ */
+class EnhancedConfig {
+  constructor() {
+    this.configPath = path.join(process.cwd(), 'ui-code-insight.config.json');
+    this.defaultConfig = this.getDefaultConfig();
+    this.config = this.loadConfig();
+  }
 
-const generateNpmPackageReport = async () => {
-  const folderPath = path.resolve(process.cwd(), "report");
-  try {
-    const data = await readFile("package.json", "utf8");
-    const packageJson = JSON.parse(data);
-    const dependencies = packageJson?.dependencies || {};
-    const devDependencies = packageJson?.devDependencies || {};
-    let npmPackagesData = {
-      dependencies: [],
-      devDependencies: [],
+  /**
+   * Get default configuration
+   */
+  getDefaultConfig() {
+    return {
+      version: '2.2.0',
+      audits: {
+        security: {
+          enabled: true,
+          liveUrlTest: true,
+          codeScan: true,
+          severity: ['high', 'medium', 'low']
+        },
+        performance: {
+          enabled: true,
+          bundleAnalysis: true,
+          codeOptimization: true,
+          severity: ['high', 'medium']
+        },
+        accessibility: {
+          enabled: true,
+          useAxeCore: true,
+          liveUrlTest: true,
+          codeScan: true,
+          severity: ['high', 'medium', 'low']
+        },
+        lighthouse: {
+          enabled: true,
+          mobile: true,
+          desktop: true,
+          categories: ['performance', 'accessibility', 'best-practices', 'seo']
+        },
+        dependency: {
+          enabled: true,
+          securityVulnerabilities: true,
+          outdatedPackages: true,
+          unusedDependencies: true,
+          severity: ['high', 'medium']
+        }
+      },
+      reporting: {
+        format: ['html', 'json'],
+        severity: ['high', 'medium', 'low'],
+        export: true,
+        dashboard: true,
+        progress: true
+      },
+      codeDisplay: {
+        enabled: true,
+        syntaxHighlighting: true,
+        maxLength: 500,
+        showContext: true,
+        showFixes: true,
+        showRemediation: true,
+        themes: {
+          light: {
+            background: 'bg-gray-50',
+            border: 'border-gray-200',
+            text: 'text-gray-800',
+            keyword: 'text-purple-600',
+            string: 'text-green-600',
+            comment: 'text-gray-500',
+            number: 'text-blue-600',
+            function: 'text-orange-600'
+          },
+          dark: {
+            background: 'bg-gray-900',
+            border: 'border-gray-700',
+            text: 'text-gray-200',
+            keyword: 'text-purple-400',
+            string: 'text-green-400',
+            comment: 'text-gray-500',
+            number: 'text-blue-400',
+            function: 'text-orange-400'
+          }
+        },
+        languages: {
+          javascript: ['js', 'jsx', 'ts', 'tsx'],
+          css: ['css', 'scss', 'less'],
+          html: ['html', 'htm'],
+          json: ['json'],
+          yaml: ['yml', 'yaml']
+        }
+      },
+      ci: {
+        enabled: false,
+        failOnHigh: true,
+        thresholds: {
+          security: 0,
+          accessibility: 5,
+          performance: 10,
+          dependency: 0
+        },
+        notifications: {
+          slack: false,
+          teams: false,
+          email: false
+        }
+      },
+      performance: {
+        batchSize: 25,
+        memoryThreshold: 0.7,
+        maxFilesPerBatch: 500,
+        parallelProcessing: true,
+        caching: false
+      },
+      filePatterns: {
+        js: [
+          "./src/**/*.js",
+          "./src/**/*.ts",
+          "./src/**/*.jsx",
+          "./src/**/*.tsx"
+        ],
+        html: [
+          "**/*.{html,js,ts,jsx,tsx}"
+        ],
+        css: [
+          "**/*.{scss,css,less}"
+        ],
+        exclude: [
+          "node_modules/",
+          "dist/",
+          "build/",
+          "coverage/",
+          "report/",
+          "reports/",
+          "*.log",
+          ".vscode/",
+          ".idea/",
+          "*.min.js",
+          "*.min.css",
+          "*.bundle.js",
+          "*.bundle.css",
+          "__tests__/",
+          "test/",
+          "tests/",
+          "*.test.js",
+          "*.test.ts",
+          "*.test.jsx",
+          "*.test.tsx",
+          "*.spec.js",
+          "*.spec.ts",
+          "*.spec.jsx",
+          "*.spec.tsx",
+          "docs/",
+          "*.md",
+          "!.README.md",
+          ".tmp/",
+          ".cache/",
+          ".temp/",
+          ".git/"
+        ]
+      },
+      integrations: {
+        github: {
+          enabled: false,
+          token: null,
+          repository: null
+        },
+        jira: {
+          enabled: false,
+          url: null,
+          username: null,
+          token: null
+        },
+        slack: {
+          enabled: false,
+          webhook: null,
+          channel: null
+        }
+      }
+    };
+  }
+
+  /**
+   * Load configuration from file or create default
+   */
+  loadConfig() {
+    try {
+      if (fs.existsSync(this.configPath)) {
+        const fileContent = fs.readFileSync(this.configPath, 'utf8');
+        const userConfig = JSON.parse(fileContent);
+        return this.mergeConfig(this.defaultConfig, userConfig);
+      } else {
+        console.log(chalk.blue('📝 No configuration file found. Using default settings.'));
+        console.log(chalk.blue('💡 Run "ui-code-insight --init-config" to create a custom configuration.'));
+        return this.defaultConfig;
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('⚠️  Error loading configuration, using defaults:', error.message));
+      return this.defaultConfig;
+    }
+  }
+
+  /**
+   * Merge user configuration with defaults
+   */
+  mergeConfig(defaults, userConfig) {
+    const merged = { ...defaults };
+    
+    // Deep merge for nested objects
+    for (const [key, value] of Object.entries(userConfig)) {
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        merged[key] = this.mergeConfig(merged[key] || {}, value);
+      } else {
+        merged[key] = value;
+      }
+    }
+    
+    return merged;
+  }
+
+  /**
+   * Save configuration to file
+   */
+  saveConfig(config = this.config) {
+    try {
+      fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
+      console.log(chalk.green(`✅ Configuration saved to: ${this.configPath}`));
+      return true;
+    } catch (error) {
+      console.error(chalk.red('❌ Error saving configuration:', error.message));
+      return false;
+    }
+  }
+
+  /**
+   * Initialize configuration file
+   */
+  initConfig() {
+    if (fs.existsSync(this.configPath)) {
+      console.log(chalk.yellow('⚠️  Configuration file already exists.'));
+      return false;
+    }
+    
+    return this.saveConfig();
+  }
+
+  /**
+   * Validate configuration
+   */
+  validateConfig(config = this.config) {
+    const errors = [];
+    
+    // Validate audit settings
+    for (const [auditName, auditConfig] of Object.entries(config.audits)) {
+      if (typeof auditConfig.enabled !== 'boolean') {
+        errors.push(`${auditName}.enabled must be a boolean`);
+      }
+      
+      if (auditConfig.severity && !Array.isArray(auditConfig.severity)) {
+        errors.push(`${auditName}.severity must be an array`);
+      }
+    }
+    
+    // Validate reporting settings
+    if (!Array.isArray(config.reporting.format)) {
+      errors.push('reporting.format must be an array');
+    }
+    
+    // Validate performance settings
+    if (typeof config.performance.batchSize !== 'number' || config.performance.batchSize < 1) {
+      errors.push('performance.batchSize must be a positive number');
+    }
+    
+    if (typeof config.performance.memoryThreshold !== 'number' || 
+        config.performance.memoryThreshold < 0 || 
+        config.performance.memoryThreshold > 1) {
+      errors.push('performance.memoryThreshold must be between 0 and 1');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
+  /**
+   * Get audit configuration
+   */
+  getAuditConfig(auditName) {
+    return this.config.audits[auditName] || null;
+  }
+
+  /**
+   * Check if audit is enabled
+   */
+  isAuditEnabled(auditName) {
+    const auditConfig = this.getAuditConfig(auditName);
+    return auditConfig ? auditConfig.enabled : false;
+  }
+
+  /**
+   * Get file patterns
+   */
+  getFilePatterns() {
+    return this.config.filePatterns;
+  }
+
+  /**
+   * Get performance settings
+   */
+  getPerformanceSettings() {
+    return this.config.performance;
+  }
+
+  /**
+   * Get CI settings
+   */
+  getCISettings() {
+    return this.config.ci;
+  }
+
+  /**
+   * Get integration settings
+   */
+  getIntegrationSettings() {
+    return this.config.integrations;
+  }
+
+  /**
+   * Update configuration
+   */
+  updateConfig(updates) {
+    this.config = this.mergeConfig(this.config, updates);
+    return this.saveConfig();
+  }
+
+  /**
+   * Create configuration wizard
+   */
+  async createConfigWizard() {
+    console.log(chalk.blue('🎯 UI Code Insight Configuration Wizard'));
+    console.log(chalk.blue('='.repeat(50)));
+    
+    // This would be implemented with inquirer prompts
+    // For now, we'll create a basic configuration
+    const wizardConfig = {
+      audits: {
+        security: { enabled: true, liveUrlTest: true },
+        performance: { enabled: true, bundleAnalysis: true },
+        accessibility: { enabled: true, useAxeCore: true },
+        lighthouse: { enabled: true, mobile: true, desktop: true },
+        dependency: { enabled: true, securityVulnerabilities: true }
+      },
+      reporting: {
+        format: ['html', 'json'],
+        severity: ['high', 'medium', 'low'],
+        export: true
+      },
+      performance: {
+        batchSize: 25,
+        memoryThreshold: 0.7,
+        parallelProcessing: true
+      }
+    };
+    
+    this.updateConfig(wizardConfig);
+    console.log(chalk.green('✅ Configuration wizard completed!'));
+  }
+}
+
+/**
+ * Enhanced error handling system for UI Code Insight
+ * Provides graceful degradation, retry mechanisms, and detailed error reporting
+ */
+class ErrorHandler {
+  constructor() {
+    this.errorLog = [];
+    this.retryAttempts = new Map();
+    this.maxRetries = 3;
+    this.retryDelay = 1000; // 1 second
+  }
+
+  /**
+   * Handle errors with graceful degradation
+   */
+  async handleError(error, context = {}, options = {}) {
+    const {
+      auditType = 'unknown',
+      operation = 'unknown',
+      retry = true,
+      fallback = null,
+      severity = 'medium'
+    } = options;
+
+    const errorInfo = {
+      timestamp: new Date().toISOString(),
+      auditType,
+      operation,
+      message: error.message,
+      stack: error.stack,
+      severity,
+      context
     };
 
-    const processPackage = async (packageName, isDevDependency = false) => {
-      // console.log(chalk.green(`Validating ${packageName}`));
-      try {
-        const response = await fetch(
-          `https://registry.npmjs.org/${packageName}`
-        );
+    this.errorLog.push(errorInfo);
 
-        const packageInfo = await response.json();
-        const {
-          name,
-          version,
-          dist: { tarball, unpackedSize },
-          license,
-          bugs,
-          description,
-          deprecated,
-        } = packageInfo?.versions[packageInfo["dist-tags"]?.latest];
+    // Log error with context
+    this.logError(errorInfo);
 
-        const packageData = {
-          name,
-          version,
-          license,
-          download: tarball,
-          description,
-          unpackedSize: unpackedSize
-            ? `${kbToMb(unpackedSize).toFixed(2)} MB`
-            : "Not available", // Convert to MB
-          deprecated: deprecated ? "Deprecated" : "Not deprecated",
-        };
+    // Try retry mechanism if enabled
+    if (retry && this.shouldRetry(auditType, operation)) {
+      return await this.retryOperation(errorInfo, fallback);
+    }
 
-        if (isDevDependency) {
-          npmPackagesData.devDependencies.push(packageData);
-        } else {
-          npmPackagesData.dependencies.push(packageData);
-        }
-      } catch (err) {
-        console.log(
-          chalk.red(`Something went wrong with ${packageName} package`)
-        );
+    // Use fallback if provided
+    if (fallback) {
+      console.log(chalk.yellow(`⚠️  Using fallback for ${auditType} ${operation}`));
+      return fallback;
+    }
+
+    // Return graceful degradation result
+    return this.getGracefulDegradationResult(auditType, operation);
+  }
+
+  /**
+   * Log error with proper formatting
+   */
+  logError(errorInfo) {
+    const { auditType, operation, message, severity } = errorInfo;
+    
+    const severityColors = {
+      low: chalk.blue,
+      medium: chalk.yellow,
+      high: chalk.red,
+      critical: chalk.red.bold
+    };
+
+    const color = severityColors[severity] || chalk.yellow;
+    
+    console.error(color(`\n❌ Error in ${auditType} audit - ${operation}:`));
+    console.error(chalk.gray(`   ${message}`));
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.error(chalk.gray(`   Stack: ${errorInfo.stack}`));
+    }
+  }
+
+  /**
+   * Check if operation should be retried
+   */
+  shouldRetry(auditType, operation) {
+    const key = `${auditType}:${operation}`;
+    const attempts = this.retryAttempts.get(key) || 0;
+    return attempts < this.maxRetries;
+  }
+
+  /**
+   * Retry operation with exponential backoff
+   */
+  async retryOperation(errorInfo, fallback) {
+    const { auditType, operation } = errorInfo;
+    const key = `${auditType}:${operation}`;
+    const attempts = (this.retryAttempts.get(key) || 0) + 1;
+    
+    this.retryAttempts.set(key, attempts);
+    
+    console.log(chalk.yellow(`🔄 Retrying ${auditType} ${operation} (attempt ${attempts}/${this.maxRetries})`));
+    
+    // Exponential backoff
+    const delay = this.retryDelay * Math.pow(2, attempts - 1);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    
+    // If max retries reached, use fallback or graceful degradation
+    if (attempts >= this.maxRetries) {
+      console.log(chalk.red(`❌ Max retries reached for ${auditType} ${operation}`));
+      return fallback || this.getGracefulDegradationResult(auditType, operation);
+    }
+    
+    // Return null to indicate retry should be attempted
+    return null;
+  }
+
+  /**
+   * Get graceful degradation result
+   */
+  getGracefulDegradationResult(auditType, operation) {
+    const defaultResults = {
+      security: {
+        totalIssues: 0,
+        highSeverity: 0,
+        mediumSeverity: 0,
+        lowSeverity: 0,
+        issues: [],
+        message: 'Security audit failed - using safe defaults'
+      },
+      performance: {
+        totalIssues: 0,
+        highSeverity: 0,
+        mediumSeverity: 0,
+        lowSeverity: 0,
+        issues: [],
+        message: 'Performance audit failed - using safe defaults'
+      },
+      accessibility: {
+        totalIssues: 0,
+        highSeverity: 0,
+        mediumSeverity: 0,
+        lowSeverity: 0,
+        issues: [],
+        message: 'Accessibility audit failed - using safe defaults'
+      },
+      lighthouse: {
+        totalIssues: 0,
+        highSeverity: 0,
+        mediumSeverity: 0,
+        lowSeverity: 0,
+        issues: [],
+        scores: {},
+        urls: [],
+        message: 'Lighthouse audit failed - using safe defaults'
+      },
+      dependency: {
+        totalIssues: 0,
+        highSeverity: 0,
+        mediumSeverity: 0,
+        lowSeverity: 0,
+        issues: [],
+        message: 'Dependency audit failed - using safe defaults'
       }
     };
 
-    const depNames = Object.keys(dependencies);
-    let processed = 0;
-    for (const packageName of depNames) {
-      processed++;
-      process.stdout.write(`\r[NPM Packages] Progress: ${processed}/${depNames.length} dependencies checked`);
-      await processPackage(packageName);
-    }
-    process.stdout.write(`\r[NPM Packages] Progress: ${depNames.length}/${depNames.length} dependencies checked\n`);
-
-    // Process devDependencies
-    const devDepNames = Object.keys(devDependencies);
-    let devProcessed = 0;
-    for (const packageName of devDepNames) {
-      devProcessed++;
-      process.stdout.write(`\r[NPM Dev Packages] Progress: ${devProcessed}/${devDepNames.length} devDependencies checked`);
-      await processPackage(packageName, true);
-    }
-    process.stdout.write(`\r[NPM Dev Packages] Progress: ${devDepNames.length}/${devDepNames.length} devDependencies checked\n`);
-
-    await writeFile(
-      `${folderPath}/npm-report.json`,
-      JSON.stringify(npmPackagesData, null, 2)
-    );
-  } catch (error) {
-    console.error("Error:", error);
+    return defaultResults[auditType] || {
+      totalIssues: 0,
+      highSeverity: 0,
+      mediumSeverity: 0,
+      lowSeverity: 0,
+      issues: [],
+      message: `${auditType} audit failed - using safe defaults`
+    };
   }
-};
+
+  /**
+   * Create fallback configuration
+   */
+  createFallbackConfig(auditType) {
+    const fallbacks = {
+      eslint: {
+        configFile: 'eslintrc.simple.json',
+        useDefaultRules: true,
+        ignoreErrors: true
+      },
+      stylelint: {
+        configFile: 'stylelintrc.simple.json',
+        useDefaultRules: true,
+        ignoreErrors: true
+      },
+      lighthouse: {
+        useBasicConfig: true,
+        skipAudits: ['performance', 'accessibility'],
+        basicOnly: true
+      },
+      accessibility: {
+        useBasicChecks: true,
+        skipLiveTesting: true,
+        basicScanOnly: true
+      }
+    };
+
+    return fallbacks[auditType] || {};
+  }
+
+  /**
+   * Validate file existence and permissions
+   */
+  validateFileAccess(filePath, operation = 'read') {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+      
+      if (operation === 'read') {
+        fs.accessSync(filePath, fs.constants.R_OK);
+      } else if (operation === 'write') {
+        fs.accessSync(path.dirname(filePath), fs.constants.W_OK);
+      }
+      
+      return true;
+    } catch (error) {
+      this.handleError(error, { filePath, operation }, {
+        auditType: 'file-system',
+        operation: 'file-access',
+        severity: 'medium'
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Handle network errors
+   */
+  async handleNetworkError(error, url, operation) {
+    const networkError = {
+      message: `Network error for ${operation}: ${error.message}`,
+      url,
+      operation,
+      code: error.code || 'UNKNOWN'
+    };
+
+    return await this.handleError(error, networkError, {
+      auditType: 'network',
+      operation,
+      severity: 'medium',
+      retry: true,
+      fallback: { success: false, message: 'Network operation failed' }
+    });
+  }
+
+  /**
+   * Handle tool execution errors
+   */
+  async handleToolError(error, tool, operation) {
+    const toolError = {
+      message: `${tool} execution failed: ${error.message}`,
+      tool,
+      operation,
+      command: error.command || 'unknown'
+    };
+
+    return await this.handleError(error, toolError, {
+      auditType: 'tool-execution',
+      operation,
+      severity: 'high',
+      retry: false,
+      fallback: this.createFallbackConfig(tool)
+    });
+  }
+
+  /**
+   * Handle configuration errors
+   */
+  async handleConfigError(error, configType) {
+    const configError = {
+      message: `Configuration error in ${configType}: ${error.message}`,
+      configType,
+      path: error.path || 'unknown'
+    };
+
+    return await this.handleError(error, configError, {
+      auditType: 'configuration',
+      operation: 'config-load',
+      severity: 'medium',
+      retry: false,
+      fallback: this.createFallbackConfig(configType)
+    });
+  }
+
+  /**
+   * Generate error report
+   */
+  generateErrorReport() {
+    if (this.errorLog.length === 0) {
+      return null;
+    }
+
+    const report = {
+      timestamp: new Date().toISOString(),
+      totalErrors: this.errorLog.length,
+      errorsByType: {},
+      errorsBySeverity: {},
+      summary: {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0
+      }
+    };
+
+    this.errorLog.forEach(error => {
+      // Count by audit type
+      if (!report.errorsByType[error.auditType]) {
+        report.errorsByType[error.auditType] = 0;
+      }
+      report.errorsByType[error.auditType]++;
+
+      // Count by severity
+      if (!report.errorsBySeverity[error.severity]) {
+        report.errorsBySeverity[error.severity] = 0;
+      }
+      report.errorsBySeverity[error.severity]++;
+
+      // Update summary
+      if (report.summary[error.severity] !== undefined) {
+        report.summary[error.severity]++;
+      }
+    });
+
+    return report;
+  }
+
+  /**
+   * Save error report to file
+   */
+  saveErrorReport(reportDir) {
+    const report = this.generateErrorReport();
+    if (!report) return;
+
+    try {
+      const reportPath = path.join(reportDir, 'error-report.json');
+      fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+      console.log(chalk.blue(`📄 Error report saved to: ${reportPath}`));
+    } catch (error) {
+      console.warn(chalk.yellow('⚠️  Could not save error report:', error.message));
+    }
+  }
+
+  /**
+   * Display error summary
+   */
+  displayErrorSummary() {
+    const report = this.generateErrorReport();
+    if (!report) return;
+
+    console.log(chalk.blue('\n📋 ERROR SUMMARY'));
+    console.log(chalk.blue('='.repeat(30)));
+    console.log(chalk.white(`Total Errors: ${report.totalErrors}`));
+    
+    Object.entries(report.summary).forEach(([severity, count]) => {
+      if (count > 0) {
+        const color = severity === 'critical' ? chalk.red.bold : 
+                     severity === 'high' ? chalk.red :
+                     severity === 'medium' ? chalk.yellow : chalk.blue;
+        console.log(color(`${severity.toUpperCase()}: ${count}`));
+      }
+    });
+
+    if (report.totalErrors > 0) {
+      console.log(chalk.yellow('\n💡 Some audits may have incomplete results due to errors.'));
+      console.log(chalk.yellow('   Check the error report for details.'));
+    }
+  }
+
+  /**
+   * Clear error log
+   */
+  clearErrorLog() {
+    this.errorLog = [];
+    this.retryAttempts.clear();
+  }
+}
+
+/**
+ * CI/CD Integration system for UI Code Insight
+ * Supports GitHub Actions, GitLab CI, and Jenkins
+ */
+class CIIntegration {
+  constructor() {
+    this.errorHandler = new ErrorHandler();
+    this.ciPlatform = this.detectCIPlatform();
+    this.config = this.loadCIConfig();
+  }
+
+  /**
+   * Detect CI platform
+   */
+  detectCIPlatform() {
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      return 'github-actions';
+    } else if (process.env.GITLAB_CI === 'true') {
+      return 'gitlab-ci';
+    } else if (process.env.JENKINS_URL) {
+      return 'jenkins';
+    } else if (process.env.CIRCLECI) {
+      return 'circleci';
+    } else if (process.env.TRAVIS) {
+      return 'travis';
+    } else {
+      return 'local';
+    }
+  }
+
+  /**
+   * Load CI configuration
+   */
+  loadCIConfig() {
+    const configPath = path.join(process.cwd(), 'ui-code-insight.config.json');
+    
+    try {
+      if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        return config.ci || {};
+      }
+    } catch (error) {
+      this.errorHandler.handleError(error, {}, {
+        auditType: 'ci',
+        operation: 'config-load',
+        severity: 'low'
+      });
+    }
+
+    return {
+      enabled: false,
+      failOnHigh: true,
+      thresholds: {
+        security: 0,
+        accessibility: 5,
+        performance: 10,
+        dependency: 0
+      }
+    };
+  }
+
+  /**
+   * Check if CI mode is enabled
+   */
+  isCIEnabled() {
+    return this.config.enabled && this.ciPlatform !== 'local';
+  }
+
+  /**
+   * Generate CI-specific output
+   */
+  generateCIOutput(auditResults) {
+    if (!this.isCIEnabled()) {
+      return;
+    }
+
+    console.log(chalk.blue('\n🔧 CI/CD Integration'));
+    console.log(chalk.blue('='.repeat(30)));
+
+    const summary = this.calculateSummary(auditResults);
+    const passed = this.checkThresholds(summary);
+
+    this.outputCISummary(summary, passed);
+    this.generateCIArtifacts(auditResults);
+
+    if (!passed && this.config.failOnHigh) {
+      console.log(chalk.red('\n❌ Quality gates failed!'));
+      process.exit(1);
+    } else {
+      console.log(chalk.green('\n✅ Quality gates passed!'));
+    }
+  }
+
+  /**
+   * Calculate audit summary for CI
+   */
+  calculateSummary(auditResults) {
+    const summary = {
+      security: { high: 0, medium: 0, low: 0, total: 0 },
+      accessibility: { high: 0, medium: 0, low: 0, total: 0 },
+      performance: { high: 0, medium: 0, low: 0, total: 0 },
+      dependency: { high: 0, medium: 0, low: 0, total: 0 },
+      lighthouse: { high: 0, medium: 0, low: 0, total: 0 }
+    };
+
+    if (auditResults.categories) {
+      Object.entries(auditResults.categories).forEach(([category, results]) => {
+        if (results && summary[category]) {
+          summary[category].high = results.highSeverity || 0;
+          summary[category].medium = results.mediumSeverity || 0;
+          summary[category].low = results.lowSeverity || 0;
+          summary[category].total = results.totalIssues || 0;
+        }
+      });
+    }
+
+    return summary;
+  }
+
+  /**
+   * Check if results meet CI thresholds
+   */
+  checkThresholds(summary) {
+    const thresholds = this.config.thresholds;
+    let passed = true;
+
+    Object.entries(thresholds).forEach(([category, threshold]) => {
+      const categorySummary = summary[category];
+      if (categorySummary && categorySummary.high > threshold) {
+        console.log(chalk.red(`❌ ${category}: ${categorySummary.high} high issues (threshold: ${threshold})`));
+        passed = false;
+      }
+    });
+
+    return passed;
+  }
+
+  /**
+   * Output CI summary
+   */
+  outputCISummary(summary, passed) {
+    console.log(chalk.white('\n📊 CI Summary:'));
+    
+    Object.entries(summary).forEach(([category, stats]) => {
+      const color = stats.high > 0 ? chalk.red : stats.medium > 0 ? chalk.yellow : chalk.green;
+      console.log(color(`  ${category}: ${stats.high}H ${stats.medium}M ${stats.low}L (${stats.total} total)`));
+    });
+
+    console.log(chalk.white(`\nStatus: ${passed ? '✅ PASSED' : '❌ FAILED'}`));
+  }
+
+  /**
+   * Generate CI artifacts
+   */
+  generateCIArtifacts(auditResults) {
+    const artifactsDir = process.env.CI_ARTIFACTS_DIR || 'report';
+    
+    try {
+      // Generate JUnit XML for CI systems
+      this.generateJUnitXML(auditResults, artifactsDir);
+      
+      // Generate SARIF for GitHub Security
+      this.generateSARIF(auditResults, artifactsDir);
+      
+      // Generate summary JSON
+      this.generateSummaryJSON(auditResults, artifactsDir);
+      
+      console.log(chalk.blue(`📁 CI artifacts saved to: ${artifactsDir}`));
+    } catch (error) {
+      this.errorHandler.handleError(error, {}, {
+        auditType: 'ci',
+        operation: 'artifact-generation',
+        severity: 'low'
+      });
+    }
+  }
+
+  /**
+   * Generate JUnit XML for CI systems
+   */
+  generateJUnitXML(auditResults, outputDir) {
+    const xml = this.buildJUnitXML(auditResults);
+    const xmlPath = path.join(outputDir, 'ui-code-insight-junit.xml');
+    
+    fs.writeFileSync(xmlPath, xml);
+  }
+
+  /**
+   * Build JUnit XML content
+   */
+  buildJUnitXML(auditResults) {
+    const timestamp = new Date().toISOString();
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<testsuites timestamp="${timestamp}">\n`;
+    
+    if (auditResults.categories) {
+      Object.entries(auditResults.categories).forEach(([category, results]) => {
+        if (results) {
+          xml += `  <testsuite name="${category}" tests="${results.totalIssues || 0}" failures="${results.highSeverity || 0}">\n`;
+          
+          if (results.issues && results.issues.length > 0) {
+            results.issues.forEach(issue => {
+              const severity = issue.severity || 'medium';
+              const isFailure = severity === 'high';
+              xml += `    <testcase name="${this.escapeXML(issue.message)}" classname="${category}">\n`;
+              
+              if (isFailure) {
+                xml += `      <failure message="${this.escapeXML(issue.message)}" type="${severity}">\n`;
+                xml += `        ${this.escapeXML(issue.code || '')}\n`;
+                xml += `      </failure>\n`;
+              }
+              
+              xml += `    </testcase>\n`;
+            });
+          }
+          
+          xml += `  </testsuite>\n`;
+        }
+      });
+    }
+    
+    xml += `</testsuites>`;
+    return xml;
+  }
+
+  /**
+   * Generate SARIF for GitHub Security
+   */
+  generateSARIF(auditResults, outputDir) {
+    const sarif = this.buildSARIF(auditResults);
+    const sarifPath = path.join(outputDir, 'ui-code-insight.sarif');
+    
+    fs.writeFileSync(sarifPath, JSON.stringify(sarif, null, 2));
+  }
+
+  /**
+   * Build SARIF content
+   */
+  buildSARIF(auditResults) {
+    const sarif = {
+      $schema: "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json",
+      version: "2.1.0",
+      runs: [{
+        tool: {
+          driver: {
+            name: "UI Code Insight",
+            version: "2.2.0",
+            informationUri: "https://github.com/deepak121001/ui-code-insight"
+          }
+        },
+        results: []
+      }]
+    };
+
+    if (auditResults.categories) {
+      Object.entries(auditResults.categories).forEach(([category, results]) => {
+        if (results && results.issues) {
+          results.issues.forEach(issue => {
+            const sarifResult = {
+              ruleId: `${category}-${issue.type || 'issue'}`,
+              level: issue.severity === 'high' ? 'error' : issue.severity === 'medium' ? 'warning' : 'note',
+              message: {
+                text: issue.message
+              },
+              locations: [{
+                physicalLocation: {
+                  artifactLocation: {
+                    uri: issue.file ? path.relative(process.cwd(), issue.file) : 'unknown'
+                  },
+                  region: issue.line ? {
+                    startLine: issue.line,
+                    startColumn: issue.column || 1
+                  } : undefined
+                }
+              }]
+            };
+            
+            sarif.runs[0].results.push(sarifResult);
+          });
+        }
+      });
+    }
+
+    return sarif;
+  }
+
+  /**
+   * Generate summary JSON for CI
+   */
+  generateSummaryJSON(auditResults, outputDir) {
+    const summary = {
+      timestamp: new Date().toISOString(),
+      ci_platform: this.ciPlatform,
+      summary: this.calculateSummary(auditResults),
+      thresholds: this.config.thresholds,
+      passed: this.checkThresholds(this.calculateSummary(auditResults))
+    };
+
+    const summaryPath = path.join(outputDir, 'ci-summary.json');
+    fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+  }
+
+  /**
+   * Escape XML content
+   */
+  escapeXML(text) {
+    if (!text) return '';
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  /**
+   * Generate GitHub Actions workflow
+   */
+  generateGitHubActionsWorkflow() {
+    const workflow = `name: UI Code Insight Audit
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  code-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run UI Code Insight Audit
+      run: npx ui-code-insight --ci --silent
+    
+    - name: Upload audit results
+      uses: actions/upload-artifact@v3
+      with:
+        name: audit-results
+        path: report/
+    
+    - name: Upload SARIF
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: report/ui-code-insight.sarif
+`;
+
+    const workflowPath = '.github/workflows/ui-code-insight.yml';
+    const workflowDir = path.dirname(workflowPath);
+    
+    if (!fs.existsSync(workflowDir)) {
+      fs.mkdirSync(workflowDir, { recursive: true });
+    }
+    
+    fs.writeFileSync(workflowPath, workflow);
+    console.log(chalk.green(`✅ GitHub Actions workflow created: ${workflowPath}`));
+  }
+
+  /**
+   * Generate GitLab CI configuration
+   */
+  generateGitLabCIConfig() {
+    const config = `stages:
+  - audit
+
+code-audit:
+  stage: audit
+  image: node:18
+  script:
+    - npm ci
+    - npx ui-code-insight --ci --silent
+  artifacts:
+    paths:
+      - report/
+    reports:
+      junit: report/ui-code-insight-junit.xml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+`;
+
+    const configPath = '.gitlab-ci.yml';
+    fs.writeFileSync(configPath, config);
+    console.log(chalk.green(`✅ GitLab CI configuration created: ${configPath}`));
+  }
+
+  /**
+   * Generate Jenkins pipeline
+   */
+  generateJenkinsPipeline() {
+    const pipeline = `pipeline {
+    agent any
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Setup') {
+            steps {
+                sh 'npm ci'
+            }
+        }
+        
+        stage('Code Audit') {
+            steps {
+                sh 'npx ui-code-insight --ci --silent'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'report/**/*', fingerprint: true
+                    publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'report',
+                        reportFiles: 'index.html',
+                        reportName: 'UI Code Insight Report'
+                    ])
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}`;
+
+    const pipelinePath = 'Jenkinsfile';
+    fs.writeFileSync(pipelinePath, pipeline);
+    console.log(chalk.green(`✅ Jenkins pipeline created: ${pipelinePath}`));
+  }
+}
 
 /**
  * Main function to initialize code insight tool
+ * Focused on core audit types: Security, Performance, Accessibility, Lighthouse, Dependencies
  */
 async function codeInsightInit(options = {}) {
   const {
@@ -7003,12 +7698,21 @@ async function codeInsightInit(options = {}) {
     stylelintConfig = 'standard',
     lighthouseUrl = null,
     accessibilityUrls = [],
-    securityUrls = []
+    securityUrls = [],
+    silent = false,
+    ci = false
   } = options;
 
-  console.log(chalk.blue('🚀 UI Code Insight Tool Starting...\n'));
+  // Initialize enhanced systems
+  new EnhancedConfig();
+  const errorHandler = new ErrorHandler();
+  const ciIntegration = new CIIntegration();
 
-  const auditCategories = ['security', 'performance', 'accessibility', 'lighthouse', 'testing', 'dependency'];
+  if (!silent) {
+    console.log(chalk.blue('🚀 UI Code Insight Tool Starting...\n'));
+  }
+
+  const auditCategories = ['security', 'performance', 'accessibility', 'lighthouse', 'dependency'];
   const currentDir = process.cwd();
   const reportDir = path.join(currentDir, 'report');
 
@@ -7019,62 +7723,151 @@ async function codeInsightInit(options = {}) {
 
   try {
     // Copy static files (dashboard template)
-    console.log(chalk.blue('📁 Copying static files...'));
+    if (!silent) {
+      console.log(chalk.blue('📁 Copying static files...'));
+    }
     await copyStaticFiles(reportDir);
-    console.log(chalk.green('✅ Static files copied successfully!'));
+    if (!silent) {
+      console.log(chalk.green('✅ Static files copied successfully!'));
+    }
 
     // Initialize audit orchestrator with lighthouse URL
     const orchestrator = new AuditOrchestrator(reportDir, lighthouseUrl, accessibilityUrls, securityUrls);
       
     // Run audits based on selection
     if (reports.includes('all')) {
-      console.log(chalk.blue('🔍 Running all audits...\n'));
-        await orchestrator.runAllAudits();
-      } else {
-      console.log(chalk.blue(`🔍 Running selected audits: ${reports.join(', ')}\n`));
+      if (!silent) {
+        console.log(chalk.blue('🔍 Running all audits...\n'));
+      }
+      const auditResults = await orchestrator.runAllAudits();
+      
+      // Generate CI output if enabled
+      if (ci || ciIntegration.isCIEnabled()) {
+        ciIntegration.generateCIOutput(auditResults);
+      }
+    } else {
+      if (!silent) {
+        console.log(chalk.blue(`🔍 Running selected audits: ${reports.join(', ')}\n`));
+      }
+      
+      const auditResults = {
+        timestamp: new Date().toISOString(),
+        categories: {}
+      };
       
       for (const reportType of reports) {
         if (auditCategories.includes(reportType)) {
-          console.log(chalk.blue(`\n📊 Running ${reportType} audit...`));
-          await orchestrator.runSpecificAudit(reportType);
+          if (!silent) {
+            console.log(chalk.blue(`\n📊 Running ${reportType} audit...`));
+          }
+          const result = await orchestrator.runSpecificAudit(reportType);
+          auditResults.categories[reportType] = result;
         }
+      }
+      
+      // Generate CI output if enabled
+      if (ci || ciIntegration.isCIEnabled()) {
+        ciIntegration.generateCIOutput(auditResults);
       }
     }
 
     // Generate additional reports if requested
     if (reports.includes('eslint') || reports.includes('all')) {
-      console.log(chalk.blue('\n📋 Generating ESLint Report...'));
+      if (!silent) {
+        console.log(chalk.blue('\n📋 Generating ESLint Report...'));
+      }
       await generateESLintReport(reportDir, true, projectType, reports);
     }
 
     if (reports.includes('stylelint') || reports.includes('all')) {
-      console.log(chalk.blue('\n📋 Generating Stylelint Report...'));
-      await generateStyleLintReport(reportDir, true, projectType, reports);
-          }
-
-    if (reports.includes('packages') || reports.includes('all')) {
-      console.log(chalk.blue('\n📋 Generating Packages Report...'));
-      await generateNpmPackageReport(projectType, reports);
-    }
-
-    if (reports.includes('component-usage') || reports.includes('all')) {
-      console.log(chalk.blue('\n📋 Generating Component Usage Report...'));
-      try {
-        // Component usage report requires AEM parameters - skip if not provided
-        console.log(chalk.yellow('⚠️  Component Usage Report requires AEM configuration. Skipping...'));
-      } catch (error) {
-        console.warn(chalk.yellow('⚠️  Component Usage Report failed:', error.message));
+      if (!silent) {
+        console.log(chalk.blue('\n📋 Generating Stylelint Report...'));
       }
+      await generateStyleLintReport(reportDir, true, projectType, reports);
     }
 
-    console.log(chalk.green('\n✅ All reports generated successfully!'));
-    console.log(chalk.blue(`📁 Reports saved to: ${reportDir}`));
-    console.log(chalk.blue('🌐 Open dashboard.html in your browser to view results'));
+    // Save error report if any errors occurred
+    errorHandler.saveErrorReport(reportDir);
+    errorHandler.displayErrorSummary();
+
+    if (!silent) {
+      console.log(chalk.green('\n✅ All reports generated successfully!'));
+      console.log(chalk.blue(`📁 Reports saved to: ${reportDir}`));
+      console.log(chalk.blue('🌐 Open dashboard.html in your browser to view results'));
+    }
 
   } catch (error) {
-    console.error(chalk.red('❌ Error during code insight generation:', error.message));
+    await errorHandler.handleError(error, {}, {
+      auditType: 'main',
+      operation: 'code-insight-init',
+      severity: 'high'
+    });
+    
+    if (!silent) {
+      console.error(chalk.red('❌ Error during code insight generation:', error.message));
+    }
+    
+    // In CI mode, exit with error code
+    if (ci || ciIntegration.isCIEnabled()) {
+      process.exit(1);
+    }
+    
     throw error;
   }
 }
 
-export { codeInsightInit };
+/**
+ * Initialize configuration file
+ */
+async function initConfig() {
+  const config = new EnhancedConfig();
+  return config.initConfig();
+}
+
+/**
+ * Create configuration wizard
+ */
+async function createConfigWizard() {
+  const config = new EnhancedConfig();
+  return await config.createConfigWizard();
+}
+
+/**
+ * Generate CI/CD configurations
+ */
+function generateCIConfigs() {
+  const ciIntegration = new CIIntegration();
+  
+  console.log(chalk.blue('🔧 Generating CI/CD Configurations...\n'));
+  
+  ciIntegration.generateGitHubActionsWorkflow();
+  ciIntegration.generateGitLabCIConfig();
+  ciIntegration.generateJenkinsPipeline();
+  
+  console.log(chalk.green('\n✅ All CI/CD configurations generated successfully!'));
+  console.log(chalk.blue('📁 Files created:'));
+  console.log(chalk.blue('   • .github/workflows/ui-code-insight.yml'));
+  console.log(chalk.blue('   • .gitlab-ci.yml'));
+  console.log(chalk.blue('   • Jenkinsfile'));
+}
+
+/**
+ * Validate configuration
+ */
+function validateConfig() {
+  const config = new EnhancedConfig();
+  const validation = config.validateConfig();
+  
+  if (validation.isValid) {
+    console.log(chalk.green('✅ Configuration is valid!'));
+    return true;
+  } else {
+    console.log(chalk.red('❌ Configuration validation failed:'));
+    validation.errors.forEach(error => {
+      console.log(chalk.red(`   • ${error}`));
+    });
+    return false;
+  }
+}
+
+export { codeInsightInit, createConfigWizard, generateCIConfigs, initConfig, validateConfig };

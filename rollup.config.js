@@ -20,6 +20,11 @@ const plugins = [
         dest: "build/config",
         dot: true,
       },
+      {
+        src: "src/dashboard-template/css/**/*",
+        dest: "build/css",
+        dot: true,
+      },
     ],
   }),
   scss({ fileName: "build/bundle.css" }),
@@ -27,7 +32,7 @@ const plugins = [
 
 export default [
   {
-    input: "src/dashboard-template/main.js",
+    input: "src/dashboard-template/js/simple-dashboard.js",
     output: {
       file: "build/bundle.js",
       format: "iife",

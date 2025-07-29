@@ -1,6 +1,6 @@
-# UI Code Insight - Comprehensive Code Quality & Security Audit Tool
+# UI Code Insight - Professional Code Quality & Security Audit Tool
 
-> **Your all-in-one CLI for auditing, visualizing, and improving code quality, security, accessibility, and performance in modern JavaScript, TypeScript, and CSS projects. Instantly generate actionable dashboards and reports with live URL testing capabilities.**
+> **Professional CLI for comprehensive code quality, security, accessibility, and performance auditing with CI/CD integration and enterprise features. Designed for frontend teams and UI architects.**
 
 ---
 
@@ -22,13 +22,15 @@ Check out the [Audit Sample Dashboard](https://deepak121001.github.io/Audit-Samp
 | Feature | Benefit |
 |---------|---------|
 | **🚀 Zero Configuration** | Works out of the box with smart defaults |
-| **🔍 Comprehensive Coverage** | 7 audit categories covering all aspects of code quality |
+| **🔍 Comprehensive Coverage** | 5 core audit categories covering all aspects of code quality |
 | **🌐 Live URL Testing** | Test real websites for accessibility, security & performance |
 | **📊 Interactive Dashboard** | Beautiful visual reports with actionable insights |
 | **⚡ Fast & Efficient** | Optimized for large projects with batch processing |
 | **🛡️ Industry Standards** | Uses ESLint, Stylelint, Lighthouse, and axe-core |
-| **🎯 Framework Agnostic** | Works with React, Node, TypeScript, Vanilla JS |
+| **🎯 Framework Agnostic** | Works with React, Vue, Angular, TypeScript, Vanilla JS |
 | **💡 Actionable Results** | Detailed recommendations with specific fixes |
+| **🔧 CI/CD Integration** | GitHub Actions, GitLab CI, Jenkins support |
+| **🏢 Enterprise Ready** | Team collaboration, custom rules, notifications |
 
 ---
 
@@ -49,21 +51,19 @@ ui-code-insight
 ? What type of project is this? (Use arrow keys)
 ❯ React
   Node.js
-  TypeScript
   Vanilla JavaScript
-
-? Would you like to install all required dependencies? (Y/n)
-❯ Yes
+  TypeScript
+  TypeScript + React
+  Other
 
 ? Which audit(s) do you want to run? (Press <space> to select)
 ❯◯ 🔒 Security Audit
  ◯ ⚡ Performance Audit  
  ◯ ♿ Accessibility Audit
  ◯ 🚀 Lighthouse Audit
- ◯ 🧪 Testing Audit
  ◯ 📦 Dependency Audit
  ◯ 🔧 ESLint & Stylelint
- ◯ 🎯 Comprehensive Audit (All Categories)
+ ◯ 🎯 All Audits
 
 ? Would you like to test live URLs? (Y/n)
 ❯ Yes
@@ -71,7 +71,7 @@ ui-code-insight
 
 ---
 
-## 🔍 Comprehensive Audit Categories
+## 🔍 Core Audit Categories
 
 ### 🔒 **Security Audit**
 **Code Scanning + Live URL Testing**
@@ -120,15 +120,6 @@ ui-code-insight
 - **Mobile & Desktop**: Dual device testing with realistic throttling
 - **Custom Reports**: PageSpeed Insights-like HTML reports
 
-### 🧪 **Testing Audit**
-**Test Coverage & Quality**
-
-- **Test File Detection**: Missing test files, test organization
-- **Testing Patterns**: Framework usage, testing practices
-- **Mocking & Stubbing**: Test isolation, dependency mocking
-- **Test Coverage**: Coverage analysis, untested code
-- **Testing Best Practices**: Modern testing patterns, quality checks
-
 ### 📦 **Dependency Audit**
 **Package Management & Security**
 
@@ -166,46 +157,93 @@ ui-code-insight
 - **Screenshot Capture**: Visual verification capabilities
 - **Console Logging**: Detailed debugging information
 
+---
+
+## 🔧 Enhanced Configuration System
 
 ### **Configuration File**
 Create `ui-code-insight.config.json` in your project root:
 
 ```json
 {
-  "ignoreFile": ".ui-code-insight-ignore",
-  "jsFilePathPattern": [
-    "./src/**/*.js",
-    "./src/**/*.ts",
-    "./src/**/*.jsx",
-    "./src/**/*.tsx",
-    "!./dist/**",
-    "!./build/**"
-  ],
-  "htmlFilePathPattern": [
-    "**/*.{html,js,ts,jsx,tsx}",
-    "!**/node_modules/**"
-  ],
-  "scssFilePathPattern": [
-    "**/*.{scss,css,less}",
-    "!**/node_modules/**"
-  ],
-  "excludeRules": {
-    "eslint": {
-      "enabled": true,
-      "overrideDefault": false,
-      "additionalRules": ["my-custom-rule"]
-    },
+  "version": "2.2.0",
+  "audits": {
     "security": {
       "enabled": true,
-      "overrideDefault": false,
-      "additionalRules": ["custom-security-rule"]
+      "liveUrlTest": true,
+      "codeScan": true,
+      "severity": ["high", "medium", "low"]
+    },
+    "performance": {
+      "enabled": true,
+      "bundleAnalysis": true,
+      "codeOptimization": true,
+      "severity": ["high", "medium"]
+    },
+    "accessibility": {
+      "enabled": true,
+      "useAxeCore": true,
+      "liveUrlTest": true,
+      "codeScan": true,
+      "severity": ["high", "medium", "low"]
+    },
+    "lighthouse": {
+      "enabled": true,
+      "mobile": true,
+      "desktop": true,
+      "categories": ["performance", "accessibility", "best-practices", "seo"]
+    },
+    "dependency": {
+      "enabled": true,
+      "securityVulnerabilities": true,
+      "outdatedPackages": true,
+      "unusedDependencies": true,
+      "severity": ["high", "medium"]
     }
   },
-  "ignoreFileConfig": {
-    "enabled": true,
-    "fallbackToDefault": true,
-    "customIgnoreFile": null,
-    "ignorePatterns": [
+  "reporting": {
+    "format": ["html", "json"],
+    "severity": ["high", "medium", "low"],
+    "export": true,
+    "dashboard": true,
+    "progress": true
+  },
+  "ci": {
+    "enabled": false,
+    "failOnHigh": true,
+    "thresholds": {
+      "security": 0,
+      "accessibility": 5,
+      "performance": 10,
+      "dependency": 0
+    },
+    "notifications": {
+      "slack": false,
+      "teams": false,
+      "email": false
+    }
+  },
+  "performance": {
+    "batchSize": 25,
+    "memoryThreshold": 0.7,
+    "maxFilesPerBatch": 500,
+    "parallelProcessing": true,
+    "caching": false
+  },
+  "filePatterns": {
+    "js": [
+      "./src/**/*.js",
+      "./src/**/*.ts",
+      "./src/**/*.jsx",
+      "./src/**/*.tsx"
+    ],
+    "html": [
+      "**/*.{html,js,ts,jsx,tsx}"
+    ],
+    "css": [
+      "**/*.{scss,css,less}"
+    ],
+    "exclude": [
       "node_modules/",
       "dist/",
       "build/",
@@ -238,18 +276,162 @@ Create `ui-code-insight.config.json` in your project root:
       ".temp/",
       ".git/"
     ]
+  },
+  "integrations": {
+    "github": {
+      "enabled": false,
+      "token": null,
+      "repository": null
+    },
+    "jira": {
+      "enabled": false,
+      "url": null,
+      "username": null,
+      "token": null
+    },
+    "slack": {
+      "enabled": false,
+      "webhook": null,
+      "channel": null
+    }
   }
 }
 ```
 
-### **URL Configuration Management**
-- **💾 Save URL Configurations**: Store frequently used URL sets for reuse
-- **🔄 Load Saved Configurations**: Reuse previous URL setups instantly
-- **📁 Report Folder Integration**: Configurations saved alongside reports
-- **🎛️ Multiple Configurations**: Support for different testing scenarios
-- **⚡ Batch Processing**: Test multiple URLs simultaneously
+### **Configuration Management**
+```bash
+# Initialize configuration file
+ui-code-insight --init-config
 
-### **📁 File Exclusion with `.ui-code-insight-ignore`**
+# Run configuration wizard
+ui-code-insight --config-wizard
+
+# Validate configuration
+ui-code-insight --validate
+```
+
+---
+
+## 🚀 CI/CD Integration
+
+### **GitHub Actions**
+```yaml
+name: UI Code Insight Audit
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  code-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run UI Code Insight Audit
+      run: npx ui-code-insight --ci --silent
+    
+    - name: Upload audit results
+      uses: actions/upload-artifact@v3
+      with:
+        name: audit-results
+        path: report/
+    
+    - name: Upload SARIF
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: report/ui-code-insight.sarif
+```
+
+### **GitLab CI**
+```yaml
+stages:
+  - audit
+
+code-audit:
+  stage: audit
+  image: node:18
+  script:
+    - npm ci
+    - npx ui-code-insight --ci --silent
+  artifacts:
+    paths:
+      - report/
+    reports:
+      junit: report/ui-code-insight-junit.xml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+```
+
+### **Jenkins Pipeline**
+```groovy
+pipeline {
+    agent any
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Setup') {
+            steps {
+                sh 'npm ci'
+            }
+        }
+        
+        stage('Code Audit') {
+            steps {
+                sh 'npx ui-code-insight --ci --silent'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'report/**/*', fingerprint: true
+                    publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'report',
+                        reportFiles: 'index.html',
+                        reportName: 'UI Code Insight Report'
+                    ])
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
+```
+
+### **Generate CI Configurations**
+```bash
+# Generate all CI/CD configuration files
+ui-code-insight --generate-ci
+```
+
+---
+
+## 📁 File Exclusion with `.ui-code-insight-ignore`
+
 Like `.eslintignore` and `.stylelintignore`, you can exclude files and folders from audits:
 
 **Create `.ui-code-insight-ignore` in your project root:**
@@ -354,11 +536,14 @@ report/
 ├── security-audit-report.json
 ├── performance-audit-report.json
 ├── lighthouse-audit-report.json
-├── testing-audit-report.json
 ├── dependency-audit-report.json
 ├── comprehensive-audit-report.json
 ├── ui-code-insight.config.json
 ├── ui-code-insight-urls.json
+├── error-report.json
+├── ci-summary.json
+├── ui-code-insight-junit.xml
+├── ui-code-insight.sarif
 └── index.html (dashboard)
 ```
 
@@ -375,7 +560,60 @@ report/
 
 ---
 
-### **🧪 Test Categories**
+## 🔧 CLI Options
+
+### **Basic Usage**
+```bash
+# Interactive mode
+ui-code-insight
+
+# Silent mode (minimal output)
+ui-code-insight --silent
+
+# CI mode with quality gates
+ui-code-insight --ci
+
+# Help
+ui-code-insight --help
+```
+
+### **Configuration Management**
+```bash
+# Initialize configuration file
+ui-code-insight --init-config
+
+# Run configuration wizard
+ui-code-insight --config-wizard
+
+# Validate configuration
+ui-code-insight --validate
+
+# Generate CI/CD configurations
+ui-code-insight --generate-ci
+```
+
+### **NPM Scripts**
+```bash
+# Initialize configuration
+npm run init-config
+
+# Run configuration wizard
+npm run config-wizard
+
+# Generate CI configurations
+npm run generate-ci
+
+# Validate configuration
+npm run validate-config
+
+# Run in CI mode
+npm run ci
+```
+
+---
+
+## 🧪 Test Categories
+
 - **♿ Accessibility Tests**: Live URL testing with axe-core, dashboard display
 - **🔒 Security Tests**: Pattern matching, live URL security analysis
 - **📁 File Scanning Tests**: Pattern matching, exclusion rules validation
@@ -393,6 +631,8 @@ report/
 - **File Pattern System**: Centralized file pattern management
 - **Configuration Loader**: Dynamic configuration handling
 - **Dashboard Integration**: Unified reporting interface
+- **Error Handler**: Comprehensive error handling and recovery
+- **CI Integration**: Multi-platform CI/CD support
 
 ### **Performance Optimizations**
 - **Async Processing**: Non-blocking file operations
@@ -400,12 +640,15 @@ report/
 - **Memory Management**: Garbage collection optimization
 - **Progress Tracking**: Real-time operation feedback
 - **Error Resilience**: Graceful failure handling
+- **Parallel Processing**: Multi-core utilization
+- **Caching System**: Result caching for incremental analysis
 
 ### **Extensibility**
 - **Plugin Architecture**: Easy addition of new audit types
 - **Custom Patterns**: Configurable file pattern system
 - **Rule Customization**: Flexible rule exclusion system
 - **Integration APIs**: Structured data output for external tools
+- **Enterprise Features**: Team collaboration and notifications
 
 ---
 
@@ -438,8 +681,9 @@ report/
 ### **Enhanced Error Handling**
 - **Graceful Degradation**: Continue operation despite individual failures
 - **Detailed Logging**: Comprehensive error reporting
-- **Recovery Mechanisms**: Automatic retry and fallback systems
+- **Retry Mechanisms**: Automatic retry and fallback systems
 - **User Feedback**: Clear error messages and suggestions
+- **Error Reports**: Detailed error analysis and recommendations
 
 ---
 
@@ -456,6 +700,7 @@ report/
 - **Incremental Testing**: Test changes incrementally in CI/CD
 - **Configuration Management**: Use version-controlled configuration files
 - **Team Integration**: Share audit results and configurations with team
+- **Quality Gates**: Set appropriate thresholds for CI/CD pipelines
 
 ---
 
@@ -471,7 +716,7 @@ A: No! The tool works out of the box with smart defaults. Advanced users can add
 A: All reports are saved in the `report/` directory at your project root, with supporting files and the interactive dashboard.
 
 **Q: Can I integrate this into my CI/CD pipeline?**  
-A: Yes! The tool generates structured JSON reports perfect for CI/CD integration and automated quality gates.
+A: Yes! The tool generates structured JSON reports perfect for CI/CD integration and automated quality gates. Use `--ci` flag for CI mode.
 
 **Q: Does it work with monorepos and large projects?**  
 A: Yes! The tool is optimized for large codebases and supports monorepos with proper file pattern configuration.
@@ -484,6 +729,12 @@ A: Optimized with batch processing, async operations, and memory management for 
 
 **Q: How do I exclude files from audits?**  
 A: Create a `.ui-code-insight-ignore` file in your project root (similar to `.eslintignore`). Add patterns like `scripts/`, `vendor/`, `*.temp.js` to exclude specific files and folders from all audits.
+
+**Q: Can I customize the audit rules?**  
+A: Yes! Use the configuration file to customize audit settings, severity thresholds, and file patterns.
+
+**Q: Does it support enterprise features?**  
+A: Yes! The tool includes team collaboration, custom rule creation, notifications, and enterprise integrations.
 
 ---
 
@@ -549,6 +800,11 @@ npm run build
 - [ ] 📊 Advanced performance profiling and optimization recommendations
 - [ ] 🛠️ Custom audit rule creation and sharing
 - [ ] 🌐 More framework support (Vue, Angular, Svelte, Next.js, Nuxt)
+- [ ] 🏢 Enterprise features (SSO, LDAP, custom integrations)
+- [ ] 📱 Mobile app for audit monitoring
+- [ ] 🔄 Real-time collaboration features
+- [ ] 📈 Advanced analytics and trending
+
 ---
 
 ## 📝 License

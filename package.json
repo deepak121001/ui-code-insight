@@ -1,7 +1,7 @@
 {
   "name": "ui-code-insight",
-  "version": "2.1.2",
-  "description": "Interactive CLI for generating code quality, style, and package analysis reports for JavaScript, TypeScript, CSS, and modern web projects.",
+  "version": "2.2.0",
+  "description": "Professional CLI for comprehensive code quality, security, accessibility, and performance auditing with CI/CD integration and enterprise features.",
   "author": "Deepak Sharma",
   "main": "index.js",
   "bin": {
@@ -21,7 +21,12 @@
     "audit:performance:large": "node --max-old-space-size=16384 --expose-gc scripts/run-performance-audit.js --batch-size 10 --memory-limit 0.6",
     "test:eslint": "node scripts/test-eslint.js",
     "test:exclusions": "node scripts/test-file-exclusions.js",
-    "test:security": "node scripts/test-security-audit.js"
+    "test:security": "node scripts/test-security-audit.js",
+    "init-config": "ui-code-insight --init-config",
+    "config-wizard": "ui-code-insight --config-wizard",
+    "generate-ci": "ui-code-insight --generate-ci",
+    "validate-config": "ui-code-insight --validate",
+    "ci": "ui-code-insight --ci --silent"
   },
   "keywords": [
     "eslint",
@@ -30,10 +35,20 @@
     "report",
     "cli",
     "code-quality",
-    "aem",
-    "bundle-analyzer",
+    "security",
+    "accessibility",
+    "performance",
+    "lighthouse",
+    "ci-cd",
     "typescript",
-    "react"
+    "react",
+    "vue",
+    "angular",
+    "frontend",
+    "ui-architect",
+    "code-audit",
+    "quality-gates",
+    "enterprise"
   ],
   "private": false,
   "license": "MIT",
@@ -77,5 +92,17 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/deepak121001/ui-code-insight.git"
-  }
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
 }

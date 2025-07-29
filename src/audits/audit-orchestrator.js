@@ -6,11 +6,11 @@ import { SecurityAudit } from './security-audit.js';
 import { PerformanceAudit } from './performance-audit.js';
 import { AccessibilityAudit } from './accessibility-audit.js';
 import { LighthouseAudit } from './lighthouse-audit.js';
-import { TestingAudit } from './testing-audit.js';
 import { DependencyAudit } from './dependency-audit.js';
 
 /**
  * Main audit orchestrator that runs all audit categories
+ * Focused on core audit types: Security, Performance, Accessibility, Lighthouse, Dependencies
  */
 export class AuditOrchestrator {
   constructor(folderPath, lighthouseUrl = null, accessibilityUrls = [], securityUrls = []) {
@@ -30,7 +30,7 @@ export class AuditOrchestrator {
     const startTime = Date.now();
     
     try {
-      // Run all audit categories with error handling
+      // Run core audit categories with error handling
       const auditPromises = [
         this.runSecurityAudit().catch(error => {
           console.warn(chalk.yellow('⚠️  Security audit failed:', error.message));
@@ -48,10 +48,6 @@ export class AuditOrchestrator {
           console.warn(chalk.yellow('⚠️  Lighthouse audit failed:', error.message));
           return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
         }),
-        this.runTestingAudit().catch(error => {
-          console.warn(chalk.yellow('⚠️  Testing audit failed:', error.message));
-          return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
-        }),
         this.runDependencyAudit().catch(error => {
           console.warn(chalk.yellow('⚠️  Dependency audit failed:', error.message));
           return { totalIssues: 0, highSeverity: 0, mediumSeverity: 0, lowSeverity: 0, issues: [] };
@@ -63,11 +59,8 @@ export class AuditOrchestrator {
         performanceResults,
         accessibilityResults,
         lighthouseResults,
-        testingResults,
         dependencyResults
       ] = await Promise.all(auditPromises);
-
-
 
       // Compile results
       this.auditResults = {
@@ -85,7 +78,6 @@ export class AuditOrchestrator {
           performance: performanceResults,
           accessibility: accessibilityResults,
           lighthouse: lighthouseResults,
-          testing: testingResults,
           dependency: dependencyResults
         }
       };
@@ -183,15 +175,6 @@ export class AuditOrchestrator {
   }
 
   /**
-   * Run testing audit
-   */
-  async runTestingAudit() {
-    console.log(chalk.blue('🧪 Running Testing Audit...'));
-    const testingAudit = new TestingAudit(this.folderPath);
-    return await testingAudit.runTestingAudit();
-  }
-
-  /**
    * Run dependency audit
    */
   async runDependencyAudit() {
@@ -267,7 +250,6 @@ export class AuditOrchestrator {
       performance: '⚡',
       accessibility: '♿',
       lighthouse: '🚀',
-      testing: '🧪',
       dependency: '📦'
     };
     return icons[category] || '📋';
@@ -302,11 +284,6 @@ export class AuditOrchestrator {
       console.log(chalk.magenta('🚀 Lighthouse: Optimize your website for better performance and accessibility'));
     }
     
-    // Testing recommendations
-    if (categories.testing && categories.testing.highSeverity > 0) {
-      console.log(chalk.magenta('🧪 Testing: Add test files and testing framework'));
-    }
-    
     // Dependency recommendations
     if (categories.dependency && categories.dependency.highSeverity > 0) {
       console.log(chalk.cyan('📦 Dependencies: Install missing dependencies and update outdated packages'));
@@ -324,7 +301,6 @@ export class AuditOrchestrator {
       performance: () => this.runPerformanceAudit(),
       accessibility: () => this.runAccessibilityAudit(),
       lighthouse: () => this.runLighthouseAudit(),
-      testing: () => this.runTestingAudit(),
       dependency: () => this.runDependencyAudit()
     };
 

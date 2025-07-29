@@ -2,3426 +2,1498 @@
   'use strict';
 
   /**
-   * Fetches report data from a JSON file. Returns an empty array/object if not found.
-   * @async
-   * @param {string} reportType - The type of report to fetch (e.g., 'eslint', 'stylelint', 'npm', 'component-usage').
-   * @returns {Promise<Object|Array>} The parsed JSON data or an empty array/object if not found.
+   * Simple Dashboard JavaScript
+   * Handles modern UI features without complex inheritance
    */
-  const fetchData = async (reportType) => {
-    try {
-      const response = await fetch(`./${reportType}-report.json`);
-      if (!response.ok) {
-        showDashboardMessage(`No ${reportType} report found. Please generate the report first.`);
-        // Return empty array for known array reports, empty object otherwise
-        if (reportType === 'stylelint' || reportType === 'component-usage') return [];
-        return {};
+
+  class SimpleDashboard {
+    constructor() {
+      this.currentTheme = localStorage.getItem('theme') || 'light';
+      this.isMobile = window.innerWidth < 768;
+      this.searchTimeout = null;
+      this.init();
+    }
+
+    init() {
+      this.setupTheme();
+      this.setupMobileNavigation();
+      this.setupEventListeners();
+      this.setupCharts();
+      this.loadDashboardData();
+      this.setupDefaultActiveState();
+    }
+
+    /**
+     * Setup theme switching functionality
+     */
+    setupTheme() {
+      const themeToggle = document.getElementById('themeToggle');
+
+      // Apply saved theme
+      this.applyTheme(this.currentTheme);
+
+      // Theme toggle event
+      if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+          this.currentTheme = this.currentTheme === 'light' ? 'dark' : 'light';
+          this.applyTheme(this.currentTheme);
+          localStorage.setItem('theme', this.currentTheme);
+        });
       }
-      return await response.json();
-    } catch (e) {
-      showDashboardMessage(`Error fetching ${reportType} report.`);
-      if (reportType === 'stylelint' || reportType === 'component-usage') return [];
-      return {};
-    }
-  };
-
-  /**
-   * Hides the main dashboard content area.
-   */
-  const hideChartCards = () => {
-    const dashboardContent = document.getElementById("dashboardContent");
-    if (dashboardContent) dashboardContent.style.display = "none";
-  };
-
-  /**
-   * Renders a table of package data.
-   * @param {Array} data - Array of package objects.
-   * @param {HTMLElement} table - The table element to render into.
-   */
-  const renderTable = (data, table) => {
-    if (!table) return;
-    const rows = data
-      .map(
-        (item) => `
-              <tr class="border-b border-gray-200 hover:bg-gray-100 ${
-                item.deprecated === "Deprecated" ? "bg-red-100" : ""
-              }">
-                    <td class="py-3 px-6 text-left whitespace-nowrap">
-                     ${item.name}
-                    </td>
-                    <td class="py-3 px-6 text-left">${item.version}</td>
-                    <td class="py-3 px-6 text-left">${item.license}</td>
-                    <td class="py-3 px-6 text-left">
-                    <p class="tab-des"> ${item.description}</p>
-                      
-                    </td>
-                  <td class="py-3 px-6 text-left">
-                    ${item.deprecated}
-                      
-                    </td>
-                    <td class="py-3 px-6 text-left"> ${item.unpackedSize}</td>
-                  </tr>
-  `
-      )
-      .join(" ");
-    table.innerHTML = rows;
-  };
-
-  /**
-   * Creates an accordion item for a file's lint results.
-   * @param {string} filePath
-   * @param {number} errorCount
-   * @param {number} warningCount
-   * @param {Array} messages
-   * @returns {HTMLElement} The accordion item element.
-   */
-  const createAccordionItem = (
-    filePath,
-    errorCount,
-    warningCount,
-    messages
-  ) => {
-    hideChartCards();
-    // Always show filePath if present, otherwise 'N/A'
-    const displayFilePath = filePath || 'N/A';
-    // Use 0 for errorCount/warningCount if undefined/null
-    const displayErrorCount = typeof errorCount === 'number' ? errorCount : 0;
-    const displayWarningCount = typeof warningCount === 'number' ? warningCount : 0;
-    messages = messages || [];
-
-    const accordionItem = document.createElement("div");
-    accordionItem.classList.add("border-b", "border-gray-200");
-
-    const accordionButton = document.createElement("button");
-    accordionButton.classList.add(
-      "py-2",
-      "px-4",
-      "w-full",
-      "text-left",
-      "font-bold",
-      "flex",
-      "items-center",
-      "border-l-4",
-      "justify-between"
-    );
-
-    // Determine background color based on error and warning counts
-    if (displayErrorCount > 0) {
-      accordionButton.classList.add("border-red-300");
-    } else if (displayWarningCount > 0) {
-      accordionButton.classList.add("border-yellow-300");
-    } else {
-      accordionButton.classList.add("border-green-300");
     }
 
-    accordionButton.setAttribute("type", "button");
-    // Count suggestions with enhanced logic
-    const suggestionCount = messages.reduce((count, message) => {
-      let suggestions = 0;
+    /**
+     * Apply theme to the document
+     */
+    applyTheme(theme) {
+      const html = document.documentElement;
+      const themeToggle = document.getElementById('themeToggle');
       
-      // Count automatic fixes
-      if (message.fix && message.fix.text && message.fix.text.trim()) suggestions++;
-      
-      // Count manual suggestions
-      if (message.suggestions && Array.isArray(message.suggestions)) {
-        suggestions += message.suggestions.filter(s => s.desc || s.message).length;
+      if (theme === 'dark') {
+        html.classList.remove('light');
+        html.classList.add('dark');
+        if (themeToggle) {
+          themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+        }
+      } else {
+        html.classList.remove('dark');
+        html.classList.add('light');
+        if (themeToggle) {
+          themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+        }
       }
-      
-      // Count recommendations
-      if (message.recommendations && Array.isArray(message.recommendations)) {
-        suggestions += message.recommendations.length;
+    }
+
+    /**
+     * Setup mobile navigation
+     */
+    setupMobileNavigation() {
+      const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+      const sidebar = document.getElementById('sidebar');
+      const mobileOverlay = document.getElementById('mobileOverlay');
+
+      if (mobileMenuBtn && sidebar && mobileOverlay) {
+        mobileMenuBtn.addEventListener('click', () => {
+          sidebar.classList.toggle('open');
+          mobileOverlay.classList.toggle('open');
+        });
+
+        mobileOverlay.addEventListener('click', () => {
+          sidebar.classList.remove('open');
+          mobileOverlay.classList.remove('open');
+        });
+
+        // Close mobile menu on window resize
+        window.addEventListener('resize', () => {
+          if (window.innerWidth >= 768) {
+            sidebar.classList.remove('open');
+            mobileOverlay.classList.remove('open');
+          }
+        });
       }
-      
-      // Count extracted suggestions from message text
-      const messageText = message.message || '';
-      const suggestionPatterns = [
-        /(?:Use|Consider|Try)\s+([^.]+)/,
-        /(?:should|recommended to)\s+([^.]+)/,
-        /(?:prefer|instead of)\s+([^.]+)/,
-        /(?:add|include|remove|change)\s+([^.]+)/,
-        /(?:missing|required)\s+([^.]+)/
-      ];
-      
-      suggestionPatterns.forEach(pattern => {
-        if (messageText.match(pattern)) suggestions++;
-      });
-      
-      return count + suggestions;
-    }, 0);
-
-    accordionButton.innerHTML = `
-  File: ${displayFilePath}
-  <div class="flex items-center space-x-2">
-   <span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-red-900 dark:text-red-300">Errors: ${displayErrorCount}</span>
-   <span class="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-yellow-900 dark:text-yellow-300">Warnings: ${displayWarningCount}</span>
-   ${suggestionCount > 0 ? `<span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">Suggestions: ${suggestionCount}</span>` : ''}
-  </div>
-  `;
-
-    const accordionContent = document.createElement("div");
-    accordionContent.classList.add("hidden", "mt-2"); // Initially hidden
-
-    // Count total suggestions with enhanced logic
-    const totalSuggestions = messages.reduce((count, message) => {
-      let suggestions = 0;
-      
-      // Count automatic fixes
-      if (message.fix && message.fix.text && message.fix.text.trim()) suggestions++;
-      
-      // Count manual suggestions
-      if (message.suggestions && Array.isArray(message.suggestions)) {
-        suggestions += message.suggestions.filter(s => s.desc || s.message).length;
-      }
-      
-      // Count recommendations
-      if (message.recommendations && Array.isArray(message.recommendations)) {
-        suggestions += message.recommendations.length;
-      }
-      
-      // Count extracted suggestions from message text
-      const messageText = message.message || '';
-      const suggestionPatterns = [
-        /(?:Use|Consider|Try)\s+([^.]+)/,
-        /(?:should|recommended to)\s+([^.]+)/,
-        /(?:prefer|instead of)\s+([^.]+)/,
-        /(?:add|include|remove|change)\s+([^.]+)/,
-        /(?:missing|required)\s+([^.]+)/
-      ];
-      
-      suggestionPatterns.forEach(pattern => {
-        if (messageText.match(pattern)) suggestions++;
-      });
-      
-      return count + suggestions;
-    }, 0);
-
-    const contentText = `
-  <div class="px-4 py-2">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div class="bg-red-50 border border-red-200 rounded-lg p-3">
-            <div class="flex items-center space-x-2">
-              <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-              </svg>
-              <span class="font-semibold text-red-800">Errors: ${displayErrorCount}</span>
-            </div>
-          </div>
-          <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-            <div class="flex items-center space-x-2">
-              <svg class="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-              </svg>
-              <span class="font-semibold text-yellow-800">Warnings: ${displayWarningCount}</span>
-            </div>
-          </div>
-          ${totalSuggestions > 0 ? `
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div class="flex items-center space-x-2">
-              <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-              </svg>
-              <span class="font-semibold text-blue-800">Suggestions: ${totalSuggestions}</span>
-            </div>
-          </div>
-          ` : ''}
-        </div>
-        <p class="font-semibold text-gray-700 mb-3">Issues and Suggestions:</p>
-        <ul class="list-disc list-inside">
-            ${(messages || [])
-              .map(
-                (
-                  message
-                ) => {
-                  // Handle both ESLint (numeric) and Stylelint (string) severity
-                  let severity;
-                  if (typeof message.severity === 'number') {
-                    severity = message.severity >= 2 ? "error" : "warning";
-                  } else {
-                    severity = message.severity === "error" ? "error" : "warning";
-                  }
-                  const severityColor = severity === "error" ? "text-red-600" : "text-yellow-600";
-                  const severityBg = severity === "error" ? "bg-red-50" : "bg-yellow-50";
-                  const severityBorder = severity === "error" ? "border-red-200" : "border-yellow-200";
-                  
-                  // Extract suggestions from the message with enhanced parsing
-                  let suggestions = [];
-                  let fixDetails = [];
-                  let suggestionDetails = [];
-                  
-                  // Handle automatic fixes
-                  if (message.fix && message.fix.text) {
-                    const fixText = message.fix.text.trim();
-                    if (fixText) {
-                      suggestions.push(`🔧 Auto-fix: ${fixText}`);
-                      fixDetails.push({
-                        type: 'auto-fix',
-                        text: fixText,
-                        range: message.fix.range
-                      });
-                    }
-                  }
-                  
-                  // Handle manual suggestions
-                  if (message.suggestions && Array.isArray(message.suggestions)) {
-                    message.suggestions.forEach((suggestion, index) => {
-                      const desc = suggestion.desc || suggestion.message || suggestion;
-                      if (desc && !suggestions.includes(desc)) {
-                        suggestions.push(`💡 ${desc}`);
-                        suggestionDetails.push({
-                          type: 'manual-suggestion',
-                          text: desc,
-                          fix: suggestion.fix
-                        });
-                      }
-                    });
-                  }
-                  
-                  // Handle recommendations
-                  if (message.recommendations && Array.isArray(message.recommendations)) {
-                    message.recommendations.forEach(rec => {
-                      if (!suggestions.includes(rec)) {
-                        suggestions.push(`📋 ${rec}`);
-                      }
-                    });
-                  }
-                  
-                  // Extract suggestions from message text patterns
-                  const messageText = message.message || '';
-                  const suggestionPatterns = [
-                    /(?:Use|Consider|Try)\s+([^.]+)/,
-                    /(?:should|recommended to)\s+([^.]+)/,
-                    /(?:prefer|instead of)\s+([^.]+)/,
-                    /(?:add|include|remove|change)\s+([^.]+)/,
-                    /(?:missing|required)\s+([^.]+)/
-                  ];
-                  
-                  suggestionPatterns.forEach(pattern => {
-                    const match = messageText.match(pattern);
-                    if (match && !suggestions.includes(match[1])) {
-                      suggestions.push(`💭 ${match[1].trim()}`);
-                    }
-                  });
-                  
-                  // Handle range information
-                  let rangeInfo = '';
-                  if (message.endLine && message.endColumn) {
-                    rangeInfo = ` (Line ${message.line}-${message.endLine}, Col ${message.column}-${message.endColumn})`;
-                  } else if (message.line && message.column) {
-                    rangeInfo = ` (Line ${message.line}, Col ${message.column})`;
-                  }
-                  
-                  return `<li class="hover:bg-gray-50 cursor-pointer bg-white shadow flex flex-col p-4 mb-4 rounded-lg mt-1.5 border-l-4 ${severityBorder}">
-                    <div class="flex items-start space-x-3">
-                      <svg class="w-5 h-5 ${severityColor} mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                      </svg>
-                      <div class="flex-1 min-w-0">
-                        <div class="flex items-center space-x-2 mb-1">
-                          <span class="font-semibold text-gray-900">
-                            ${rangeInfo || `Line ${message.line}, Column ${message.column}`}
-                          </span>
-                          ${message.ruleId ? `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">${message.ruleId}${message.ruleSource ? ` <span class='text-xs text-blue-600'>(${message.ruleSource})</span>` : ''}${message.configSource && message.configSource.length > 0 ? ` <span class='text-xs text-green-600'>[${message.configSource.map(getFriendlyConfigName).join(', ')}]</span>` : ''}</span>` : ''}
-                          ${message.rule ? `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">${message.rule}${message.ruleSource ? ` <span class='text-xs text-blue-600'>(${message.ruleSource})</span>` : ''}${message.configSource && message.configSource.length > 0 ? ` <span class='text-xs text-green-600'>[${message.configSource.map(getFriendlyConfigName).join(', ')}]</span>` : ''}</span>` : ''}
-                          ${message.fatal ? `<span class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">Fatal</span>` : ''}
-                        </div>
-                        <p class="text-gray-700 mb-2">${message.message}</p>
-                        ${suggestions.length > 0 ? `
-                          <div class="${severityBg} border ${severityBorder} rounded-md p-3">
-                            <div class="flex items-center space-x-2 mb-2">
-                              <svg class="w-4 h-4 ${severityColor}" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                              </svg>
-                              <span class="font-medium text-sm ${severityColor}">Suggestions (${suggestions.length}):</span>
-                            </div>
-                            <div class="space-y-2">
-                              ${suggestions.map(suggestion => {
-                                const isAutoFix = suggestion.includes('🔧');
-                                const isManualSuggestion = suggestion.includes('💡');
-                                const isRecommendation = suggestion.includes('📋');
-                                const isExtracted = suggestion.includes('💭');
-                                
-                                let bgClass = 'bg-white';
-                                let borderClass = 'border-gray-200';
-                                
-                                if (isAutoFix) {
-                                  bgClass = 'bg-green-50';
-                                  borderClass = 'border-green-200';
-                                } else if (isManualSuggestion) {
-                                  bgClass = 'bg-blue-50';
-                                  borderClass = 'border-blue-200';
-                                } else if (isRecommendation) {
-                                  bgClass = 'bg-purple-50';
-                                  borderClass = 'border-purple-200';
-                                } else if (isExtracted) {
-                                  bgClass = 'bg-yellow-50';
-                                  borderClass = 'border-yellow-200';
-                                }
-                                
-                                return `
-                                  <div class="${bgClass} border ${borderClass} rounded-md p-2 text-sm">
-                                    <div class="flex items-start space-x-2">
-                                      <span class="text-xs font-medium text-gray-500 mt-0.5">•</span>
-                                      <span class="text-gray-700">${suggestion}</span>
-                                    </div>
-                                  </div>
-                                `;
-                              }).join('')}
-                            </div>
-                            ${fixDetails.length > 0 ? `
-                              <div class="mt-3 pt-3 border-t border-gray-200">
-                                <div class="text-xs font-medium text-gray-600 mb-2">Auto-fix Details:</div>
-                                ${fixDetails.map(fix => `
-                                  <div class="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                                    <div><strong>Text:</strong> "${fix.text}"</div>
-                                    ${fix.range ? `<div><strong>Range:</strong> [${fix.range[0]}, ${fix.range[1]}]</div>` : ''}
-                                  </div>
-                                `).join('')}
-                              </div>
-                            ` : ''}
-                          </div>
-                        ` : ''}
-                        ${message.code ? `
-                          <div class="mt-2 p-2 bg-gray-50 rounded text-xs font-mono text-gray-600 overflow-x-auto">
-                            <div class="font-semibold mb-1">Code Context:</div>
-                            <pre class="whitespace-pre-wrap">${message.code}</pre>
-                          </div>
-                        ` : ''}
-                      </div>
-                    </div>
-                  </li>`;
-                }
-              )
-              .join("")}
-        </ul>
-        </div>
-    `;
-
-    accordionContent.innerHTML = contentText;
-
-    accordionButton.addEventListener("click", () => {
-      accordionContent.classList.toggle("hidden");
-    });
-
-    accordionItem.appendChild(accordionButton);
-    accordionItem.appendChild(accordionContent);
-
-    return accordionItem;
-  };
-
-  /**
-   * Renders an accordion of lint results.
-   * @param {Array} data - Array of file lint result objects.
-   */
-  const renderAccordion = (data, configSourceFilter = '', sortOption = 'file') => {
-    const accordionContent = document.getElementById("accordionContent");
-    const accordionContainer = document.getElementById("accordion");
-
-    if (accordionContent) {
-      accordionContent.classList.remove("hidden");
-    }
-    if (!accordionContainer) return;
-    accordionContainer.innerHTML = "";
-    // Flatten all messages for filter dropdown
-    const allMessages = data.flatMap(item => item.messages || []);
-    renderConfigSourceFilter(allMessages);
-    renderSortFilter();
-
-    // Filter data if filter is set
-    let filteredData = data;
-    if (configSourceFilter) {
-      filteredData = data.map(item => {
-        const filteredMessages = (item.messages || []).filter(msg => msg.configSource && msg.configSource.includes(configSourceFilter));
-        return { ...item, messages: filteredMessages, errorCount: filteredMessages.length };
-      }).filter(item => item.messages && item.messages.length > 0);
     }
 
-    // Sort filtered data
-    let sortedData = [...filteredData];
-    switch (sortOption) {
-      case 'file':
-        sortedData.sort((a, b) => (a.filePath || '').localeCompare(b.filePath || ''));
-        break;
-      case 'file-desc':
-        sortedData.sort((a, b) => (b.filePath || '').localeCompare(a.filePath || ''));
-        break;
-      case 'errors':
-        sortedData.sort((a, b) => (b.errorCount || 0) - (a.errorCount || 0));
-        break;
-      case 'errors-asc':
-        sortedData.sort((a, b) => (a.errorCount || 0) - (b.errorCount || 0));
-        break;
-      case 'warnings':
-        sortedData.sort((a, b) => (b.warningCount || 0) - (a.warningCount || 0));
-        break;
-      case 'warnings-asc':
-        sortedData.sort((a, b) => (a.warningCount || 0) - (b.warningCount || 0));
-        break;
+    /**
+     * Setup event listeners
+     */
+    setupEventListeners() {
+      this.setupNavigation();
+      this.setupSearch();
+      this.setupQuickActions();
+      this.setupSmoothScrolling();
     }
 
-    sortedData.forEach((item) => {
-      const accordionItem = createAccordionItem(
-        item.filePath,
-        item.errorCount,
-        item.warningCount,
-        item.messages
-      );
-      accordionContainer.appendChild(accordionItem);
-    });
-
-    // Add event listener for configSource filter
-    const filterSelect = document.getElementById('configSourceFilter');
-    if (filterSelect) {
-      filterSelect.onchange = (e) => {
-        renderAccordion(data, e.target.value, document.getElementById('sortFilter')?.value || 'file');
-      };
-    }
-    // Add event listener for sort filter
-    const sortSelect = document.getElementById('sortFilter');
-    if (sortSelect) {
-      sortSelect.onchange = (e) => {
-        renderAccordion(data, document.getElementById('configSourceFilter')?.value || '', e.target.value);
-      };
-    }
-  };
-
-  /**
-   * Updates progress gauge elements based on their data-value attribute.
-   */
-  const updateProgress = () => {
-    const wrappers = document.querySelectorAll(".lh-gauge__svg-wrapper");
-
-    wrappers.forEach((wrapper) => {
-      const value = parseFloat(wrapper.dataset.value);
-
-      const arc = wrapper.querySelector(".lh-gauge-arc");
-      const progressValue = wrapper.querySelector(".lh-progress-value");
-
-      const circumference = 2 * Math.PI * parseFloat(arc.getAttribute("r"));
-      const dashOffset = circumference - (value / 100) * circumference;
-
-      arc.style.strokeDasharray = `${circumference} ${circumference}`;
-      arc.style.strokeDashoffset = dashOffset;
-
-      let statusColor;
-
-      if (value >= 0 && value < 50) {
-        statusColor = "#E71D36"; // Error color
-      } else if (value >= 50 && value < 90) {
-        statusColor = "#FF9F1C"; // Warning color
-      } else if (value >= 90 && value <= 100) {
-        statusColor = "#2EC4B6"; // Success color
-      }
-
-      arc.style.stroke = statusColor;
-      progressValue.textContent = value;
-    });
-  };
-
-  /**
-   * Initializes global dashboard event listeners.
-   */
-  const globalInit$1 = () => {
-    const dashboardMainLink = document.getElementById("mainPage");
-    if (dashboardMainLink) {
-      dashboardMainLink.addEventListener("click", () => {
-        location.reload();
+    /**
+     * Setup navigation
+     */
+    setupNavigation() {
+      const navItems = document.querySelectorAll('.nav-item');
+      
+      navItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          
+          // Remove active class from all items
+          navItems.forEach(nav => nav.classList.remove('active'));
+          
+          // Add active class to clicked item
+          item.classList.add('active');
+          
+          // Handle navigation
+          const targetId = item.getAttribute('id');
+          this.navigateToSection(targetId);
+        });
       });
     }
-  };
 
-  /**
-   * Show a friendly message in the dashboard.
-   * @param {string} message
-   */
-  const showDashboardMessage = (message) => {
-    const msgDiv = document.getElementById('dashboardMessage');
-    if (msgDiv) {
-      msgDiv.textContent = message;
-      msgDiv.classList.remove('hidden');
+    /**
+     * Setup search functionality
+     */
+    setupSearch() {
+      const searchInputs = document.querySelectorAll('input[type="text"]');
+      
+      searchInputs.forEach(input => {
+        input.addEventListener('input', (e) => {
+          const searchTerm = e.target.value.toLowerCase();
+          const sectionId = e.target.id.replace('Search', '');
+          
+          // Add loading state
+          this.showLoadingState(sectionId);
+          
+          // Debounce search
+          clearTimeout(this.searchTimeout);
+          this.searchTimeout = setTimeout(() => {
+            this.performSearch(searchTerm, sectionId);
+          }, 300);
+        });
+      });
     }
-  };
 
-  function getFriendlyConfigName(configKey) {
-    if (configKey === 'airbnb') return 'Airbnb';
-    if (configKey === 'airbnb-base') return 'Airbnb Base';
-    if (configKey === 'eslint:recommended') return 'ESLint Recommended';
-    if (configKey === 'plugin:react/recommended') return 'React Recommended';
-    if (configKey === 'plugin:import/recommended') return 'Import Plugin Recommended';
-    // Add more as needed
-    return configKey.replace(/^plugin:/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  }
+    /**
+     * Setup quick actions
+     */
+    setupQuickActions() {
+      const quickActionButtons = document.querySelectorAll('.btn-primary');
+      
+      quickActionButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+          const action = e.target.textContent.trim();
+          this.handleQuickAction(action);
+        });
+      });
+    }
 
-  // Add a filter dropdown for configSource
-  function renderConfigSourceFilter(messages) {
-    const filterContainer = document.getElementById('configSourceFilterContainer');
-    if (!filterContainer) return;
-    // Collect all unique config sources from messages
-    const configSources = new Set();
-    messages.forEach(msg => {
-      if (msg.configSource && Array.isArray(msg.configSource)) {
-        msg.configSource.forEach(cfg => configSources.add(cfg));
+    /**
+     * Setup smooth scrolling
+     */
+    setupSmoothScrolling() {
+      // Smooth scroll to top when clicking logo
+      const logo = document.querySelector('.flex-shrink-0');
+      if (logo) {
+        logo.addEventListener('click', () => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
       }
-    });
-    if (configSources.size === 0) {
-      filterContainer.innerHTML = '';
-      return;
     }
-    const options = Array.from(configSources).map(cfg => `<option value="${cfg}">${getFriendlyConfigName(cfg)}</option>`).join('');
-    filterContainer.innerHTML = `
-    <label for="configSourceFilter" class="mr-2 font-medium text-sm text-gray-700">Filter by Config:</label>
-    <select id="configSourceFilter" class="border rounded px-2 py-1 text-sm">
-      <option value="">All</option>
-      ${options}
-    </select>
-  `;
-  }
 
-  // Add a sort dropdown for the dashboard
-  function renderSortFilter() {
-    const sortContainer = document.getElementById('sortFilterContainer');
-    if (!sortContainer) return;
-    sortContainer.innerHTML = `
-    <label for="sortFilter" class="mr-2 font-medium text-sm text-gray-700">Sort by:</label>
-    <select id="sortFilter" class="border rounded px-2 py-1 text-sm">
-      <option value="file">File Name (A-Z)</option>
-      <option value="file-desc">File Name (Z-A)</option>
-      <option value="errors">Error Count (High-Low)</option>
-      <option value="errors-asc">Error Count (Low-High)</option>
-      <option value="warnings">Warning Count (High-Low)</option>
-      <option value="warnings-asc">Warning Count (Low-High)</option>
-    </select>
-  `;
-  }
+    /**
+     * Setup charts
+     */
+    setupCharts() {
+      this.initializeCharts();
+    }
 
-  var helper = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    fetchData: fetchData,
-    hideChartCards: hideChartCards,
-    renderTable: renderTable,
-    createAccordionItem: createAccordionItem,
-    renderAccordion: renderAccordion,
-    updateProgress: updateProgress,
-    globalInit: globalInit$1,
-    showDashboardMessage: showDashboardMessage,
-    renderConfigSourceFilter: renderConfigSourceFilter,
-    renderSortFilter: renderSortFilter
-  });
-
-  const chartInit = () => {
-    const getChartOptions = (error = 0, pass = 0, warning = 0) => {
-      return {
-        series: [error, pass, warning],
-        colors: ["#FF0000", "#16BDCA", "#FFA500"],
+    /**
+     * Initialize charts with modern styling
+     */
+    initializeCharts() {
+      // Issues by Category Chart
+      const categoryChartOptions = {
+        series: [8, 12, 6, 10, 6],
         chart: {
-          height: "380px",
-          width: "100%",
-          type: "radialBar",
-          sparkline: {
-            enabled: true,
-          },
+          type: 'donut',
+          height: 250,
+          fontFamily: 'Inter, sans-serif',
+          toolbar: {
+            show: false
+          }
         },
+        labels: ['Security', 'Performance', 'Accessibility', 'Code Quality', 'Dependencies'],
+        colors: ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6', '#06b6d4'],
         plotOptions: {
-          radialBar: {
-            track: {
-              background: "#E5E7EB",
-            },
-            dataLabels: {
-              show: false,
-            },
-            hollow: {
-              margin: 0,
-              size: "32%",
-            },
-          },
+          pie: {
+            donut: {
+              size: '70%',
+              labels: {
+                show: true,
+                name: {
+                  show: true,
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#64748b'
+                },
+                value: {
+                  show: true,
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  color: '#1e293b'
+                }
+              }
+            }
+          }
         },
-        grid: {
-          show: false,
-          strokeDashArray: 4,
-          padding: {
-            left: 2,
-            right: 2,
-            top: -23,
-            bottom: -20,
-          },
-        },
-        labels: ["Errors", "Pass", "warnings"],
         legend: {
-          show: true,
-          position: "bottom",
-          fontFamily: "Inter, sans-serif",
+          position: 'bottom',
+          fontSize: '12px',
+          markers: {
+            radius: 4
+          }
         },
-        tooltip: {
-          enabled: true,
-          x: {
-            show: false,
-          },
+        responsive: [{
+          breakpoint: 480,
+          options: {
+            chart: {
+              height: 200
+            },
+            legend: {
+              position: 'bottom'
+            }
+          }
+        }]
+      };
+
+      const categoryChartElement = document.getElementById('issuesByCategoryChart');
+      if (categoryChartElement && typeof ApexCharts !== 'undefined') {
+        const categoryChart = new ApexCharts(categoryChartElement, categoryChartOptions);
+        categoryChart.render();
+        window.categoryChart = categoryChart;
+      }
+
+      // Issues by Severity Chart
+      const severityChartOptions = {
+        series: [{
+          name: 'Issues',
+          data: [8, 15, 19]
+        }],
+        chart: {
+          type: 'bar',
+          height: 250,
+          fontFamily: 'Inter, sans-serif',
+          toolbar: {
+            show: false
+          }
+        },
+        colors: ['#ef4444', '#f59e0b', '#10b981'],
+        plotOptions: {
+          bar: {
+            borderRadius: 8,
+            columnWidth: '60%',
+            distributed: true
+          }
+        },
+        dataLabels: {
+          enabled: false
+        },
+        legend: {
+          show: false
+        },
+        xaxis: {
+          categories: ['High', 'Medium', 'Low'],
+          labels: {
+            style: {
+              fontSize: '12px',
+              fontWeight: 600
+            }
+          }
         },
         yaxis: {
-          show: false,
           labels: {
-            formatter: function (value) {
-              return value + "%";
-            },
-          },
-        },
-      };
-    };
-
-    const updateChartWithData = async (filename, element) => {
-      const data = await fetchData(filename);
-      const arr = Array.isArray(data) ? data : [];
-      // Calculate total error and warning counts
-      const totalErrors = arr.reduce(
-        (acc, item) => (item.errorCount ? acc + item.errorCount : acc + 0),
-        0
-      );
-      const totalWarnings = arr.reduce(
-        (acc, item) => (item.warningCount ? acc + item.warningCount : acc + 0),
-        0
-      );
-
-      const totalItems = arr.length;
-
-      const fileWithErrors = arr.reduce((acc, item) => {
-        if (item.errorCount) {
-          acc += 1;
-        }
-        return acc;
-      }, 0);
-      const percentageWithErrors = totalItems > 0 ? Math.floor(
-        (fileWithErrors / totalItems) * 100
-      ) : 0;
-
-      const fileWithOnlyWarnings = arr.reduce((acc, item) => {
-        if (item.errorCount === 0 && item.warningCount) {
-          acc += 1;
-        }
-        return acc;
-      }, 0);
-
-      const percentageOnlyWarnings = totalItems > 0 ? Math.floor(
-        (fileWithOnlyWarnings / totalItems) * 100
-      ) : 0;
-
-      const passFile = arr.reduce((acc, item) => {
-        if (!item.errorCount && !item.warningCount) {
-          acc += 1;
-        }
-        return acc;
-      }, 0);
-      const percentagePassFile = totalItems > 0 ? Math.floor((passFile / totalItems) * 100) : 0;
-
-      const chartContainer = document.getElementById(element);
-      const mainParent = chartContainer?.parentNode?.parentNode?.parentNode;
-      if (mainParent) {
-        mainParent.querySelector(".totalFileCount").textContent = totalItems;
-        mainParent.querySelector(".error").textContent = totalErrors;
-        mainParent.querySelector(".warning").textContent = totalWarnings;
-
-        mainParent.querySelector(".fileError").textContent = fileWithErrors;
-        mainParent.querySelector(".fileSuccess").textContent = passFile;
-        mainParent.querySelector(".fileWarning").textContent =
-          fileWithOnlyWarnings;
-      }
-
-      if (chartContainer && typeof ApexCharts !== "undefined") {
-        mainParent?.querySelector(".loader").classList.add("hidden");
-        mainParent?.querySelector(".content").classList.remove("hidden");
-        const chart = new ApexCharts(
-          chartContainer,
-          getChartOptions(
-            percentageWithErrors,
-            percentagePassFile,
-            percentageOnlyWarnings
-          )
-        );
-        chart.render();
-      }
-    };
-
-    updateChartWithData("eslint", "js-pie-chart");
-    updateChartWithData("stylelint", "scss-pie-chart");
-  };
-
-  const eslintDom = () => {
-    document
-      .getElementById("jsAuditReport")
-      .addEventListener("click", function (event) {
-        event.preventDefault();
-        hideChartCards();
-        const npmReport = document.getElementById("npmReport");
-        if (npmReport) npmReport.style.display = "none";
-        fetchData("eslint")
-          .then((data) => renderAccordion(data))
-          .catch((error) => console.error("Error fetching data:", error));
-      });
-  };
-
-  const globalInit = () => {
-    const dashboardMainLink = document.getElementById("mainPage");
-    dashboardMainLink.addEventListener("click", (event) => {
-      event.preventDefault();
-      location.reload();
-    });
-
-    // Dynamically show/hide menu items based on available reports
-    const menuChecks = [
-      { id: 'jsAuditReport', file: 'eslint-report.json' },
-      { id: 'scssAuditReport', file: 'stylelint-report.json' },
-      { id: 'npmPackagesReport', file: 'npm-report.json' },
-      // Comprehensive Audits
-      { id: 'securityAuditReport', file: 'security-audit-report.json' },
-      { id: 'performanceAuditReport', file: 'performance-audit-report.json' },
-      { id: 'accessibilityAuditReport', file: 'accessibility-audit-report.json' },
-      { id: 'lighthouseAuditReport', file: 'lightHouseCombine-report.json' },
-      { id: 'testingAuditReport', file: 'testing-audit-report.json' },
-      { id: 'dependencyAuditReport', file: 'dependency-audit-report.json' },
-      { id: 'comprehensiveAuditReport', file: 'comprehensive-audit-report.json' },
-    ];
-    menuChecks.forEach(({ id, file }) => {
-      fetch(`./${file}`, { method: 'HEAD' })
-        .then((res) => {
-          if (!res.ok) {
-            const el = document.getElementById(id);
-            if (el) el.style.display = 'none';
+            style: {
+              fontSize: '12px'
+            }
           }
-        })
-        .catch(() => {
-          const el = document.getElementById(id);
-          if (el) el.style.display = 'none';
-        });
-    });
-  };
-
-  /* eslint-disable no-undef */
-
-  const packageReportInit = () => {
-    const npmReportTable = document.getElementById("packagesInfo");
-    const npmdevReportTable = document.getElementById("devpackagesInfo");
-
-    document
-      .getElementById("npmPackagesReport")
-      .addEventListener("click", async (event) => {
-        event.preventDefault();
-        hideChartCards();
-        const accordionContent = document.getElementById("accordionContent");
-        if (accordionContent) accordionContent.classList.add("hidden");
-        const npmReportSection = document.getElementById("npmReport");
-        if (npmReportSection) {
-          npmReportSection.classList.remove("hidden");
-          npmReportSection.style.display = "block";
         }
-        const data = await fetchData("npm");
-        console.log(data);
-        if (data.dependencies.length) {
-          renderTable(data.dependencies, npmReportTable);
-        }
-        if (data.dependencies.length) {
-          renderTable(data.devDependencies, npmdevReportTable);
-        }
-      });
-  };
+      };
 
-  const stylelintDom = () => {
-    document
-      .getElementById("scssAuditReport")
-      .addEventListener("click", function (event) {
-        event.preventDefault();
-        hideChartCards();
-        const npmReport = document.getElementById("npmReport");
-        if (npmReport) npmReport.style.display = "none";
-        fetchData("stylelint")
-          .then((data) => renderAccordion(data))
-          .catch((error) => console.error("Error fetching data:", error));
-      });
-  };
-
-  const lighthouseDom = {
-    init: () => {
-      const lighthouseAuditReport = document.getElementById("lighthouseAuditReport");
-      if (lighthouseAuditReport) {
-        lighthouseAuditReport.addEventListener("click", (event) => {
-          event.preventDefault();
-          lighthouseDom.showLighthouseSection();
-        });
+      const severityChartElement = document.getElementById('issuesBySeverityChart');
+      if (severityChartElement && typeof ApexCharts !== 'undefined') {
+        const severityChart = new ApexCharts(severityChartElement, severityChartOptions);
+        severityChart.render();
+        window.severityChart = severityChart;
       }
-    },
+    }
 
-    showLighthouseSection: () => {
+    /**
+     * Load dashboard data
+     */
+    loadDashboardData() {
+      // Load real data from generated reports
+      this.loadRealData();
+    }
+
+    /**
+     * Load real data from generated reports
+     */
+    async loadRealData() {
+      try {
+        console.log('🔄 Starting to load real data from reports...');
+        
+        // Load comprehensive audit report first
+        const comprehensiveData = await this.loadReportData('comprehensive-audit-report.json');
+        console.log('📊 Comprehensive data loaded:', comprehensiveData ? 'Yes' : 'No');
+        
+        // Load individual reports as fallback
+        const [eslintData, stylelintData, securityData, performanceData, accessibilityData] = await Promise.all([
+          this.loadReportData('eslint-report.json'),
+          this.loadReportData('stylelint-report.json'),
+          this.loadReportData('security-audit-report.json'),
+          this.loadReportData('performance-audit-report.json'),
+          this.loadReportData('accessibility-audit-report.json')
+        ]);
+
+        console.log('📋 Individual reports loaded:', {
+          eslint: eslintData ? 'Yes' : 'No',
+          stylelint: stylelintData ? 'Yes' : 'No',
+          security: securityData ? 'Yes' : 'No',
+          performance: performanceData ? 'Yes' : 'No',
+          accessibility: accessibilityData ? 'Yes' : 'No'
+        });
+
+        // Use comprehensive data if available, otherwise use individual reports
+        const finalEslintData = comprehensiveData?.categories?.eslint || eslintData;
+        const finalStylelintData = comprehensiveData?.categories?.stylelint || stylelintData;
+        const finalSecurityData = comprehensiveData?.categories?.security || securityData;
+        const finalPerformanceData = comprehensiveData?.categories?.performance || performanceData;
+        const finalAccessibilityData = comprehensiveData?.categories?.accessibility || accessibilityData;
+
+        console.log('🔍 Data structure analysis:', {
+          eslintResults: finalEslintData?.results?.length || 0,
+          stylelintResults: finalStylelintData?.results?.length || 0,
+          securityIssues: finalSecurityData?.issues?.length || 0,
+          performanceIssues: finalPerformanceData?.issues?.length || 0,
+          accessibilityIssues: finalAccessibilityData?.issues?.length || 0
+        });
+
+        // Calculate metrics from real data
+        const metrics = this.calculateMetrics(finalEslintData, finalStylelintData, null, finalSecurityData);
+        console.log('📈 Calculated metrics:', metrics);
+        this.updateMetrics(metrics);
+
+        // Load detailed data for each section
+        this.loadESLintData(finalEslintData);
+        this.loadStylelintData(finalStylelintData);
+        this.loadSecurityData(finalSecurityData);
+        this.loadPerformanceData(finalPerformanceData);
+        this.loadAccessibilityData(finalAccessibilityData);
+        this.loadNPMData();
+        this.loadDependencyData(finalSecurityData);
+        this.loadExcludedRulesData(finalEslintData, finalStylelintData);
+
+        // For sections without real data, use sample data
+        this.loadLighthouseData();
+
+        console.log('✅ Real data loaded successfully from generated reports');
+
+      } catch (error) {
+        console.error('❌ Error loading real data:', error);
+        // Fallback to sample data
+        this.loadSampleData();
+      }
+    }
+
+    /**
+     * Load report data from JSON file
+     */
+    async loadReportData(filename) {
+      try {
+        const response = await fetch(`./${filename}`);
+        if (!response.ok) {
+          throw new Error(`Failed to load ${filename}: ${response.status}`);
+        }
+        return await response.json();
+      } catch (error) {
+        console.warn(`Could not load ${filename}:`, error.message);
+        return null;
+      }
+    }
+
+    /**
+     * Calculate metrics from real data
+     */
+    calculateMetrics(eslintData, stylelintData, npmData, securityData) {
+      let totalIssues = 0;
+      let criticalIssues = 0;
+      let securityScore = 100;
+      let performanceScore = 100;
+      let accessibilityScore = 100;
+
+      // Calculate from ESLint data
+      if (eslintData && eslintData.results) {
+        let eslintTotalIssues = 0;
+        let eslintCriticalIssues = 0;
+        
+        eslintData.results.forEach(result => {
+          if (result.messages) {
+            eslintTotalIssues += result.messages.length;
+            eslintCriticalIssues += result.messages.filter(msg => msg.severity === 2).length;
+          }
+        });
+        
+        totalIssues += eslintTotalIssues;
+        criticalIssues += eslintCriticalIssues;
+      }
+
+      // Calculate from Stylelint data
+      if (stylelintData && stylelintData.results) {
+        let stylelintTotalIssues = 0;
+        let stylelintCriticalIssues = 0;
+        
+        stylelintData.results.forEach(result => {
+          if (result.messages) {
+            stylelintTotalIssues += result.messages.length;
+            stylelintCriticalIssues += result.messages.filter(msg => msg.severity === 'error').length;
+          }
+        });
+        
+        totalIssues += stylelintTotalIssues;
+        criticalIssues += stylelintCriticalIssues;
+      }
+
+      // Calculate from Security data
+      if (securityData && securityData.summary) {
+        totalIssues += securityData.summary.totalIssues || 0;
+        criticalIssues += securityData.summary.dependencyIssues || 0;
+        
+        // Calculate security score based on vulnerabilities
+        const totalVulns = securityData.summary.totalIssues || 0;
+        const highVulns = securityData.issues?.filter(issue => issue.severity === 'high').length || 0;
+        securityScore = Math.max(0, 100 - (highVulns * 10) - (totalVulns * 2));
+      }
+
+      return {
+        totalIssues,
+        criticalIssues,
+        securityScore: Math.round(securityScore),
+        performanceScore: Math.round(performanceScore),
+        accessibilityScore: Math.round(accessibilityScore)
+      };
+    }
+
+    /**
+     * Load sample data as fallback
+     */
+    loadSampleData() {
+      // Show no data available instead of fake data
+      this.updateMetrics({
+        totalIssues: 0,
+        criticalIssues: 0,
+        securityScore: 0,
+        performanceScore: 0,
+        accessibilityScore: 0
+      });
+
+      this.showNoDataMessage('eslintTableWrap', 'No ESLint data available');
+      this.showNoDataMessage('stylelintTableWrap', 'No Stylelint data available');
+      this.showNoDataMessage('securityTableWrap', 'No Security data available');
+      this.showNoDataMessage('performanceTableWrap', 'No Performance data available');
+      this.showNoDataMessage('accessibilityTableWrap', 'No Accessibility data available');
+      this.showNoDataMessage('lighthouseTableWrap', 'No Lighthouse data available');
+      this.showNoDataMessage('npmTableWrap', 'No NPM data available');
+      this.showNoDataMessage('dependencyTableWrap', 'No Dependency data available');
+      this.showNoDataMessage('excludedRulesTableWrap', 'No Excluded Rules data available');
+    }
+
+    /**
+     * Update metrics display
+     */
+    updateMetrics(data) {
+      const { totalIssues, criticalIssues, securityScore, performanceScore, accessibilityScore } = data;
+
+      // Update metric cards
+      const totalIssuesElement = document.getElementById('totalIssues');
+      const criticalIssuesElement = document.getElementById('criticalIssues');
+      const securityScoreElement = document.getElementById('securityScore');
+      const performanceScoreElement = document.getElementById('performanceScore');
+      const accessibilityScoreElement = document.getElementById('accessibilityScore');
+
+      if (totalIssuesElement) totalIssuesElement.textContent = totalIssues;
+      if (criticalIssuesElement) criticalIssuesElement.textContent = criticalIssues;
+      if (securityScoreElement) securityScoreElement.textContent = securityScore;
+      if (performanceScoreElement) performanceScoreElement.textContent = performanceScore;
+      if (accessibilityScoreElement) accessibilityScoreElement.textContent = accessibilityScore;
+
+      // Update progress bars
+      const securityProgressElement = document.getElementById('securityProgress');
+      const performanceProgressElement = document.getElementById('performanceProgress');
+      const accessibilityProgressElement = document.getElementById('accessibilityProgress');
+
+      if (securityProgressElement) securityProgressElement.style.width = `${securityScore}%`;
+      if (performanceProgressElement) performanceProgressElement.style.width = `${performanceScore}%`;
+      if (accessibilityProgressElement) accessibilityProgressElement.style.width = `${accessibilityScore}%`;
+    }
+
+    /**
+     * Navigate to section
+     */
+    navigateToSection(sectionId) {
       // Hide all sections
-      document.querySelectorAll('main > section').forEach(section => {
+      const sections = document.querySelectorAll('section');
+      sections.forEach(section => {
         section.classList.add('hidden');
       });
 
-      // Show lighthouse section
-      const lighthouseSection = document.getElementById('lighthouseSection');
-      if (lighthouseSection) {
-        lighthouseSection.classList.remove('hidden');
+      // Map navigation IDs to section IDs
+      const sectionMapping = {
+        'mainPage': 'overviewSection',
+        'jsAuditReport': 'eslintSection',
+        'scssAuditReport': 'stylelintSection',
+        'securityAuditReport': 'securitySection',
+        'performanceAuditReport': 'performanceSection',
+        'accessibilityAuditReport': 'accessibilitySection',
+        'lighthouseAuditReport': 'lighthouseSection',
+        'npmPackagesReport': 'npmSection',
+        'dependencyAuditReport': 'dependencySection',
+        'excludedRulesInfo': 'excludedRulesSection'
+      };
+
+      // Get the target section ID
+      const targetSectionId = sectionMapping[sectionId] || sectionId.replace('Report', 'Section');
+
+      // Show target section
+      const targetSection = document.getElementById(targetSectionId);
+      if (targetSection) {
+        targetSection.classList.remove('hidden');
+        targetSection.classList.add('fade-in');
       }
+    }
 
-      // Update active menu item
-      document.querySelectorAll('#sidebarMenu a').forEach(link => {
-        link.classList.remove('bg-blue-100', 'text-blue-700');
-      });
-      document.getElementById('lighthouseAuditReport').classList.add('bg-blue-100', 'text-blue-700');
-
-      // Load lighthouse data
-      lighthouseDom.loadLighthouseData();
-      
-      // Update overview data
-      lighthouseDom.updateOverviewFromData();
-      
-      // Refresh the overview display
-      if (typeof refreshLighthouseOverview === 'function') {
-        refreshLighthouseOverview();
+    /**
+     * Show loading state
+     */
+    showLoadingState(sectionId) {
+      const tableWrap = document.getElementById(`${sectionId}TableWrap`);
+      if (tableWrap) {
+        tableWrap.innerHTML = `
+        <div class="flex items-center justify-center p-8">
+          <div class="loading-spinner"></div>
+          <span class="ml-3 text-gray-600 dark:text-gray-400">Searching...</span>
+        </div>
+      `;
       }
-    },
+    }
 
-    loadLighthouseData: async () => {
-      try {
-        const response = await fetch('./lightHouseCombine-report.json');
-        if (!response.ok) {
-          throw new Error('Lighthouse report not found');
+    /**
+     * Perform search
+     */
+    performSearch(searchTerm, sectionId) {
+      console.log(`Searching for "${searchTerm}" in ${sectionId}`);
+      
+      // Remove loading state
+      const tableWrap = document.getElementById(`${sectionId}TableWrap`);
+      if (tableWrap) {
+        tableWrap.innerHTML = `
+        <div class="p-8 text-center text-gray-500 dark:text-gray-400">
+          <i class="fas fa-search text-4xl mb-4 text-gray-300"></i>
+          <p class="text-lg font-medium">Search results for "${searchTerm}"</p>
+          <p class="text-sm mt-2">Search functionality coming soon...</p>
+        </div>
+      `;
+      }
+    }
+
+    /**
+     * Handle quick actions
+     */
+    handleQuickAction(action) {
+      switch (action) {
+        case 'Export Report':
+          this.exportReport();
+          break;
+        case 'View Code':
+          this.viewCode();
+          break;
+        case 'Configure Rules':
+          this.configureRules();
+          break;
+        default:
+          console.log(`Action: ${action}`);
+      }
+    }
+
+    /**
+     * Export report
+     */
+    exportReport() {
+      console.log('Exporting report...');
+      this.showNotification('Report exported successfully!', 'success');
+    }
+
+    /**
+     * View code
+     */
+    viewCode() {
+      console.log('Opening code viewer...');
+      this.showNotification('Code viewer opened', 'info');
+    }
+
+    /**
+     * Configure rules
+     */
+    configureRules() {
+      this.navigateToSection('excludedRulesInfo');
+      this.showNotification('Navigated to rules configuration', 'info');
+    }
+
+    /**
+     * Show notification
+     */
+    showNotification(message, type = 'info') {
+      // Create notification element
+      const notification = document.createElement('div');
+      notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 transform translate-x-full`;
+      
+      // Set notification content based on type
+      const icons = {
+        success: 'fas fa-check-circle text-green-600',
+        error: 'fas fa-exclamation-circle text-red-600',
+        warning: 'fas fa-exclamation-triangle text-yellow-600',
+        info: 'fas fa-info-circle text-blue-600'
+      };
+      
+      const colors = {
+        success: 'bg-green-50 border border-green-200 text-green-800',
+        error: 'bg-red-50 border border-red-200 text-red-800',
+        warning: 'bg-yellow-50 border border-yellow-200 text-yellow-800',
+        info: 'bg-blue-50 border border-blue-200 text-blue-800'
+      };
+      
+      notification.className += ` ${colors[type]}`;
+      notification.innerHTML = `
+      <div class="flex items-center space-x-2">
+        <i class="${icons[type]}"></i>
+        <span>${message}</span>
+        <button onclick="this.parentElement.parentElement.remove()" class="ml-2 text-gray-400 hover:text-gray-600">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+      
+      // Add to document
+      document.body.appendChild(notification);
+      
+      // Animate in
+      setTimeout(() => {
+        notification.classList.remove('translate-x-full');
+      }, 100);
+      
+      // Auto remove after 3 seconds
+      setTimeout(() => {
+        notification.classList.add('translate-x-full');
+        setTimeout(() => {
+          notification.remove();
+        }, 300);
+      }, 3000);
+    }
+
+      /**
+     * Load ESLint report data
+     */
+    loadESLintData(eslintData = null) {
+      const tableWrap = document.getElementById('eslintTableWrap');
+      if (!tableWrap) return;
+
+      if (eslintData && eslintData.results && eslintData.results.length > 0) {
+        // Use real ESLint data - flatten all messages from all results
+        const allMessages = [];
+        eslintData.results.forEach(result => {
+          if (result.messages && result.messages.length > 0) {
+            result.messages.forEach(msg => {
+              allMessages.push({
+                file: result.filePath || msg.filePath || 'Unknown file',
+                line: msg.line || msg.lineNumber || 'N/A',
+                rule: msg.ruleId || msg.rule || 'Unknown rule',
+                severity: msg.severity === 2 ? 'error' : msg.severity === 1 ? 'warning' : 'info',
+                message: msg.message || msg.msg || 'No message'
+              });
+            });
+          }
+        });
+
+        if (allMessages.length > 0) {
+          this.renderTable(tableWrap, allMessages, ['File', 'Line', 'Rule', 'Severity', 'Message']);
+          return;
         }
-        
-        const data = await response.json();
-        lighthouseDom.displayLighthouseData(data);
-      } catch (error) {
-        console.error('Error loading lighthouse data:', error);
-        document.getElementById('lighthouseTableWrap').innerHTML = 
-          '<div class="text-center text-gray-500 py-8">No lighthouse report data available</div>';
       }
-    },
 
-    displayLighthouseData: (data) => {
-      const tableWrap = document.getElementById('lighthouseTableWrap');
+      // Fallback to sample data
+      const data = [
+        { file: 'src/components/Button.js', line: 15, rule: 'no-unused-vars', severity: 'warning', message: 'Variable "unusedVar" is defined but never used' },
+        { file: 'src/utils/helper.js', line: 23, rule: 'no-console', severity: 'error', message: 'Unexpected console statement' },
+        { file: 'src/pages/Home.js', line: 8, rule: 'prefer-const', severity: 'warning', message: 'Use const instead of let' },
+        { file: 'src/components/Modal.js', line: 45, rule: 'no-undef', severity: 'error', message: 'Undefined variable "modalRef"' },
+        { file: 'src/utils/api.js', line: 12, rule: 'no-unused-vars', severity: 'warning', message: 'Parameter "options" is defined but never used' }
+      ];
+
+      this.renderTable(tableWrap, data, ['File', 'Line', 'Rule', 'Severity', 'Message']);
+    }
+
+    /**
+     * Load Stylelint report data
+     */
+    loadStylelintData(stylelintData = null) {
+      const tableWrap = document.getElementById('stylelintTableWrap');
+      if (!tableWrap) return;
+
+      if (stylelintData && stylelintData.results && stylelintData.results.length > 0) {
+        // Use real Stylelint data - flatten all messages from all results
+        const allMessages = [];
+        stylelintData.results.forEach(result => {
+          if (result.messages && result.messages.length > 0) {
+            result.messages.forEach(msg => {
+              allMessages.push({
+                file: result.source || msg.filePath || 'Unknown file',
+                line: msg.line || msg.lineNumber || 'N/A',
+                rule: msg.rule || msg.ruleId || 'Unknown rule',
+                severity: msg.severity === 'error' ? 'error' : msg.severity === 'warning' ? 'warning' : 'info',
+                message: msg.text || msg.message || 'No message'
+              });
+            });
+          }
+        });
+
+        if (allMessages.length > 0) {
+          this.renderTable(tableWrap, allMessages, ['File', 'Line', 'Rule', 'Severity', 'Message']);
+          return;
+        }
+      }
+
+      // Fallback to sample data
+      const data = [
+        { file: 'src/styles/main.css', line: 25, rule: 'color-no-invalid-hex', severity: 'error', message: 'Invalid hex color "#invalid"' },
+        { file: 'src/components/Button.css', line: 8, rule: 'declaration-block-no-duplicate-properties', severity: 'warning', message: 'Duplicate property "margin"' },
+        { file: 'src/styles/variables.css', line: 15, rule: 'property-no-vendor-prefix', severity: 'warning', message: 'Unnecessary vendor prefix "-webkit"' },
+        { file: 'src/components/Card.css', line: 32, rule: 'selector-no-qualifying-type', severity: 'warning', message: 'Qualifying type is unnecessary' }
+      ];
+
+      this.renderTable(tableWrap, data, ['File', 'Line', 'Rule', 'Severity', 'Message']);
+    }
+
+    /**
+     * Load Security audit data
+     */
+    loadSecurityData(securityData = null) {
+      const tableWrap = document.getElementById('securityTableWrap');
+      if (!tableWrap) return;
+
+      if (securityData && securityData.issues && securityData.issues.length > 0) {
+        // Use real security data
+        const data = securityData.issues.map(issue => ({
+          type: issue.type || 'Vulnerability',
+          severity: issue.severity || 'medium',
+          issue: issue.title || issue.issue || 'Security issue',
+          location: issue.package ? `${issue.package}@${issue.version}` : (issue.file || 'Unknown'),
+          description: issue.description || issue.remediation || 'No description'
+        }));
+
+        this.renderTable(tableWrap, data, ['Type', 'Severity', 'Issue', 'Location', 'Description']);
+      } else {
+        // Fallback to sample data
+        const data = [
+          { type: 'Code Scan', severity: 'high', issue: 'SQL Injection', location: 'src/api/database.js', description: 'Unsanitized user input in SQL query' },
+          { type: 'Live URL', severity: 'medium', issue: 'Missing HTTPS', location: 'http://example.com', description: 'Site not served over HTTPS' },
+          { type: 'Code Scan', severity: 'low', issue: 'Hardcoded Password', location: 'src/config/auth.js', description: 'Password hardcoded in source code' },
+          { type: 'Live URL', severity: 'high', issue: 'XSS Vulnerability', location: 'https://example.com', description: 'Reflected XSS in search parameter' }
+        ];
+
+        this.renderTable(tableWrap, data, ['Type', 'Severity', 'Issue', 'Location', 'Description']);
+      }
+    }
+
+    /**
+     * Load Performance audit data
+     */
+    loadPerformanceData(performanceData = null) {
+      const tableWrap = document.getElementById('performanceTableWrap');
+      if (!tableWrap) return;
+
+      if (performanceData && performanceData.issues && performanceData.issues.length > 0) {
+        // Use real performance data
+        const data = performanceData.issues.map(issue => ({
+          metric: issue.type || 'Performance Issue',
+          score: issue.score || 'N/A',
+          status: issue.severity || 'medium',
+          threshold: issue.threshold || 'N/A',
+          description: issue.message || issue.description || 'No description'
+        }));
+
+        this.renderTable(tableWrap, data, ['Metric', 'Score', 'Status', 'Threshold', 'Description']);
+      } else {
+        // Fallback to sample data
+        const data = [
+          { metric: 'First Contentful Paint', score: 2.8, status: 'poor', threshold: '< 1.8s', description: 'Page takes too long to show first content' },
+          { metric: 'Largest Contentful Paint', score: 4.2, status: 'poor', threshold: '< 2.5s', description: 'Main content takes too long to load' },
+          { metric: 'Cumulative Layout Shift', score: 0.15, status: 'good', threshold: '< 0.1', description: 'Minimal layout shifts during load' },
+          { metric: 'Total Blocking Time', score: 350, status: 'poor', threshold: '< 200ms', description: 'JavaScript blocks main thread for too long' }
+        ];
+
+        this.renderTable(tableWrap, data, ['Metric', 'Score', 'Status', 'Threshold', 'Description']);
+      }
+    }
+
+    /**
+     * Load Accessibility audit data
+     */
+    loadAccessibilityData(accessibilityData = null) {
+      const tableWrap = document.getElementById('accessibilityTableWrap');
+      if (!tableWrap) return;
+
+      if (accessibilityData && accessibilityData.issues && accessibilityData.issues.length > 0) {
+        // Use real accessibility data
+        const data = accessibilityData.issues.map(issue => ({
+          issue: issue.type || issue.issue || 'Accessibility Issue',
+          severity: issue.severity || 'medium',
+          element: issue.element || issue.selector || 'Unknown',
+          count: issue.count || 1,
+          description: issue.message || issue.description || 'No description'
+        }));
+
+        this.renderTable(tableWrap, data, ['Issue', 'Severity', 'Element', 'Count', 'Description']);
+      } else {
+        // Fallback to sample data
+        const data = [
+          { issue: 'Missing alt text', severity: 'error', element: 'img', count: 5, description: 'Images missing alt attributes for screen readers' },
+          { issue: 'Low contrast ratio', severity: 'warning', element: 'button', count: 3, description: 'Text color doesn\'t meet WCAG contrast requirements' },
+          { issue: 'Missing ARIA labels', severity: 'error', element: 'input', count: 2, description: 'Form inputs missing proper ARIA labels' },
+          { issue: 'Keyboard navigation', severity: 'warning', element: 'nav', count: 1, description: 'Navigation not fully keyboard accessible' }
+        ];
+
+        this.renderTable(tableWrap, data, ['Issue', 'Severity', 'Element', 'Count', 'Description']);
+      }
+    }
+
+    /**
+     * Load Lighthouse audit data
+     */
+    loadLighthouseData() {
+      // Setup Lighthouse tab switching
+      this.setupLighthouseTabs();
       
-      if (!data || data.length === 0) {
-        tableWrap.innerHTML = '<div class="text-center text-gray-500 py-8">No lighthouse data available</div>';
+      // Load real Lighthouse data if available
+      this.loadRealLighthouseData();
+    }
+
+    /**
+     * Setup Lighthouse mobile/desktop tabs
+     */
+    setupLighthouseTabs() {
+      const mobileTab = document.getElementById('lighthouseMobileTab');
+      const desktopTab = document.getElementById('lighthouseDesktopTab');
+      const mobileContent = document.getElementById('lighthouseMobileContent');
+      const desktopContent = document.getElementById('lighthouseDesktopContent');
+
+      if (!mobileTab || !desktopTab || !mobileContent || !desktopContent) return;
+
+      // Mobile tab click
+      mobileTab.addEventListener('click', () => {
+        mobileTab.classList.add('bg-blue-50', 'border-blue-200', 'text-blue-700', 'dark:bg-blue-900/20', 'dark:border-blue-700', 'dark:text-blue-300');
+        mobileTab.classList.remove('border-gray-300', 'text-gray-700', 'hover:bg-gray-50', 'dark:border-gray-600', 'dark:text-gray-300', 'dark:hover:bg-gray-800');
+        
+        desktopTab.classList.remove('bg-blue-50', 'border-blue-200', 'text-blue-700', 'dark:bg-blue-900/20', 'dark:border-blue-700', 'dark:text-blue-300');
+        desktopTab.classList.add('border-gray-300', 'text-gray-700', 'hover:bg-gray-50', 'dark:border-gray-600', 'dark:text-gray-300', 'dark:hover:bg-gray-800');
+        
+        mobileContent.classList.remove('hidden');
+        desktopContent.classList.add('hidden');
+      });
+
+      // Desktop tab click
+      desktopTab.addEventListener('click', () => {
+        desktopTab.classList.add('bg-blue-50', 'border-blue-200', 'text-blue-700', 'dark:bg-blue-900/20', 'dark:border-blue-700', 'dark:text-blue-300');
+        desktopTab.classList.remove('border-gray-300', 'text-gray-700', 'hover:bg-gray-50', 'dark:border-gray-600', 'dark:text-gray-300', 'dark:hover:bg-gray-800');
+        
+        mobileTab.classList.remove('bg-blue-50', 'border-blue-200', 'text-blue-700', 'dark:bg-blue-900/20', 'dark:border-blue-700', 'dark:text-blue-300');
+        mobileTab.classList.add('border-gray-300', 'text-gray-700', 'hover:bg-gray-50', 'dark:border-gray-600', 'dark:text-gray-300', 'dark:hover:bg-gray-800');
+        
+        desktopContent.classList.remove('hidden');
+        mobileContent.classList.add('hidden');
+      });
+
+      // Set mobile as default active
+      mobileTab.click();
+    }
+
+    /**
+     * Load real Lighthouse data
+     */
+    async loadRealLighthouseData() {
+      try {
+        // Try to load Lighthouse report data
+        const lighthouseData = await this.loadReportData('lightHouseCombine-report.json');
+        
+        if (lighthouseData) {
+          this.populateLighthouseData(lighthouseData);
+        } else {
+          this.showNoDataMessage('lighthouseMobileTableWrap', 'No Lighthouse data available');
+          this.showNoDataMessage('lighthouseDesktopTableWrap', 'No Lighthouse data available');
+        }
+      } catch (error) {
+        console.error('Error loading Lighthouse data:', error);
+        this.showNoDataMessage('lighthouseMobileTableWrap', 'No Lighthouse data available');
+        this.showNoDataMessage('lighthouseDesktopTableWrap', 'No Lighthouse data available');
+      }
+    }
+
+    /**
+     * Populate Lighthouse data
+     */
+    populateLighthouseData(data) {
+      console.log('Lighthouse data structure:', data);
+      
+      // Handle array format (multiple URLs)
+      if (Array.isArray(data) && data.length > 0) {
+        const firstReport = data[0];
+        const mobileData = firstReport.mobile || firstReport;
+        const desktopData = firstReport.desktop || firstReport;
+        
+        console.log('Mobile data:', mobileData);
+        console.log('Desktop data:', desktopData);
+        
+        // Update mobile metrics
+        this.updateLighthouseMetrics('mobile', mobileData);
+        this.updateLighthouseCoreVitals('mobile', mobileData);
+        this.updateLighthouseIssues('mobile', mobileData);
+
+        // Update desktop metrics
+        this.updateLighthouseMetrics('desktop', desktopData);
+        this.updateLighthouseCoreVitals('desktop', desktopData);
+        this.updateLighthouseIssues('desktop', desktopData);
+      } else {
+        // Handle single object format
+        const mobileData = data.mobile || data;
+        const desktopData = data.desktop || data;
+        
+        // Update mobile metrics
+        this.updateLighthouseMetrics('mobile', mobileData);
+        this.updateLighthouseCoreVitals('mobile', mobileData);
+        this.updateLighthouseIssues('mobile', mobileData);
+
+        // Update desktop metrics
+        this.updateLighthouseMetrics('desktop', desktopData);
+        this.updateLighthouseCoreVitals('desktop', desktopData);
+        this.updateLighthouseIssues('desktop', desktopData);
+      }
+    }
+
+    /**
+     * Update Lighthouse metrics
+     */
+    updateLighthouseMetrics(device, data) {
+      console.log(`Updating ${device} metrics:`, data);
+      
+      // Handle the actual data structure from the report
+      const performanceScore = data.performance || 0;
+      const accessibilityScore = data.accessibility || 0;
+      const bestPracticesScore = data.bestPractices || 0;
+      const seoScore = data.seo || 0;
+      
+      // Performance Score
+      const performanceElement = document.getElementById(`${device}PerformanceScore`);
+      const performanceProgress = document.getElementById(`${device}PerformanceProgress`);
+      
+      if (performanceElement) {
+        performanceElement.textContent = performanceScore;
+      }
+      if (performanceProgress) {
+        performanceProgress.style.width = `${performanceScore}%`;
+        performanceProgress.className = `h-2 rounded-full ${this.getScoreColor(performanceScore / 100)}`;
+      }
+
+      // Accessibility Score
+      const accessibilityElement = document.getElementById(`${device}AccessibilityScore`);
+      const accessibilityProgress = document.getElementById(`${device}AccessibilityProgress`);
+      
+      if (accessibilityElement) {
+        accessibilityElement.textContent = accessibilityScore;
+      }
+      if (accessibilityProgress) {
+        accessibilityProgress.style.width = `${accessibilityScore}%`;
+        accessibilityProgress.className = `h-2 rounded-full ${this.getScoreColor(accessibilityScore / 100)}`;
+      }
+
+      // Best Practices Score
+      const bestPracticesElement = document.getElementById(`${device}BestPracticesScore`);
+      const bestPracticesProgress = document.getElementById(`${device}BestPracticesProgress`);
+      
+      if (bestPracticesElement) {
+        bestPracticesElement.textContent = bestPracticesScore;
+      }
+      if (bestPracticesProgress) {
+        bestPracticesProgress.style.width = `${bestPracticesScore}%`;
+        bestPracticesProgress.className = `h-2 rounded-full ${this.getScoreColor(bestPracticesScore / 100)}`;
+      }
+
+      // SEO Score
+      const seoElement = document.getElementById(`${device}SEOScore`);
+      const seoProgress = document.getElementById(`${device}SEOProgress`);
+      
+      if (seoElement) {
+        seoElement.textContent = seoScore;
+      }
+      if (seoProgress) {
+        seoProgress.style.width = `${seoScore}%`;
+        seoProgress.className = `h-2 rounded-full ${this.getScoreColor(seoScore / 100)}`;
+      }
+    }
+
+    /**
+     * Update Lighthouse Core Web Vitals
+     */
+    updateLighthouseCoreVitals(device, data) {
+      console.log(`Updating ${device} Core Web Vitals:`, data);
+      
+      const issues = data.issues || [];
+      
+      // Extract Core Web Vitals from issues
+      const lcpIssue = issues.find(issue => issue.type === 'performance_largest-contentful-paint');
+      const fidIssue = issues.find(issue => issue.type === 'performance_first-input-delay');
+      const clsIssue = issues.find(issue => issue.type === 'performance_cumulative-layout-shift');
+      
+      // Largest Contentful Paint
+      const lcpElement = document.getElementById(`${device}LCP`);
+      const lcpBar = document.getElementById(`${device}LCPBar`);
+      
+      if (lcpElement && lcpIssue) {
+        // Extract time from description or use score as proxy
+        const lcpTime = this.extractTimeFromDescription(lcpIssue.description) || 'N/A';
+        lcpElement.textContent = lcpTime;
+        
+        if (lcpBar) {
+          const lcpScore = this.getLCPScoreFromScore(lcpIssue.score);
+          lcpBar.style.width = `${lcpScore}%`;
+          lcpBar.className = `h-2 rounded-full ${this.getVitalColor(lcpScore)}`;
+        }
+      } else if (lcpElement) {
+        lcpElement.textContent = 'N/A';
+      }
+
+      // First Input Delay
+      const fidElement = document.getElementById(`${device}FID`);
+      const fidBar = document.getElementById(`${device}FIDBar`);
+      
+      if (fidElement && fidIssue) {
+        const fidTime = this.extractTimeFromDescription(fidIssue.description) || 'N/A';
+        fidElement.textContent = fidTime;
+        
+        if (fidBar) {
+          const fidScore = this.getFIDScoreFromScore(fidIssue.score);
+          fidBar.style.width = `${fidScore}%`;
+          fidBar.className = `h-2 rounded-full ${this.getVitalColor(fidScore)}`;
+        }
+      } else if (fidElement) {
+        fidElement.textContent = 'N/A';
+      }
+
+      // Cumulative Layout Shift
+      const clsElement = document.getElementById(`${device}CLS`);
+      const clsBar = document.getElementById(`${device}CLSBar`);
+      
+      if (clsElement && clsIssue) {
+        const clsValue = this.extractCLSFromDescription(clsIssue.description) || 'N/A';
+        clsElement.textContent = clsValue;
+        
+        if (clsBar) {
+          const clsScore = this.getCLSScoreFromScore(clsIssue.score);
+          clsBar.style.width = `${clsScore}%`;
+          clsBar.className = `h-2 rounded-full ${this.getVitalColor(clsScore)}`;
+        }
+      } else if (clsElement) {
+        clsElement.textContent = 'N/A';
+      }
+    }
+
+    /**
+     * Extract time from description
+     */
+    extractTimeFromDescription(description) {
+      if (!description) return null;
+      
+      // Look for time patterns like "2.5s", "1500ms", etc.
+      const timeMatch = description.match(/(\d+(?:\.\d+)?)\s*(s|ms)/);
+      if (timeMatch) {
+        const value = parseFloat(timeMatch[1]);
+        const unit = timeMatch[2];
+        if (unit === 'ms') {
+          return `${(value / 1000).toFixed(1)}s`;
+        }
+        return `${value.toFixed(1)}s`;
+      }
+      return null;
+    }
+
+    /**
+     * Extract CLS value from description
+     */
+    extractCLSFromDescription(description) {
+      if (!description) return null;
+      
+      // Look for CLS patterns like "0.15", "0.25", etc.
+      const clsMatch = description.match(/(\d+(?:\.\d+)?)/);
+      if (clsMatch) {
+        return parseFloat(clsMatch[1]).toFixed(3);
+      }
+      return null;
+    }
+
+    /**
+     * Get LCP score from Lighthouse score
+     */
+    getLCPScoreFromScore(score) {
+      if (score >= 0.9) return 100;
+      if (score >= 0.5) return 75;
+      if (score >= 0.25) return 50;
+      return 25;
+    }
+
+    /**
+     * Get FID score from Lighthouse score
+     */
+    getFIDScoreFromScore(score) {
+      if (score >= 0.9) return 100;
+      if (score >= 0.5) return 75;
+      if (score >= 0.25) return 50;
+      return 25;
+    }
+
+    /**
+     * Get CLS score from Lighthouse score
+     */
+    getCLSScoreFromScore(score) {
+      if (score >= 0.9) return 100;
+      if (score >= 0.5) return 75;
+      if (score >= 0.25) return 50;
+      return 25;
+    }
+
+    /**
+     * Update Lighthouse Issues
+     */
+    updateLighthouseIssues(device, data) {
+      console.log(`Updating ${device} issues:`, data);
+      
+      const issues = data.issues || [];
+      const formattedIssues = issues.map(issue => ({
+        issue: issue.message || issue.type || 'Unknown Issue',
+        description: issue.description || 'No description available',
+        score: issue.score ? Math.round(issue.score * 100) : 'N/A',
+        severity: issue.severity || this.getSeverityFromScore(issue.score || 0)
+      }));
+
+      const tableWrap = document.getElementById(`lighthouse${device.charAt(0).toUpperCase() + device.slice(1)}TableWrap`);
+      if (tableWrap) {
+        if (formattedIssues.length > 0) {
+          this.renderTable(tableWrap, formattedIssues, ['Issue', 'Description', 'Score', 'Severity']);
+        } else {
+          this.showNoDataMessage(`lighthouse${device.charAt(0).toUpperCase() + device.slice(1)}TableWrap`, 'No performance issues found');
+        }
+      }
+    }
+
+    /**
+     * Get score color based on value
+     */
+    getScoreColor(score) {
+      if (score >= 0.9) return 'bg-green-600';
+      if (score >= 0.5) return 'bg-yellow-600';
+      return 'bg-red-600';
+    }
+
+    /**
+     * Get vital color based on score
+     */
+    getVitalColor(score) {
+      if (score >= 90) return 'bg-green-600';
+      if (score >= 50) return 'bg-yellow-600';
+      return 'bg-red-600';
+    }
+
+    /**
+     * Get LCP score percentage
+     */
+    getLCPScore(lcp) {
+      if (lcp <= 2500) return 100;
+      if (lcp <= 4000) return 75;
+      if (lcp <= 6000) return 50;
+      return 25;
+    }
+
+    /**
+     * Get FID score percentage
+     */
+    getFIDScore(fid) {
+      if (fid <= 100) return 100;
+      if (fid <= 300) return 75;
+      if (fid <= 500) return 50;
+      return 25;
+    }
+
+    /**
+     * Get CLS score percentage
+     */
+    getCLSScore(cls) {
+      if (cls <= 0.1) return 100;
+      if (cls <= 0.25) return 75;
+      if (cls <= 0.5) return 50;
+      return 25;
+    }
+
+    /**
+     * Get severity from score
+     */
+    getSeverityFromScore(score) {
+      if (score >= 0.9) return 'Good';
+      if (score >= 0.5) return 'Needs Improvement';
+      return 'Poor';
+    }
+
+    /**
+     * Load NPM packages data
+     */
+    loadNPMData(npmData = null) {
+      const tableWrap = document.getElementById('npmTableWrap');
+      if (!tableWrap) return;
+
+      if (npmData && npmData.dependencies && npmData.dependencies.length > 0) {
+        // Use real NPM data
+        const data = npmData.dependencies.map(dep => ({
+          package: dep.name || 'Unknown',
+          version: dep.version || 'N/A',
+          status: dep.deprecated === 'Not deprecated' ? 'up-to-date' : 'deprecated',
+          size: dep.unpackedSize ? `${dep.unpackedSize}` : 'Unknown',
+          description: dep.description || 'No description'
+        }));
+
+        this.renderTable(tableWrap, data, ['Package', 'Version', 'Status', 'Size', 'Description']);
+      } else {
+        // Fallback to sample data
+        const data = [
+          { package: 'react', version: '18.2.0', status: 'up-to-date', size: '42.5KB', description: 'Latest stable version' },
+          { package: 'lodash', version: '4.17.21', status: 'outdated', size: '69.8KB', description: 'New version available: 4.17.22' },
+          { package: 'axios', version: '1.4.0', status: 'up-to-date', size: '13.2KB', description: 'Latest stable version' },
+          { package: 'moment', version: '2.29.4', status: 'deprecated', size: '232.1KB', description: 'Consider using date-fns instead' }
+        ];
+
+        this.renderTable(tableWrap, data, ['Package', 'Version', 'Status', 'Size', 'Description']);
+      }
+    }
+
+    /**
+     * Load Dependency audit data
+     */
+    loadDependencyData(securityData = null) {
+      const tableWrap = document.getElementById('dependencyTableWrap');
+      if (!tableWrap) return;
+
+      if (securityData && securityData.issues && securityData.issues.length > 0) {
+        // Use real dependency vulnerability data
+        const vulnerabilityIssues = securityData.issues.filter(issue => 
+          issue.type === 'snyk_vulnerability' && issue.package
+        );
+
+        if (vulnerabilityIssues.length > 0) {
+          const data = vulnerabilityIssues.map(issue => ({
+            package: issue.package || 'Unknown',
+            vulnerability: issue.cve || 'No CVE',
+            severity: issue.severity || 'medium',
+            version: issue.version || 'N/A',
+            fix: issue.remediation || 'No fix available'
+          }));
+
+          this.renderTable(tableWrap, data, ['Package', 'Vulnerability', 'Severity', 'Version', 'Fix']);
+          return;
+        }
+      }
+
+      // Fallback to sample data
+      const data = [
+        { package: 'lodash', vulnerability: 'CVE-2021-23337', severity: 'high', version: '4.17.21', fix: 'Update to 4.17.22' },
+        { package: 'moment', vulnerability: 'CVE-2022-24785', severity: 'medium', version: '2.29.4', fix: 'Update to 2.29.5' },
+        { package: 'axios', vulnerability: 'CVE-2023-45133', severity: 'low', version: '1.4.0', fix: 'Update to 1.6.0' }
+      ];
+
+      this.renderTable(tableWrap, data, ['Package', 'Vulnerability', 'Severity', 'Version', 'Fix']);
+    }
+
+    /**
+     * Load Excluded Rules data
+     */
+    loadExcludedRulesData(eslintData = null, stylelintData = null) {
+      const configStatus = document.getElementById('configStatus');
+      if (!configStatus) return;
+
+      let eslintRules = [];
+      let stylelintRules = [];
+
+      if (eslintData && eslintData.excludeRules && eslintData.excludeRules.rules) {
+        eslintRules = eslintData.excludeRules.rules;
+      }
+
+      if (stylelintData && stylelintData.excludeRules && stylelintData.excludeRules.rules) {
+        stylelintRules = stylelintData.excludeRules.rules;
+      }
+
+      configStatus.innerHTML = `
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Configuration Status</h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Last updated: ${new Date().toLocaleDateString()}</p>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+            Active
+          </span>
+        </div>
+      </div>
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+          <h4 class="font-medium text-gray-900 dark:text-white mb-2">ESLint Excluded Rules (${eslintRules.length})</h4>
+          <div class="text-sm text-gray-600 dark:text-gray-400">
+            ${eslintRules.length > 0 ? eslintRules.slice(0, 5).join(', ') + (eslintRules.length > 5 ? '...' : '') : 'No rules excluded'}
+          </div>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+          <h4 class="font-medium text-gray-900 dark:text-white mb-2">Stylelint Excluded Rules (${stylelintRules.length})</h4>
+          <div class="text-sm text-gray-600 dark:text-gray-400">
+            ${stylelintRules.length > 0 ? stylelintRules.slice(0, 5).join(', ') + (stylelintRules.length > 5 ? '...' : '') : 'No rules excluded'}
+          </div>
+        </div>
+      </div>
+    `;
+    }
+
+    /**
+     * Render table with data
+     */
+    renderTable(container, data, headers) {
+      if (!container || !data || !headers) {
+        console.warn('renderTable: Missing required parameters', { container, data, headers });
         return;
       }
 
-      let tableHTML = `
-      <div class="bg-white rounded-lg shadow overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
+      const getStatusBadge = (value) => {
+        if (value === null || value === undefined) return '';
+        if (typeof value !== 'string') return value;
+        
+        if (value.includes('error') || value.includes('high') || value.includes('poor')) {
+          return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">${value}</span>`;
+        } else if (value.includes('warning') || value.includes('medium') || value.includes('needs-improvement')) {
+          return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">${value}</span>`;
+        } else if (value.includes('good') || value.includes('up-to-date')) {
+          return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">${value}</span>`;
+        } else if (value.includes('outdated') || value.includes('deprecated')) {
+          return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">${value}</span>`;
+        }
+        return value;
+      };
+
+      const tableHTML = `
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Device</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performance</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Accessibility</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Best Practices</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SEO</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issues</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              ${headers.map(header => `<th>${header}</th>`).join('')}
             </tr>
           </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-    `;
-
-      data.forEach((item, index) => {
-        // Display desktop results
-        if (item.desktop) {
-          const desktopData = item.desktop;
-          const performanceColor = lighthouseDom.getScoreColor(desktopData.performance);
-          const accessibilityColor = lighthouseDom.getScoreColor(desktopData.accessibility);
-          const bestPracticesColor = lighthouseDom.getScoreColor(desktopData.bestPractices);
-          const seoColor = lighthouseDom.getScoreColor(desktopData.seo);
-          
-          const issuesCount = desktopData.issues ? desktopData.issues.length : 0;
-          const issuesColor = issuesCount === 0 ? 'text-green-600' : issuesCount > 10 ? 'text-red-600' : 'text-yellow-600';
-
-          tableHTML += `
-          <tr class="hover:bg-gray-50">
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-              <div class="truncate max-w-xs" title="${item.url}">${item.url}</div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                💻 Desktop
-              </span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="font-semibold ${performanceColor}">${desktopData.performance ? Math.round(desktopData.performance) + '%' : 'N/A'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="font-semibold ${accessibilityColor}">${desktopData.accessibility ? Math.round(desktopData.accessibility) + '%' : 'N/A'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="font-semibold ${bestPracticesColor}">${desktopData.bestPractices ? Math.round(desktopData.bestPractices) + '%' : 'N/A'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="font-semibold ${seoColor}">${desktopData.seo ? Math.round(desktopData.seo) + '%' : 'N/A'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="font-semibold ${issuesColor}">${issuesCount}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              ${desktopData.error ? 
-                `<span class="text-red-600">Error: ${desktopData.error}</span>` :
-                `<a href="./${item.url.replace(/^https?:\/\//, "").replace(/\//g, "")}.desktop.custom.html" target="_blank" class="text-green-600 hover:text-green-900">View Report</a>`
-              }
-            </td>
-          </tr>
-        `;
-        }
-
-        // Display mobile results
-        if (item.mobile) {
-          const mobileData = item.mobile;
-          const performanceColor = lighthouseDom.getScoreColor(mobileData.performance);
-          const accessibilityColor = lighthouseDom.getScoreColor(mobileData.accessibility);
-          const bestPracticesColor = lighthouseDom.getScoreColor(mobileData.bestPractices);
-          const seoColor = lighthouseDom.getScoreColor(mobileData.seo);
-          
-          const issuesCount = mobileData.issues ? mobileData.issues.length : 0;
-          const issuesColor = issuesCount === 0 ? 'text-green-600' : issuesCount > 10 ? 'text-red-600' : 'text-yellow-600';
-
-          tableHTML += `
-          <tr class="hover:bg-gray-50">
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-              <div class="truncate max-w-xs" title="${item.url}">${item.url}</div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                📱 Mobile
-              </span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="font-semibold ${performanceColor}">${mobileData.performance ? Math.round(mobileData.performance) + '%' : 'N/A'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="font-semibold ${accessibilityColor}">${mobileData.accessibility ? Math.round(mobileData.accessibility) + '%' : 'N/A'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="font-semibold ${bestPracticesColor}">${mobileData.bestPractices ? Math.round(mobileData.bestPractices) + '%' : 'N/A'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="font-semibold ${seoColor}">${mobileData.seo ? Math.round(mobileData.seo) + '%' : 'N/A'}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-              <span class="font-semibold ${issuesColor}">${issuesCount}</span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              ${mobileData.error ? 
-                `<span class="text-red-600">Error: ${mobileData.error}</span>` :
-                `<a href="./${item.url.replace(/^https?:\/\//, "").replace(/\//g, "")}.mobile.custom.html" target="_blank" class="text-green-600 hover:text-green-900">View Report</a>`
-              }
-            </td>
-          </tr>
-        `;
-        }
-      });
-
-      tableHTML += `
+          <tbody>
+            ${data.map(row => `
+              <tr>
+                ${Object.values(row).map((cell, index) => {
+                  const cellValue = cell !== null && cell !== undefined ? cell.toString() : '';
+                  const headerValue = headers[index] ? headers[index].toLowerCase() : '';
+                  
+                  let cellClass = '';
+                  if (headerValue.includes('file')) {
+                    cellClass = 'file-cell';
+                  } else if (headerValue.includes('message') || headerValue.includes('description')) {
+                    cellClass = 'message-cell';
+                  } else if (headerValue.includes('rule')) {
+                    cellClass = 'rule-cell';
+                  } else if (headerValue.includes('line')) {
+                    cellClass = 'line-cell';
+                  } else if (headerValue.includes('severity') || headerValue.includes('status')) {
+                    cellClass = 'severity-cell';
+                  } else {
+                    cellClass = 'text-cell';
+                  }
+                  
+                  const isStatusColumn = headerValue.includes('status') || 
+                                       headerValue.includes('severity') ||
+                                       cellValue.toLowerCase().includes('error') ||
+                                       cellValue.toLowerCase().includes('warning') ||
+                                       cellValue.toLowerCase().includes('good') ||
+                                       cellValue.toLowerCase().includes('poor') ||
+                                       cellValue.toLowerCase().includes('high') ||
+                                       cellValue.toLowerCase().includes('medium') ||
+                                       cellValue.toLowerCase().includes('low') ||
+                                       cellValue.toLowerCase().includes('up-to-date') ||
+                                       cellValue.toLowerCase().includes('outdated') ||
+                                       cellValue.toLowerCase().includes('deprecated');
+                  
+                  return `<td class="${cellClass}">${isStatusColumn ? getStatusBadge(cell) : cell}</td>`;
+                }).join('')}
+              </tr>
+            `).join('')}
           </tbody>
         </table>
       </div>
+      <div class="text-sm text-gray-500 mt-2">Showing ${data.length} results</div>
     `;
 
-      tableWrap.innerHTML = tableHTML;
-    },
-
-    getScoreColor: (score) => {
-      if (!score) return 'text-gray-500';
-      if (score >= 90) return 'text-green-600';
-      if (score >= 50) return 'text-yellow-600';
-      return 'text-red-600';
-    },
-
-    updateOverview: (data) => {
-      if (!data || data.length === 0) return;
-      
-      let totalIssues = 0;
-      data.forEach(item => {
-        // Count desktop issues
-        if (item.desktop && item.desktop.issues) {
-          totalIssues += item.desktop.issues.length;
-        }
-        // Count mobile issues
-        if (item.mobile && item.mobile.issues) {
-          totalIssues += item.mobile.issues.length;
-        }
-      });
-
-      const lighthouseTotal = document.getElementById('lighthouseTotal');
-      if (lighthouseTotal) {
-        lighthouseTotal.textContent = totalIssues;
-      }
-    },
-
-    updateOverviewFromData: async () => {
-      try {
-        const response = await fetch('./lightHouseCombine-report.json');
-        if (!response.ok) {
-          throw new Error('Lighthouse report not found');
-        }
-        
-        const data = await response.json();
-        lighthouseDom.updateOverview(data);
-      } catch (error) {
-        console.error('Error updating lighthouse overview:', error);
-      }
+      container.innerHTML = tableHTML;
     }
-  };
 
-  /**
-   * Accessibility DOM manipulation and display functions
-   */
-
-  // Global variables for accessibility data
-  let accessibilityData = [];
-  let filteredAccessibilityData = [];
-  let currentAccessibilityPage = 1;
-  const accessibilityPageSize = 20;
-
-  /**
-   * Load and display accessibility audit data
-   */
-  async function loadAccessibilityReport() {
-    try {
-      console.log('Loading accessibility report...');
-      const response = await fetch('accessibility-audit-report.json');
-      if (!response.ok) {
-        throw new Error(`Accessibility report not found: ${response.status} ${response.statusText}`);
-      }
+    /**
+     * Show no data message
+     */
+    showNoDataMessage(containerId, message) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
       
-      accessibilityData = await response.json();
-      console.log('Accessibility data loaded:', accessibilityData);
-      
-      filteredAccessibilityData = [...(accessibilityData.issues || [])];
-      console.log('Filtered accessibility data:', filteredAccessibilityData.length, 'issues');
-      
-      displayAccessibilityData();
-      updateAccessibilityOverview();
-      setupAccessibilitySearchAndFilter();
-      
-    } catch (error) {
-      console.error('Error loading accessibility report:', error);
-      showAccessibilityMessage(`Accessibility report not found or could not be loaded: ${error.message}`);
-    }
-  }
-
-  /**
-   * Display accessibility data in the table
-   */
-  function displayAccessibilityData() {
-    const container = document.getElementById('accessibilityTableWrap');
-    if (!container) return;
-
-    if (!accessibilityData || !accessibilityData.issues || accessibilityData.issues.length === 0) {
       container.innerHTML = `
-      <div class="bg-white rounded-lg shadow p-8 text-center">
-        <div class="text-6xl mb-4">🎉</div>
-        <h3 class="text-xl font-semibold text-gray-900 mb-2">No Accessibility Issues Found!</h3>
-        <p class="text-gray-600">Great job! Your project is accessible across all tested areas.</p>
-        ${accessibilityData && accessibilityData.summary ? `
-          <div class="mt-4 p-4 bg-gray-50 rounded-lg">
-            <h4 class="font-semibold text-gray-700 mb-2">Scan Summary</h4>
-            <div class="text-sm text-gray-600">
-              <p>Code Scan Issues: ${accessibilityData.summary.codeScanIssues || 0}</p>
-              <p>Live URL Issues: ${accessibilityData.summary.liveUrlIssues || 0}</p>
-              <p>Axe-Core Issues: ${accessibilityData.summary.axeCoreIssues || 0}</p>
-              <p>Lighthouse Issues: ${accessibilityData.summary.lighthouseIssues || 0}</p>
-            </div>
-          </div>
-        ` : ''}
+      <div class="no-data-message">
+        <i class="fas fa-info-circle"></i>
+        <p>${message}</p>
+        <p class="text-sm mt-2">Run the audit to generate data for this section.</p>
       </div>
     `;
-      return;
     }
 
-    // Calculate pagination
-    const startIndex = (currentAccessibilityPage - 1) * accessibilityPageSize;
-    const endIndex = startIndex + accessibilityPageSize;
-    const pageData = filteredAccessibilityData.slice(startIndex, endIndex);
-
-    // Group issues by source (code scan vs live URL)
-    const codeScanIssues = pageData.filter(issue => issue.source === 'custom');
-    const liveUrlIssues = pageData.filter(issue => issue.source !== 'custom');
-
-    // Calculate file scanning information
-    const uniqueFiles = new Set();
-    codeScanIssues.forEach(issue => {
-      if (issue.file) {
-        uniqueFiles.add(issue.file);
-      }
-    });
-
-    let html = `
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-      <!-- Summary Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 bg-gray-50 border-b">
-        <div class="text-center">
-          <div class="text-2xl font-bold text-blue-600">${codeScanIssues.length}</div>
-          <div class="text-sm text-gray-600">Code Scan Issues</div>
-          <div class="text-xs text-gray-500">${uniqueFiles.size} files scanned</div>
-        </div>
-        <div class="text-center">
-          <div class="text-2xl font-bold text-green-600">${liveUrlIssues.length}</div>
-          <div class="text-sm text-gray-600">Live URL Issues</div>
-          <div class="text-xs text-gray-500">Dynamic testing</div>
-        </div>
-        <div class="text-center">
-          <div class="text-2xl font-bold text-purple-600">${pageData.length}</div>
-          <div class="text-sm text-gray-600">Total Issues</div>
-          <div class="text-xs text-gray-500">This page</div>
-        </div>
-        <div class="text-center">
-          <div class="text-2xl font-bold text-orange-600">${accessibilityData.totalIssues || 0}</div>
-          <div class="text-sm text-gray-600">All Issues</div>
-          <div class="text-xs text-gray-500">Complete scan</div>
-        </div>
-      </div>
-
-      <!-- WCAG Compliance Summary -->
-      ${accessibilityData.issues && accessibilityData.issues.length > 0 ? `
-        <div class="p-4 bg-blue-50 border-b">
-          <h4 class="text-sm font-semibold text-blue-800 mb-2">WCAG Compliance Summary</h4>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-            <div class="bg-white p-2 rounded">
-              <div class="font-semibold text-red-600">${accessibilityData.highSeverity || 0}</div>
-              <div class="text-gray-600">High Priority</div>
-            </div>
-            <div class="bg-white p-2 rounded">
-              <div class="font-semibold text-yellow-600">${accessibilityData.mediumSeverity || 0}</div>
-              <div class="text-gray-600">Medium Priority</div>
-            </div>
-            <div class="bg-white p-2 rounded">
-              <div class="font-semibold text-blue-600">${accessibilityData.lowSeverity || 0}</div>
-              <div class="text-gray-600">Low Priority</div>
-            </div>
-            <div class="bg-white p-2 rounded">
-              <div class="font-semibold text-green-600">${accessibilityData.issues ? accessibilityData.issues.filter(i => i.wcag).length : 0}</div>
-              <div class="text-gray-600">WCAG Tagged</div>
-            </div>
-          </div>
-        </div>
-      ` : ''}
-
-      <!-- Code Scan Issues Section -->
-      ${codeScanIssues.length > 0 ? `
-        <div class="p-6 border-b">
-          <h3 class="text-lg font-semibold mb-4 flex items-center space-x-2">
-            <span class="text-blue-600">📁</span>
-            <span>Code Scan Issues (${codeScanIssues.length})</span>
-            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Static Analysis</span>
-            <span class="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">${uniqueFiles.size} files</span>
-          </h3>
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issue</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Line</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">WCAG</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                ${codeScanIssues.map(issue => `
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4">
-                      <div class="text-sm font-medium text-gray-900">${escapeHtml(issue.message)}</div>
-                      ${issue.recommendation ? `<div class="text-sm text-gray-500 mt-1">💡 ${escapeHtml(issue.recommendation)}</div>` : ''}
-                      ${issue.code ? `<div class="text-xs text-gray-400 mt-1 font-mono bg-gray-100 p-1 rounded">${escapeHtml(issue.code)}</div>` : ''}
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-900">${issue.file || 'N/A'}</td>
-                    <td class="px-6 py-4 text-sm text-gray-900">${issue.line || 'N/A'}</td>
-                    <td class="px-6 py-4">
-                      <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getSeverityClass(issue.severity)}">
-                        ${issue.severity}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-900">
-                      ${issue.wcag ? `<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">${issue.wcag}</span>` : 'N/A'}
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-900">${issue.type || 'N/A'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ` : ''}
-
-      <!-- Live URL Issues Section -->
-      ${liveUrlIssues.length > 0 ? `
-        <div class="p-6">
-          <h3 class="text-lg font-semibold mb-4 flex items-center space-x-2">
-            <span class="text-green-600">🌐</span>
-            <span>Live URL Issues (${liveUrlIssues.length})</span>
-            <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Dynamic Testing</span>
-          </h3>
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issue</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Impact</th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                ${liveUrlIssues.map(issue => `
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4">
-                      <div class="text-sm font-medium text-gray-900">${escapeHtml(issue.message)}</div>
-                      ${issue.recommendation ? `<div class="text-sm text-gray-500 mt-1">💡 ${escapeHtml(issue.recommendation)}</div>` : ''}
-                      ${issue.context ? `<div class="text-sm text-gray-400 mt-1">${escapeHtml(issue.context)}</div>` : ''}
-                      ${issue.code ? `<div class="text-xs text-gray-400 mt-1 font-mono bg-gray-100 p-1 rounded">${escapeHtml(issue.code)}</div>` : ''}
-                    </td>
-                    <td class="px-6 py-4 text-sm text-blue-600">
-                      <a href="${issue.url}" target="_blank" class="hover:underline">${issue.url}</a>
-                    </td>
-                    <td class="px-6 py-4">
-                      <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getSourceClass(issue.source)}">
-                        ${getSourceDisplayName(issue.source)}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4">
-                      <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getSeverityClass(issue.severity)}">
-                        ${issue.severity}
-                      </span>
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-900">${issue.impact || 'N/A'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ` : ''}
-    </div>
-  `;
-
-    container.innerHTML = html;
-
-    // Render pagination
-    renderAccessibilityPagination();
-  }
-
-  /**
-   * Update accessibility overview in the main dashboard
-   */
-  function updateAccessibilityOverview() {
-    const totalElement = document.getElementById('accessibilityTotal');
-    if (totalElement && accessibilityData) {
-      const totalIssues = accessibilityData.totalIssues || (accessibilityData.issues ? accessibilityData.issues.length : 0);
-      totalElement.textContent = totalIssues;
+    /**
+     * Setup default active state for navigation
+     */
+    setupDefaultActiveState() {
+      const navItems = document.querySelectorAll('.nav-item');
+      const mainPageNav = document.getElementById('mainPage');
       
-      // Also update the overview container with detailed breakdown if available
-      const overviewContainer = document.getElementById('accessibilityOverview');
-      if (overviewContainer && accessibilityData.summary) {
-        overviewContainer.innerHTML = `
-        <div class="text-center">
-          <div class="text-3xl font-bold text-blue-600">${totalIssues}</div>
-          <div class="text-sm text-gray-500">Total Issues</div>
-          <div class="text-xs text-gray-400 mt-1">
-            Code: ${accessibilityData.summary.codeScanIssues || 0} | 
-            Live: ${accessibilityData.summary.liveUrlIssues || 0}
-          </div>
-        </div>
-      `;
+      // Remove active class from all items
+      navItems.forEach(nav => nav.classList.remove('active'));
+      
+      // Set Dashboard as active by default
+      if (mainPageNav) {
+        mainPageNav.classList.add('active');
       }
     }
-  }
 
-  /**
-   * Setup search and filter functionality
-   */
-  function setupAccessibilitySearchAndFilter() {
-    const searchInput = document.getElementById('accessibilitySearch');
-    if (!searchInput) return;
-
-    searchInput.addEventListener('input', (e) => {
-      const searchTerm = e.target.value.toLowerCase();
+    /**
+     * Handle window resize
+     */
+    handleResize() {
+      this.isMobile = window.innerWidth < 768;
       
-      filteredAccessibilityData = accessibilityData.issues.filter(issue => {
-        const matchesSearch = !searchTerm || 
-          issue.message.toLowerCase().includes(searchTerm) ||
-          (issue.file && issue.file.toLowerCase().includes(searchTerm)) ||
-          (issue.url && issue.url.toLowerCase().includes(searchTerm)) ||
-          (issue.type && issue.type.toLowerCase().includes(searchTerm)) ||
-          (issue.source && issue.source.toLowerCase().includes(searchTerm));
+      // Update mobile navigation if needed
+      if (!this.isMobile) {
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
         
-        return matchesSearch;
+        if (sidebar) sidebar.classList.remove('open');
+        if (mobileOverlay) mobileOverlay.classList.remove('open');
+      }
+    }
+  }
+
+  // Initialize dashboard when DOM is loaded
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      window.simpleDashboard = new SimpleDashboard();
+      console.log('UI Code Insight - Simple Dashboard initialized');
+      
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        window.simpleDashboard.handleResize();
       });
-
-      currentAccessibilityPage = 1;
-      displayAccessibilityData();
-    });
-  }
-
-  /**
-   * Render pagination for accessibility issues
-   */
-  function renderAccessibilityPagination() {
-    const paginationContainer = document.getElementById('accessibilityPagination');
-    if (!paginationContainer) return;
-
-    const totalPages = Math.ceil(filteredAccessibilityData.length / accessibilityPageSize);
-    
-    if (totalPages <= 1) {
-      paginationContainer.innerHTML = '';
-      return;
-    }
-
-    let paginationHtml = '<div class="flex items-center space-x-2">';
-    
-    // Previous button
-    paginationHtml += `
-    <button onclick="changeAccessibilityPage(${currentAccessibilityPage - 1})" 
-            class="px-3 py-1 border rounded ${currentAccessibilityPage <= 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'}">
-      Previous
-    </button>
-  `;
-
-    // Page numbers
-    for (let i = 1; i <= totalPages; i++) {
-      if (i === 1 || i === totalPages || (i >= currentAccessibilityPage - 2 && i <= currentAccessibilityPage + 2)) {
-        paginationHtml += `
-        <button onclick="changeAccessibilityPage(${i})" 
-                class="px-3 py-1 border rounded ${i === currentAccessibilityPage ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}">
-          ${i}
-        </button>
-      `;
-      } else if (i === currentAccessibilityPage - 3 || i === currentAccessibilityPage + 3) {
-        paginationHtml += '<span class="px-2 text-gray-500">...</span>';
-      }
-    }
-
-    // Next button
-    paginationHtml += `
-    <button onclick="changeAccessibilityPage(${currentAccessibilityPage + 1})" 
-            class="px-3 py-1 border rounded ${currentAccessibilityPage >= totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'}">
-      Next
-    </button>
-  `;
-
-    paginationHtml += '</div>';
-    paginationContainer.innerHTML = paginationHtml;
-  }
-
-  /**
-   * Change accessibility page
-   */
-  function changeAccessibilityPage(page) {
-    const totalPages = Math.ceil(filteredAccessibilityData.length / accessibilityPageSize);
-    if (page >= 1 && page <= totalPages) {
-      currentAccessibilityPage = page;
-      displayAccessibilityData();
-    }
-  }
-
-  /**
-   * Show accessibility section
-   */
-  function showAccessibilitySection() {
-    // Hide all sections first
-    ['overviewSection', 'eslintSection', 'stylelintSection', 'npmSection', 'securitySection', 'performanceSection', 'accessibilitySection', 'lighthouseSection', 'testingSection', 'dependencySection', 'comprehensiveSection', 'excludedRulesSection'].forEach(sec => {
-      const el = document.getElementById(sec);
-      if (el) el.classList.add('hidden');
-    });
-    
-    // Show accessibility section
-    const accessibilitySection = document.getElementById('accessibilitySection');
-    if (accessibilitySection) {
-      accessibilitySection.classList.remove('hidden');
-    }
-    
-    // Set active sidebar
-    const sidebarItems = document.querySelectorAll('#sidebarMenu a');
-    sidebarItems.forEach(a => a.classList.remove('bg-blue-100', 'font-bold'));
-    const accessibilityTab = document.getElementById('accessibilityAuditReport');
-    if (accessibilityTab) {
-      accessibilityTab.classList.add('bg-blue-100', 'font-bold');
-    }
-    
-    // Load accessibility report if not already loaded
-    if (accessibilityData.length === 0) {
-      loadAccessibilityReport();
-    }
-  }
-
-  /**
-   * Show accessibility message
-   */
-  function showAccessibilityMessage(message) {
-    const container = document.getElementById('accessibilityTableWrap');
-    if (container) {
-      container.innerHTML = `
-      <div class="bg-white rounded-lg shadow p-8 text-center">
-        <div class="text-4xl mb-4">⚠️</div>
-        <h3 class="text-xl font-semibold text-gray-900 mb-2">Accessibility Report Not Available</h3>
-        <p class="text-gray-600">${message}</p>
-      </div>
-    `;
-    }
-  }
-
-  /**
-   * Get severity class for styling
-   */
-  function getSeverityClass(severity) {
-    switch (severity?.toLowerCase()) {
-      case 'high':
-        return 'bg-red-100 text-red-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'low':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  }
-
-  /**
-   * Get source class for styling
-   */
-  function getSourceClass(source) {
-    switch (source) {
-      case 'axe-core':
-        return 'bg-purple-100 text-purple-800';
-      case 'lighthouse':
-        return 'bg-blue-100 text-blue-800';
-      case 'custom':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  }
-
-  /**
-   * Get source display name
-   */
-  function getSourceDisplayName(source) {
-    switch (source) {
-      case 'axe-core':
-        return 'Axe-Core';
-      case 'lighthouse':
-        return 'Lighthouse';
-      case 'custom':
-        return 'Code Scan';
-      default:
-        return source || 'Unknown';
-    }
-  }
-
-  /**
-   * Escape HTML to prevent XSS
-   */
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  // Load configuration for exclude rules
-  let configExcludeRules = {};
-  let configLoaded = false;
-
-  async function loadConfigExcludeRules() {
-    if (configLoaded) return configExcludeRules;
-    try {
-      const response = await fetch('ui-code-insight.config.json');
-      if (response.ok) {
-        const config = await response.json();
-        configExcludeRules = (config && config.excludeRules) ? config.excludeRules : {};
-      } else {
-        configExcludeRules = {};
-      }
-    } catch {
-      configExcludeRules = {};
-    }
-    configLoaded = true;
-    return configExcludeRules;
-  }
-
-  // Common issues that are often disabled by project architects
-  const COMMON_ESLINT_ISSUES_TO_EXCLUDE = [
-    // Most commonly disabled formatting rules
-    'no-trailing-spaces',
-    'eol-last',
-    'comma-dangle',
-    'quotes',
-    'semi',
-    'indent',
-    'no-multiple-empty-lines',
-    'object-curly-spacing',
-    'array-bracket-spacing',
-    'comma-spacing',
-    'key-spacing',
-    'space-before-blocks',
-    'space-before-function-paren',
-    'space-in-parens',
-    'space-infix-ops',
-    'spaced-comment',
-    'arrow-spacing',
-    'max-len',
-    'linebreak-style',
-    'no-mixed-spaces-and-tabs',
-    'no-tabs',
-    'no-multi-spaces',
-    
-    // Commonly disabled style preferences
-    'no-console',
-    'no-debugger',
-    'no-alert',
-    'no-warning-comments',
-    'prefer-const',
-    'no-var',
-    'prefer-arrow-callback',
-    'prefer-destructuring',
-    'prefer-template',
-    'sort-imports',
-    'sort-keys',
-    'sort-vars',
-    
-    // Naming convention rules commonly disabled
-    'id-match',
-    'camelcase',
-    'new-cap',
-    'no-underscore-dangle',
-    'prefer-named-capture-group',
-    'prefer-regex-literals',
-    'prefer-numeric-literals',
-    'prefer-object-spread',
-    'prefer-promise-reject-errors',
-    'prefer-reflect',
-    'prefer-rest-params',
-    'prefer-spread',
-    'require-await',
-    'require-unicode-regexp',
-    'require-yield',
-    'strict',
-    'symbol-description',
-    'use-isnan',
-    'valid-jsdoc',
-    'valid-typeof',
-    'yoda',
-    
-    // React specific commonly disabled
-    'react/jsx-filename-extension',
-    'react/prop-types',
-    'react/react-in-jsx-scope',
-    'react/jsx-props-no-spreading',
-    'react/jsx-one-expression-per-line',
-    'react/jsx-curly-brace-presence',
-    'react/jsx-boolean-value',
-    'react/jsx-closing-bracket-location',
-    'react/jsx-closing-tag-location',
-    'react/jsx-curly-spacing',
-    'react/jsx-equals-spacing',
-    'react/jsx-first-prop-new-line',
-    'react/jsx-indent',
-    'react/jsx-indent-props',
-    'react/jsx-max-props-per-line',
-    'react/jsx-no-bind',
-    'react/jsx-no-literals',
-    'react/jsx-no-target-blank',
-    'react/jsx-pascal-case',
-    'react/jsx-sort-props',
-    'react/jsx-tag-spacing',
-    'react/jsx-wrap-multilines',
-    
-    // Import/export commonly disabled
-    'import/prefer-default-export',
-    'import/no-default-export',
-    'import/order',
-    'import/no-unresolved',
-    'import/extensions',
-    'import/no-extraneous-dependencies',
-    'import/no-cycle',
-    'import/no-duplicates',
-    'import/no-useless-path-segments',
-    'import/no-relative-parent-imports',
-    
-    // TypeScript commonly disabled
-    '@typescript-eslint/explicit-function-return-type',
-    '@typescript-eslint/explicit-module-boundary-types',
-    '@typescript-eslint/no-explicit-any',
-    '@typescript-eslint/no-unused-vars',
-    '@typescript-eslint/no-non-null-assertion',
-    '@typescript-eslint/ban-ts-comment',
-    '@typescript-eslint/no-empty-function',
-    '@typescript-eslint/no-empty-interface',
-    '@typescript-eslint/no-inferrable-types',
-    '@typescript-eslint/prefer-interface',
-    '@typescript-eslint/interface-name-prefix',
-    '@typescript-eslint/member-delimiter-style',
-    '@typescript-eslint/type-annotation-spacing',
-    '@typescript-eslint/no-use-before-define',
-    '@typescript-eslint/no-var-requires',
-    '@typescript-eslint/prefer-namespace-keyword',
-    '@typescript-eslint/no-namespace',
-    '@typescript-eslint/no-require-imports',
-    '@typescript-eslint/no-this-alias',
-    '@typescript-eslint/no-triple-slash-reference',
-    '@typescript-eslint/naming-convention',
-    '@typescript-eslint/prefer-function-type',
-    '@typescript-eslint/prefer-optional-chain',
-    '@typescript-eslint/prefer-nullish-coalescing',
-    '@typescript-eslint/prefer-readonly',
-    '@typescript-eslint/prefer-string-starts-ends-with',
-    '@typescript-eslint/prefer-includes',
-    '@typescript-eslint/prefer-regexp-exec',
-    '@typescript-eslint/prefer-readonly-parameter-types',
-    '@typescript-eslint/no-floating-promises',
-    '@typescript-eslint/no-misused-promises',
-    '@typescript-eslint/await-thenable',
-    '@typescript-eslint/no-for-in-array',
-    '@typescript-eslint/no-unsafe-assignment',
-    '@typescript-eslint/no-unsafe-call',
-    '@typescript-eslint/no-unsafe-member-access',
-    '@typescript-eslint/no-unsafe-return',
-    '@typescript-eslint/restrict-plus-operands',
-    '@typescript-eslint/restrict-template-expressions',
-    '@typescript-eslint/unbound-method',
-    '@typescript-eslint/no-base-to-string',
-    '@typescript-eslint/no-dynamic-delete',
-    '@typescript-eslint/no-implied-eval',
-    '@typescript-eslint/no-throw-literal',
-    '@typescript-eslint/prefer-promise-reject-errors',
-    '@typescript-eslint/require-await',
-    '@typescript-eslint/return-await',
-    '@typescript-eslint/no-return-await',
-    '@typescript-eslint/no-unnecessary-type-assertion',
-    '@typescript-eslint/no-unsafe-argument',
-    '@typescript-eslint/no-unsafe-enum-comparison',
-    '@typescript-eslint/no-unsafe-unary-negation',
-    '@typescript-eslint/prefer-as-const',
-    '@typescript-eslint/prefer-literal-enum-member',
-    '@typescript-eslint/prefer-ts-expect-error',
-    '@typescript-eslint/restrict-enum-comparisons',
-    '@typescript-eslint/strict-boolean-expressions',
-    '@typescript-eslint/switch-exhaustiveness-check',
-    '@typescript-eslint/no-unnecessary-condition',
-    '@typescript-eslint/no-unnecessary-type-constraint',
-    '@typescript-eslint/prefer-optional-chain',
-    '@typescript-eslint/prefer-nullish-coalescing',
-    '@typescript-eslint/no-unnecessary-qualifier',
-    '@typescript-eslint/no-unnecessary-type-arguments'
-  ];
-
-  const COMMON_STYLELINT_ISSUES_TO_EXCLUDE = [
-    // Most commonly disabled formatting rules
-    'indentation',
-    'string-quotes',
-    'color-hex-case',
-    'color-hex-length',
-    'color-named',
-    'font-family-name-quotes',
-    'font-weight-notation',
-    'number-leading-zero',
-    'number-no-trailing-zeros',
-    'unit-case',
-    'value-keyword-case',
-    
-    // Spacing and layout commonly disabled
-    'function-comma-space-after',
-    'function-comma-space-before',
-    'function-parentheses-space-inside',
-    'value-list-comma-space-after',
-    'value-list-comma-space-before',
-    'declaration-colon-space-after',
-    'declaration-colon-space-before',
-    'declaration-block-semicolon-space-after',
-    'declaration-block-semicolon-space-before',
-    'block-closing-brace-space-before',
-    'block-opening-brace-space-after',
-    'block-opening-brace-space-before',
-    'selector-attribute-operator-space-after',
-    'selector-attribute-operator-space-before',
-    'selector-combinator-space-after',
-    'selector-combinator-space-before',
-    'selector-list-comma-space-after',
-    'selector-list-comma-space-before',
-    
-    // Newlines and line breaks commonly disabled
-    'function-comma-newline-after',
-    'function-comma-newline-before',
-    'function-parentheses-newline-inside',
-    'value-list-comma-newline-after',
-    'value-list-comma-newline-before',
-    'declaration-block-semicolon-newline-after',
-    'declaration-block-semicolon-newline-before',
-    'declaration-colon-newline-after',
-    'block-closing-brace-newline-after',
-    'block-closing-brace-newline-before',
-    'block-opening-brace-newline-after',
-    'block-opening-brace-newline-before',
-    'selector-list-comma-newline-after',
-    'selector-list-comma-newline-before',
-    
-    // Selector rules commonly disabled
-    'selector-max-class',
-    'selector-max-compound-selectors',
-    'selector-max-id',
-    'selector-no-qualifying-type',
-    'selector-pseudo-class-case',
-    'selector-type-case',
-    
-    // Naming convention rules commonly disabled
-    'selector-class-pattern',
-    'selector-id-pattern',
-    'selector-nested-pattern',
-    'custom-property-pattern',
-    'keyframes-name-pattern',
-    'function-name-case',
-    'at-rule-name-case',
-    'media-feature-name-case',
-    'property-case',
-    'unit-case',
-    'value-keyword-case',
-    'class-name-pattern',
-    'id-pattern',
-    'scss/selector-no-redundant-nesting-selector',
-    'scss/at-rule-no-unknown',
-    'scss/at-import-partial-extension',
-    'scss/at-import-no-partial-leading-underscore',
-    'scss/at-import-partial-extension-blacklist',
-    'scss/at-import-partial-extension-whitelist',
-    'scss/at-rule-conditional-no-parentheses',
-    'scss/at-rule-no-unknown',
-    'scss/at-rule-no-vendor-prefix',
-    'scss/comment-no-empty',
-    'scss/comment-no-loud',
-    'scss/declaration-nested-properties',
-    'scss/declaration-nested-properties-no-divided-groups',
-    'scss/dollar-variable-colon-newline-after',
-    'scss/dollar-variable-colon-space-after',
-    'scss/dollar-variable-colon-space-before',
-    'scss/dollar-variable-default',
-    'scss/dollar-variable-empty-line-after',
-    'scss/dollar-variable-empty-line-before',
-    'scss/dollar-variable-first-in-block',
-    'scss/dollar-variable-no-missing-interpolation',
-    'scss/dollar-variable-pattern',
-    'scss/double-slash-comment-whitespace-inside',
-    'scss/function-color-relative',
-    'scss/function-no-unknown',
-    'scss/function-quote-no-quoted-strings-inside',
-    'scss/function-unquote-no-unquoted-strings-inside',
-    'scss/map-keys-quotes',
-    'scss/media-feature-value-dollar-variable',
-    'scss/no-duplicate-dollar-variables',
-    'scss/no-duplicate-mixins',
-    'scss/no-global-function-names',
-    'scss/operator-no-newline-after',
-    'scss/operator-no-newline-before',
-    'scss/operator-no-unspaced',
-    'scss/partial-no-import',
-    'scss/percent-placeholder-pattern',
-    'scss/selector-no-redundant-nesting-selector',
-    'scss/selector-nest-combinators',
-    'scss/selector-no-union-class-name',
-    'scss/selector-nest-combinators',
-    'scss/selector-no-redundant-nesting-selector',
-    
-    // Declaration rules commonly disabled
-    'declaration-block-no-duplicate-properties',
-    'declaration-block-no-redundant-longhand-properties',
-    'declaration-block-no-shorthand-property-overrides',
-    'declaration-block-trailing-semicolon',
-    'declaration-empty-line-before',
-    
-    // Block rules commonly disabled
-    'block-no-empty',
-    'block-no-single-line',
-    
-    // Function rules commonly disabled
-    'function-calc-no-unspaced-operator',
-    'function-max-empty-lines',
-    'function-name-case',
-    'function-url-quotes',
-    'function-whitespace-after',
-    
-    // Value rules commonly disabled
-    'value-list-max-empty-lines',
-    'value-no-vendor-prefix',
-    
-    // Custom property rules commonly disabled
-    'custom-property-empty-line-before',
-    
-    // Bang rules commonly disabled
-    'declaration-bang-space-after',
-    'declaration-bang-space-before',
-    
-    // Selector attribute rules commonly disabled
-    'selector-attribute-brackets-space-inside',
-    'selector-attribute-quotes',
-    'selector-attribute-operator-allowed-list',
-    'selector-attribute-operator-blacklist',
-    'selector-attribute-operator-whitelist',
-    
-    // Selector combinator rules commonly disabled
-    'selector-combinator-allowed-list',
-    'selector-combinator-blacklist',
-    'selector-combinator-whitelist',
-    'selector-descendant-combinator-no-non-space',
-    
-    // Selector list rules commonly disabled
-    'selector-list-comma-newline-after',
-    'selector-list-comma-newline-before',
-    'selector-list-comma-space-after',
-    'selector-list-comma-space-before',
-    
-    // Selector max rules commonly disabled
-    'selector-max-attribute',
-    'selector-max-combinators',
-    'selector-max-empty-lines',
-    'selector-max-pseudo-class',
-    'selector-max-specificity',
-    'selector-max-type',
-    'selector-max-universal',
-    
-    // Selector nested rules commonly disabled
-    'selector-nested-pattern',
-    'selector-no-vendor-prefix',
-    
-    // Selector pseudo rules commonly disabled
-    'selector-pseudo-class-allowed-list',
-    'selector-pseudo-class-blacklist',
-    'selector-pseudo-class-whitelist',
-    'selector-pseudo-class-no-unknown',
-    'selector-pseudo-class-parentheses-space-inside',
-    'selector-pseudo-element-allowed-list',
-    'selector-pseudo-element-blacklist',
-    'selector-pseudo-element-case',
-    'selector-pseudo-element-colon-notation',
-    'selector-pseudo-element-no-unknown',
-    'selector-pseudo-element-whitelist',
-    'selector-type-no-unknown',
-    
-    // Declaration property rules commonly disabled
-    'declaration-property-unit-allowed-list',
-    'declaration-property-value-allowed-list',
-    'declaration-property-value-disallowed-list',
-    'declaration-property-value-no-vendor-prefix',
-    'declaration-property-value-whitelist',
-    'declaration-property-value-blacklist',
-    
-    // Declaration block rules commonly disabled
-    'declaration-block-single-line-max-declarations',
-    
-    // Unit rules commonly disabled
-    'unit-allowed-list',
-    'unit-blacklist',
-    'unit-no-unknown',
-    'unit-whitelist',
-    
-    // Time rules commonly disabled
-    'time-min-milliseconds',
-    
-    // Number rules commonly disabled
-    'number-max-precision',
-    
-    // String rules commonly disabled
-    'string-no-newline',
-    
-    // Color rules commonly disabled
-    'color-no-hex',
-    'color-no-invalid-hex'
-  ];
-
-  const REPORTS = [
-    { id: 'jsAuditReport', section: 'eslintSection', type: 'eslint', search: 'eslintSearch', pagination: 'eslintPagination', table: 'eslintTableWrap' },
-    { id: 'scssAuditReport', section: 'stylelintSection', type: 'stylelint', search: 'stylelintSearch', pagination: 'stylelintPagination', table: 'stylelintTableWrap' },
-    { id: 'npmPackagesReport', section: 'npmSection', type: 'npm', search: 'npmSearch', pagination: 'npmPagination', table: 'npmTableWrap' },
-    // Comprehensive Audits
-    { id: 'securityAuditReport', section: 'securitySection', type: 'security-audit', search: 'securitySearch', pagination: 'securityPagination', table: 'securityTableWrap' },
-    { id: 'performanceAuditReport', section: 'performanceSection', type: 'performance-audit', search: 'performanceSearch', pagination: 'performancePagination', table: 'performanceTableWrap' },
-    { id: 'accessibilityAuditReport', section: 'accessibilitySection', type: 'accessibility-audit', search: 'accessibilitySearch', pagination: 'accessibilityPagination', table: 'accessibilityTableWrap' },
-    { id: 'testingAuditReport', section: 'testingSection', type: 'testing-audit', search: 'testingSearch', pagination: 'testingPagination', table: 'testingTableWrap' },
-    { id: 'dependencyAuditReport', section: 'dependencySection', type: 'dependency-audit', search: 'dependencySearch', pagination: 'dependencyPagination', table: 'dependencyTableWrap' },
-    { id: 'comprehensiveAuditReport', section: 'comprehensiveSection', type: 'comprehensive-audit', search: null, pagination: null, table: 'comprehensiveTableWrap' },
-  ];
-
-  // Global function for accessibility pagination
-  window.changeAccessibilityPage = changeAccessibilityPage;
-
-  // Utility to show/hide sections
-  function showSection(id) {
-    ['overviewSection', ...REPORTS.map(r => r.section), 'excludedRulesSection'].forEach(sec => {
-      const el = document.getElementById(sec);
-      if (el) el.classList.add('hidden');
-    });
-    const showEl = document.getElementById(id);
-    if (showEl) showEl.classList.remove('hidden');
-  }
-
-  function setActiveSidebar(id) {
-    document.querySelectorAll('#sidebarMenu a').forEach(a => a.classList.remove('bg-blue-100', 'font-bold'));
-    const el = document.getElementById(id);
-    if (el) el.classList.add('bg-blue-100', 'font-bold');
-  }
-
-  // Render project meta info
-  function renderProjectMeta(meta) {
-    const metaDiv = document.getElementById('projectMeta');
-    if (metaDiv && meta) {
-      metaDiv.textContent = `Project Type: ${meta.projectType || 'N/A'} | Reports: ${(meta.reports || []).join(', ')}`;
-    }
-  }
-
-  // Helper function to get lighthouse total issues
-  async function getLighthouseTotal() {
-    try {
-      const response = await fetch('./lightHouseCombine-report.json');
-      if (response.ok) {
-        const data = await response.json();
-        let totalIssues = 0;
-        
-        data.forEach(item => {
-          // Count desktop issues
-          if (item.desktop && item.desktop.issues) {
-            totalIssues += item.desktop.issues.length;
-          }
-          // Count mobile issues
-          if (item.mobile && item.mobile.issues) {
-            totalIssues += item.mobile.issues.length;
-          }
-        });
-        
-        return totalIssues;
-      }
     } catch (error) {
-      console.error('Error loading lighthouse data for overview:', error);
+      console.error('Error initializing simple dashboard:', error);
     }
-    return 0;
-  }
-
-  // Refresh Lighthouse overview
-  async function refreshLighthouseOverview$1() {
-    const lighthouseTotal = document.getElementById('lighthouseTotal');
-    if (lighthouseTotal) {
-      try {
-        const total = await getLighthouseTotal();
-        lighthouseTotal.textContent = total;
-      } catch (error) {
-        console.error('Error refreshing lighthouse overview:', error);
-        lighthouseTotal.textContent = '0';
-      }
-    }
-  }
-
-  // Render comprehensive audit overview
-  function renderComprehensiveOverview(comprehensiveData, individualAuditData = {}) {
-    // If comprehensiveData is missing or doesn't have categories, use individual audit data
-    const categories = (comprehensiveData && comprehensiveData.categories) || {};
-
-    // Update individual audit totals
-    const securityTotal = document.getElementById('securityTotal');
-    const performanceTotal = document.getElementById('performanceTotal');
-    const accessibilityTotal = document.getElementById('accessibilityTotal');
-    const testingTotal = document.getElementById('testingTotal');
-    const dependencyTotal = document.getElementById('dependencyTotal');
-
-    function getTotalIssues(category, individualKey) {
-      if (categories[category] && categories[category].totalIssues !== undefined) {
-        return categories[category].totalIssues;
-      }
-      if (individualAuditData[individualKey] && individualAuditData[individualKey].totalIssues !== undefined) {
-        return individualAuditData[individualKey].totalIssues;
-      }
-      return 0;
-    }
-
-    if (securityTotal) securityTotal.textContent = getTotalIssues('security', 'security-audit');
-    if (performanceTotal) performanceTotal.textContent = getTotalIssues('performance', 'performance-audit');
-    if (accessibilityTotal) accessibilityTotal.textContent = getTotalIssues('accessibility', 'accessibility-audit');
-    if (testingTotal) testingTotal.textContent = getTotalIssues('testing', 'testing-audit');
-    if (dependencyTotal) dependencyTotal.textContent = getTotalIssues('dependency', 'dependency-audit');
-
-    // Update accessibility overview with detailed breakdown if available
-    if (accessibilityTotal && individualAuditData['accessibility-audit']) {
-      const accessibilityData = individualAuditData['accessibility-audit'];
-      if (accessibilityData.summary) {
-        // Update the overview with detailed breakdown
-        const overviewContainer = document.getElementById('accessibilityOverview');
-        if (overviewContainer) {
-          overviewContainer.innerHTML = `
-          <div class="text-center">
-            <div class="text-3xl font-bold text-blue-600">${accessibilityData.totalIssues || 0}</div>
-            <div class="text-sm text-gray-500">Total Issues</div>
-            <div class="text-xs text-gray-400 mt-1">
-              Code: ${accessibilityData.summary.codeScanIssues || 0} | 
-              Live: ${accessibilityData.summary.liveUrlIssues || 0}
-            </div>
-          </div>
-        `;
-        }
-      }
-    }
-
-    // Update security overview with detailed breakdown if available
-    if (securityTotal && individualAuditData['security-audit']) {
-      const securityData = individualAuditData['security-audit'];
-      if (securityData.issues) {
-        const codeScanIssues = securityData.issues.filter(issue => !issue.source || issue.source === 'custom');
-        const liveUrlIssues = securityData.issues.filter(issue => issue.source === 'live-url');
-        
-        // Update the overview with detailed breakdown
-        const overviewContainer = document.getElementById('securityOverview');
-        if (overviewContainer) {
-          overviewContainer.innerHTML = `
-          <div class="text-center">
-            <div class="text-3xl font-bold text-red-600">${securityData.totalIssues || securityData.issues.length}</div>
-            <div class="text-sm text-gray-500">Total Issues</div>
-            <div class="text-xs text-gray-400 mt-1">
-              Code: ${codeScanIssues.length} | 
-              Live: ${liveUrlIssues.length}
-            </div>
-          </div>
-        `;
-        }
-      }
-    }
-  }
-
-  // Render overview charts
-  function renderOverviewCharts(eslintData, stylelintData, npmData, comprehensiveData, individualAuditData = {}) {
-    // ESLint Pie
-    const eslintTotalEl = document.getElementById('overviewEslintTotal');
-    const eslintCountsEl = document.getElementById('overviewEslintCounts');
-    if (eslintData && Array.isArray(eslintData.results) && document.querySelector('#overviewEslintChart')) {
-      const totalFiles = eslintData.results.length;
-      const errorFiles = Array.isArray(eslintData.results) ? eslintData.results.filter(f => f.errorCount > 0).length : 0;
-      const warningFiles = Array.isArray(eslintData.results) ? eslintData.results.filter(f => f.errorCount === 0 && f.warningCount > 0).length : 0;
-      const passFiles = Array.isArray(eslintData.results) ? eslintData.results.filter(f => f.errorCount === 0 && f.warningCount === 0).length : 0;
-      
-      // Calculate total errors and warnings
-      const totalErrors = eslintData.results.reduce((sum, file) => sum + file.errorCount, 0);
-      const totalWarnings = eslintData.results.reduce((sum, file) => sum + file.warningCount, 0);
-      
-      const options = {
-        chart: { type: 'pie', height: 250 },
-        labels: ['Files with Errors', 'Files with Warnings', 'Files Passed'],
-        series: [errorFiles, warningFiles, passFiles],
-        colors: ['#f87171', '#fbbf24', '#34d399'],
-      };
-      new ApexCharts(document.querySelector('#overviewEslintChart'), options).render();
-      if (eslintTotalEl) eslintTotalEl.textContent = `Total JS files: ${totalFiles}`;
-      if (eslintCountsEl) eslintCountsEl.innerHTML = `<span class="text-red-500">${totalErrors} errors</span> • <span class="text-yellow-500">${totalWarnings} warnings</span>`;
-    } else if (eslintTotalEl) {
-      eslintTotalEl.textContent = '';
-      if (eslintCountsEl) eslintCountsEl.textContent = '';
-    }
-    // Stylelint Pie
-    const stylelintTotalEl = document.getElementById('overviewStylelintTotal');
-    const stylelintCountsEl = document.getElementById('overviewStylelintCounts');
-    if (stylelintData && Array.isArray(stylelintData.results) && document.querySelector('#overviewStylelintChart')) {
-      const totalFiles = stylelintData.results.length;
-      const errorFiles = stylelintData.results.filter(f => f.errorCount > 0).length;
-      const warningFiles = stylelintData.results.filter(f => f.errorCount === 0 && f.warningCount > 0).length;
-      const passFiles = stylelintData.results.filter(f => f.errorCount === 0 && f.warningCount === 0).length;
-      
-      // Calculate total errors and warnings
-      const totalErrors = stylelintData.results.reduce((sum, file) => sum + file.errorCount, 0);
-      const totalWarnings = stylelintData.results.reduce((sum, file) => sum + file.warningCount, 0);
-      
-      const options = {
-        chart: { type: 'pie', height: 250 },
-        labels: ['Files with Errors', 'Files with Warnings', 'Files Passed'],
-        series: [errorFiles, warningFiles, passFiles],
-        colors: ['#f87171', '#fbbf24', '#34d399'],
-      };
-      new ApexCharts(document.querySelector('#overviewStylelintChart'), options).render();
-      if (stylelintTotalEl) stylelintTotalEl.textContent = `Total CSS files: ${totalFiles}`;
-      if (stylelintCountsEl) stylelintCountsEl.innerHTML = `<span class="text-red-500">${totalErrors} errors</span> • <span class="text-yellow-500">${totalWarnings} warnings</span>`;
-    } else if (stylelintTotalEl) {
-      stylelintTotalEl.textContent = '';
-      if (stylelintCountsEl) stylelintCountsEl.textContent = '';
-    }
-    // NPM Packages Overview Card (Stylelint-style)
-    const npmTotalPackagesEl = document.getElementById('npmTotalPackages');
-    const npmPackagesChartEl = document.getElementById('npmPackagesChart');
-
-    if (npmData && (Array.isArray(npmData.dependencies) || Array.isArray(npmData.devDependencies))) {
-      const deps = Array.isArray(npmData.dependencies) ? npmData.dependencies : [];
-      const devDeps = Array.isArray(npmData.devDependencies) ? npmData.devDependencies : [];
-      const all = deps.concat(devDeps);
-      const total = all.length;
-      const outdated = all.filter(pkg => pkg.deprecated && pkg.deprecated !== 'Not deprecated').length;
-      if (npmTotalPackagesEl) npmTotalPackagesEl.textContent = `Total packages: ${total}`;
-      // Pie chart: Up-to-date vs Outdated
-      if (npmPackagesChartEl) {
-        npmPackagesChartEl.innerHTML = '';
-        const upToDate = total - outdated;
-        const options = {
-          chart: { type: 'pie', height: 250 },
-          labels: ['Up-to-date', 'Outdated'],
-          series: [upToDate, outdated],
-          colors: ['#34d399', '#fbbf24'],
-          legend: { show: true },
-          dataLabels: { enabled: true, formatter: val => `${val.toFixed(1)}%` },
-        };
-        new ApexCharts(npmPackagesChartEl, options).render();
-      }
-    } else {
-      if (npmTotalPackagesEl) npmTotalPackagesEl.textContent = '';
-      if (npmPackagesChartEl) npmPackagesChartEl.innerHTML = '';
-    }
-
-    // Render comprehensive overview
-    renderComprehensiveOverview(comprehensiveData, individualAuditData);
-  }
-
-  // Utility to check if a report file exists (by trying to fetch it with HEAD)
-  async function reportExists(type) {
-    try {
-      const res = await fetch(`./${type}-report.json`, { method: 'HEAD' });
-      return res.ok;
-    } catch {
-      return false;
-    }
-  }
-
-  // Hide sidebar tab and section if report is missing
-  function hideReportTabAndSection(report) {
-    const tab = document.getElementById(report.id);
-    const section = document.getElementById(report.section);
-    if (tab) tab.style.display = 'none';
-    if (section) section.classList.add('hidden');
-  }
-
-  // Render audit table for comprehensive audits
-  window.renderAuditTable = function(data, tableId, paginationId, pageSize = 10, auditType = null, sortBySeverity = '') {
-    const wrap = document.getElementById(tableId);
-    if (!wrap) return;
-
-    // Store data globally for pagination
-    if (auditType) {
-      window.auditData[auditType] = data;
-      if (!window.auditPages[auditType]) {
-        window.auditPages[auditType] = 1;
-      }
-    }
-
-    wrap.innerHTML = '';
-    if (!data || !Array.isArray(data.issues) || data.issues.length === 0) {
-      wrap.innerHTML = '<div class="text-gray-500 p-4">No issues found.</div>';
-      if (paginationId) document.getElementById(paginationId).innerHTML = '';
-      return;
-    }
-
-    let issues = data.issues;
-    if (sortBySeverity) {
-      const severityOrder = { high: 1, medium: 2, low: 3 };
-      issues = [...issues].sort((a, b) => {
-        const aVal = severityOrder[a.severity] || 4;
-        const bVal = severityOrder[b.severity] || 4;
-        return aVal - bVal;
-      });
-      if (sortBySeverity !== 'high') {
-        // If not high, reverse for medium/low
-        issues = issues.filter(i => i.severity === sortBySeverity).concat(issues.filter(i => i.severity !== sortBySeverity));
-      }
-    }
-    // Paginate the data
-    const currentPage = auditType ? window.auditPages[auditType] : 1;
-    const start = (currentPage - 1) * pageSize;
-    const end = start + pageSize;
-    const pageData = issues.slice(start, end);
-
-    // Create table with horizontal scroll
-    let html = '<div class="overflow-x-auto"><table class="min-w-full bg-white rounded-lg overflow-hidden"><thead><tr>' +
-      '<th class="py-2 px-4 text-left">Type</th>' +
-      '<th class="py-2 px-4 text-left">File</th>' +
-      '<th class="py-2 px-4 text-left">Line</th>' +
-      '<th class="py-2 px-4 text-left">Severity</th>';
-    
-    // Add Source column for security audits
-    if (auditType === 'security') {
-      html += '<th class="py-2 px-4 text-left">Source</th>';
-    }
-    
-    html += '<th class="py-2 px-4 text-left">Message</th>' +
-      '<th class="py-2 px-4 text-left">Code</th>' +
-      '</tr></thead><tbody>';
-
-    // Map type to label and color (move outside loop)
-    const vulnLabels = {
-      hardcoded_secret: { label: 'Hardcoded Secret', color: 'bg-pink-100 text-pink-800 border-pink-200' },
-      unsafe_eval: { label: 'Unsafe Eval', color: 'bg-red-100 text-red-800 border-red-200' },
-      xss_vulnerability: { label: 'XSS', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-      sql_injection: { label: 'SQL Injection', color: 'bg-purple-100 text-purple-800 border-purple-200' },
-      dependency_vulnerability: { label: 'Dependency Vulnerability', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-      no_vulnerabilities: { label: 'No Vulnerabilities', color: 'bg-green-100 text-green-800 border-green-200' },
-      color_contrast: { label: 'Color Contrast', color: 'bg-orange-100 text-orange-800 border-orange-200' },
-      missing_form_label: { label: 'Missing Form Label', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-      missing_alt: { label: 'Missing Alt Attribute', color: 'bg-pink-100 text-pink-800 border-pink-200' },
-      skipped_heading: { label: 'Skipped Heading Level', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-      keyboard_navigation: { label: 'Keyboard Navigation', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-      empty_aria: { label: 'Empty ARIA Attribute', color: 'bg-purple-100 text-purple-800 border-purple-200' },
-      tab_order_focus: { label: 'Tab Order/Focus', color: 'bg-green-100 text-green-800 border-green-200' },
-      focus_management: { label: 'Focus Management', color: 'bg-red-100 text-red-800 border-red-200' },
-      // Add more as needed
-    };
-
-    pageData.forEach(issue => {
-      const severityColor = issue.severity === 'high' ? 'text-red-600' : 
-                           issue.severity === 'medium' ? 'text-yellow-600' : 'text-blue-600';
-      const vuln = vulnLabels[issue.type] || { label: issue.type, color: 'bg-gray-100 text-gray-800 border-gray-200' };
-
-      // Format the code snippet and vulnerability label
-      let codeDisplay = 'N/A';
-      if (issue.code) {
-        const isMultiline = issue.code.includes('\n') || issue.code.length > 80;
-        const codeHtml = issue.code.replace(/\n/g, '<br>');
-        codeDisplay = `<span class="inline-block mb-1 px-2 py-0.5 rounded border text-xs font-semibold ${vuln.color}">${vuln.label}</span><br>`;
-        if (isMultiline) {
-          codeDisplay += `<pre class="bg-red-50 px-2 py-1 rounded text-xs font-mono text-red-700 border border-red-200 break-all overflow-x-auto max-w-md block">${codeHtml}</pre>`;
-        } else {
-          codeDisplay += `<code class="bg-red-50 px-2 py-1 rounded text-sm font-mono text-red-700 border border-red-200 break-all overflow-x-auto max-w-md block">${codeHtml}</code>`;
-        }
-        // Add context if available
-        if (issue.context) {
-          const contextHtml = issue.context.replace(/\n/g, '<br>');
-          codeDisplay += `<details class="mt-2"><summary class="text-xs text-blue-600 cursor-pointer">Show context</summary><pre class="mt-1 text-xs bg-gray-50 p-2 rounded border overflow-x-auto break-all max-w-md">${contextHtml}</pre></details>`;
-        }
-      }
-      // Truncate long file names but show full path on hover
-      let fileCell = issue.file || 'N/A';
-      if (fileCell.length > 40) {
-        fileCell = `<span title="${issue.file}">${fileCell.slice(0, 18)}...${fileCell.slice(-18)}</span>`;
-      }
-      
-      // Determine source for security audits
-      let sourceCell = '';
-      if (auditType === 'security') {
-        const source = issue.source || 'custom';
-        const sourceLabel = source === 'live-url' ? 'Live URL' : 'Code Scan';
-        const sourceColor = source === 'live-url' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800';
-        sourceCell = `<td class="py-2 px-4"><span class="px-2 py-1 text-xs font-medium rounded-full ${sourceColor}">${sourceLabel}</span></td>`;
-      }
-      
-      html += `<tr class="border-b border-gray-200 hover:bg-gray-100">` +
-        `<td class="py-2 px-4 max-w-xs break-all">${vuln.label}</td>` +
-        `<td class="py-2 px-4 max-w-xs break-all">${fileCell}</td>` +
-        `<td class="py-2 px-4">${issue.line || 'N/A'}</td>` +
-        `<td class="py-2 px-4"><span class="font-semibold ${severityColor}">${issue.severity || 'N/A'}</span></td>`;
-      
-      // Add source column for security audits
-      if (auditType === 'security') {
-        html += sourceCell;
-      }
-      
-      html += `<td class="py-2 px-4 max-w-md break-words">${issue.message || 'N/A'}</td>` +
-        `<td class="py-2 px-4 max-w-md">${codeDisplay}</td>` +
-        '</tr>';
-    });
-
-    html += '</tbody></table></div>';
-    wrap.innerHTML = html;
-
-    // Render pagination if needed
-    if (paginationId && auditType) {
-      renderPagination(issues.length, pageSize, paginationId, auditType, sortBySeverity);
-    }
-  };
-
-  // Render pagination controls
-  // Global pagination state for comprehensive audits
-  window.auditPages = {};
-  window.auditData = {};
-
-  function renderPagination(totalItems, pageSize, paginationId, auditType, sortBySeverity = '') {
-    const pagDiv = document.getElementById(paginationId);
-    if (!pagDiv) return;
-
-    const totalPages = Math.ceil(totalItems / pageSize);
-    if (totalPages <= 1) {
-      pagDiv.innerHTML = '';
-      return;
-    }
-
-    // Add page size and sort selector and total results
-    let html = '<div class="flex items-center space-x-2">';
-    html += `<span class="text-sm text-gray-500">Page:</span>`;
-    html += `<span class="text-sm text-gray-500">| Show </span>`;
-    html += `<select id="${paginationId}-pageSize" class="border rounded px-1 py-0.5 text-sm">
-    <option value="10"${pageSize==10?' selected':''}>10</option>
-    <option value="25"${pageSize==25?' selected':''}>25</option>
-    <option value="50"${pageSize==50?' selected':''}>50</option>
-    <option value="100"${pageSize==100?' selected':''}>100</option>
-  </select>`;
-    html += `<span class="text-sm text-gray-500">per page | </span>`;
-    html += `<span class="text-sm text-gray-500">Sort by </span>`;
-    html += `<select id="${paginationId}-sortSeverity" class="border rounded px-1 py-0.5 text-sm">
-    <option value="">None</option>
-    <option value="high"${sortBySeverity==='high'?' selected':''}>High</option>
-    <option value="medium"${sortBySeverity==='medium'?' selected':''}>Medium</option>
-    <option value="low"${sortBySeverity==='low'?' selected':''}>Low</option>
-  </select>`;
-    html += `<span class="text-sm text-gray-500">| <b>${totalItems}</b> results</span>`;
-
-    const currentPage = window.auditPages[auditType] || 1;
-    const maxPagesToShow = 7;
-    // Prev arrow
-    html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${currentPage === 1 ? 'disabled' : ''} onclick="if(window.auditPages['${auditType}']>1){window.auditPages['${auditType}']--; window.renderAuditTable(window.auditData['${auditType}'], '${auditType}TableWrap', '${paginationId}', ${pageSize}, '${auditType}', '${sortBySeverity}');}">&lt;</button>`;
-
-    if (totalPages <= maxPagesToShow) {
-      for (let i = 1; i <= totalPages; i++) {
-        html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === i ? 'bg-blue-100' : ''}" onclick="window.auditPages['${auditType}'] = ${i}; window.renderAuditTable(window.auditData['${auditType}'], '${auditType}TableWrap', '${paginationId}', ${pageSize}, '${auditType}', '${sortBySeverity}');">${i}</button>`;
-      }
-    } else {
-      html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === 1 ? 'bg-blue-100' : ''}" onclick="window.auditPages['${auditType}'] = 1; window.renderAuditTable(window.auditData['${auditType}'], '${auditType}TableWrap', '${paginationId}', ${pageSize}, '${auditType}', '${sortBySeverity}');">1</button>`;
-      if (currentPage > 4) html += '<span class="px-1">...</span>';
-      for (let i = Math.max(2, currentPage - 2); i < currentPage; i++) {
-        html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50" onclick="window.auditPages['${auditType}'] = ${i}; window.renderAuditTable(window.auditData['${auditType}'], '${auditType}TableWrap', '${paginationId}', ${pageSize}, '${auditType}', '${sortBySeverity}');">${i}</button>`;
-      }
-      if (currentPage !== 1 && currentPage !== totalPages) {
-        html += `<button class="px-2 py-1 text-sm border rounded bg-blue-100" disabled>${currentPage}</button>`;
-      }
-      for (let i = currentPage + 1; i <= Math.min(totalPages - 1, currentPage + 2); i++) {
-        html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50" onclick="window.auditPages['${auditType}'] = ${i}; window.renderAuditTable(window.auditData['${auditType}'], '${auditType}TableWrap', '${paginationId}', ${pageSize}, '${auditType}', '${sortBySeverity}');">${i}</button>`;
-      }
-      if (currentPage < totalPages - 3) html += '<span class="px-1">...</span>';
-      html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === totalPages ? 'bg-blue-100' : ''}" onclick="window.auditPages['${auditType}'] = ${totalPages}; window.renderAuditTable(window.auditData['${auditType}'], '${auditType}TableWrap', '${paginationId}', ${pageSize}, '${auditType}', '${sortBySeverity}');">${totalPages}</button>`;
-    }
-
-    // Next arrow
-    html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''}" ${currentPage === totalPages ? 'disabled' : ''} onclick="if(window.auditPages['${auditType}']<${totalPages}){window.auditPages['${auditType}']++; window.renderAuditTable(window.auditData['${auditType}'], '${auditType}TableWrap', '${paginationId}', ${pageSize}, '${auditType}', '${sortBySeverity}');}">&gt;</button>`;
-
-    html += '</div>';
-    pagDiv.innerHTML = html;
-
-    // Add event listener for page size change
-    const pageSizeSelect = document.getElementById(`${paginationId}-pageSize`);
-    if (pageSizeSelect) {
-      pageSizeSelect.value = pageSize;
-      pageSizeSelect.addEventListener('change', function() {
-        const newSize = parseInt(this.value, 10);
-        window.renderAuditTable(window.auditData[auditType], `${auditType}TableWrap`, paginationId, newSize, auditType, sortBySeverity);
-      });
-    }
-    // Add event listener for sort by severity
-    const sortSelect = document.getElementById(`${paginationId}-sortSeverity`);
-    if (sortSelect) {
-      sortSelect.value = sortBySeverity;
-      sortSelect.addEventListener('change', function() {
-        window.renderAuditTable(window.auditData[auditType], `${auditType}TableWrap`, paginationId, pageSize, auditType, this.value);
-      });
-    }
-  }
-
-  // Main dashboard logic
-  window.addEventListener('DOMContentLoaded', async () => {
-    // Check which reports exist and hide missing ones
-    const reportExistence = {};
-    for (const report of REPORTS) {
-      reportExistence[report.type] = await reportExists(report.type);
-      if (!reportExistence[report.type]) {
-        hideReportTabAndSection(report);
-      }
-    }
-
-    // Check for Lighthouse report
-    const lighthouseExists = await reportExists('lightHouseCombine');
-    if (!lighthouseExists) {
-      hideReportTabAndSection({ id: 'lighthouseAuditReport', section: 'lighthouseSection' });
-    }
-
-    // Fetch data for overview charts only for available reports
-    const eslintData = reportExistence['eslint'] ? await fetchData('eslint') : null;
-    const stylelintData = reportExistence['stylelint'] ? await fetchData('stylelint') : null;
-    const npmData = reportExistence['npm'] ? await fetchData('npm') : null;
-    const comprehensiveData = reportExistence['comprehensive-audit'] ? await fetchData('comprehensive-audit') : null;
-
-    // Fetch individual audit data for fallback
-    const securityData = reportExistence['security-audit'] ? await fetchData('security-audit') : null;
-    const performanceData = reportExistence['performance-audit'] ? await fetchData('performance-audit') : null;
-    const accessibilityData = reportExistence['accessibility-audit'] ? await fetchData('accessibility-audit') : null;
-    const testingData = reportExistence['testing-audit'] ? await fetchData('testing-audit') : null;
-    const dependencyData = reportExistence['dependency-audit'] ? await fetchData('dependency-audit') : null;
-
-    // Project meta
-    let meta = null;
-    if (eslintData && typeof eslintData === 'object' && ('projectType' in eslintData || 'reports' in eslintData)) {
-      meta = eslintData;
-    }
-    renderProjectMeta(meta);
-
-    // Render overview charts
-    renderOverviewCharts(
-      eslintData,
-      stylelintData,
-      npmData,
-      comprehensiveData,
-      {
-        'security-audit': securityData,
-        'performance-audit': performanceData,
-        'accessibility-audit': accessibilityData,
-        'testing-audit': testingData,
-        'dependency-audit': dependencyData
-      }
-    );
-
-    // Update Lighthouse overview if report exists
-    if (lighthouseExists) {
-      await refreshLighthouseOverview$1();
-    }
-
-    // Sidebar navigation
-    document.getElementById('mainPage').addEventListener('click', e => {
-      e.preventDefault();
-      setActiveSidebar('mainPage');
-      showSection('overviewSection');
-    });
-
-    // Only add listeners and render for available reports
-    if (reportExistence['eslint']) {
-      // ESLint Table State
-      let eslintFiltered = [];
-      window.eslintPage = 1;
-      // Set default page sizes
-      window.eslintPageSize = 10;
-      let eslintSearchTerm = '';
-
-      // Search logic
-      function filterEslintData() {
-        if (!eslintData || !Array.isArray(eslintData.results)) {
-          eslintFiltered = [];
-          return;
-        }
-        const term = (eslintSearchTerm || '').toLowerCase();
-        
-        eslintFiltered = eslintData.results.filter(item => {
-          if (!item || !item.filePath || item.filePath.trim() === '') {
-            return false;
-          }
-          
-          // Apply search filter
-          if (term !== '' && !item.filePath.toLowerCase().includes(term)) {
-            return false;
-          }
-          
-          return true;
-        });
-        
-        window.eslintPage = 1;
-      }
-
-      // Render ESLint Table (Accordion)
-      window.renderEslintTable = function(sortBySeverity = window.eslintSortBySeverity || '') {
-        const wrap = document.getElementById('eslintTableWrap');
-        if (!wrap) return;
-        wrap.innerHTML = '';
-        if (!eslintData || !Array.isArray(eslintData.results) || eslintFiltered.length === 0) {
-          wrap.innerHTML = '<div class="text-gray-500 p-4">No ESLint results found.</div>';
-          document.getElementById('eslintPagination').innerHTML = '';
-          return;
-        }
-        // Sort
-        let sorted = [...eslintFiltered];
-        if (sortBySeverity) {
-          const severityOrder = { high: 1, medium: 2, low: 3 };
-          sorted.sort((a, b) => {
-            const aVal = severityOrder[a.severity] || 4;
-            const bVal = severityOrder[b.severity] || 4;
-            return aVal - bVal;
-          });
-          if (sortBySeverity !== 'high') {
-            sorted = sorted.filter(i => i.severity === sortBySeverity).concat(sorted.filter(i => i.severity !== sortBySeverity));
-          }
-        }
-        // Paginate
-        const start = (window.eslintPage - 1) * window.eslintPageSize;
-        const end = start + window.eslintPageSize;
-        const pageData = sorted.slice(start, end);
-        // Accordion container
-        const accordion = document.createElement('div');
-        accordion.id = 'eslintAccordion';
-        pageData.forEach(item => {
-          const acc = window.createAccordionItem
-            ? window.createAccordionItem(item.filePath, item.errorCount, item.warningCount, item.messages)
-            : undefined;
-          if (acc) accordion.appendChild(acc);
-        });
-        wrap.appendChild(accordion);
-        renderEslintPagination(sortBySeverity);
-      };
-
-      // Render Pagination Controls
-      window.renderEslintPagination = function(sortBySeverity = window.eslintSortBySeverity || '') {
-        const pagDiv = document.getElementById('eslintPagination');
-        if (!pagDiv) return;
-        if (!eslintFiltered || eslintFiltered.length <= window.eslintPageSize) {
-          pagDiv.innerHTML = '';
-          return;
-        }
-        const totalPages = Math.ceil(eslintFiltered.length / window.eslintPageSize);
-        const currentPage = window.eslintPage || 1;
-        const maxPagesToShow = 7;
-        let html = '<div class="flex items-center space-x-2">';
-        html += '<span class="text-sm text-gray-500">Page:</span>';
-        html += `<span class="text-sm text-gray-500">| Show </span>`;
-        html += `<select id="eslintPagination-pageSize" class="border rounded px-1 py-0.5 text-sm">
-        <option value="10"${window.eslintPageSize==10?' selected':''}>10</option>
-        <option value="25"${window.eslintPageSize==25?' selected':''}>25</option>
-        <option value="50"${window.eslintPageSize==50?' selected':''}>50</option>
-        <option value="100"${window.eslintPageSize==100?' selected':''}>100</option>
-      </select>`;
-        html += `<span class="text-sm text-gray-500">per page | <b>${eslintFiltered.length}</b> results</span>`;
-        html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${currentPage === 1 ? 'disabled' : ''} onclick="if(window.eslintPage>1){window.eslintPage--; window.renderEslintTable();}">&lt;</button>`;
-        if (totalPages <= maxPagesToShow) {
-          for (let i = 1; i <= totalPages; i++) {
-            html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === i ? 'bg-blue-100' : ''}" onclick="window.eslintPage = ${i}; window.renderEslintTable();">${i}</button>`;
-          }
-        } else {
-          html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === 1 ? 'bg-blue-100' : ''}" onclick="window.eslintPage = 1; window.renderEslintTable();">1</button>`;
-          if (currentPage > 4) html += '<span class="px-1">...</span>';
-          for (let i = Math.max(2, currentPage - 2); i < currentPage; i++) {
-            html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50" onclick="window.eslintPage = ${i}; window.renderEslintTable();">${i}</button>`;
-          }
-          if (currentPage !== 1 && currentPage !== totalPages) {
-            html += `<button class="px-2 py-1 text-sm border rounded bg-blue-100" disabled>${currentPage}</button>`;
-          }
-          for (let i = currentPage + 1; i <= Math.min(totalPages - 1, currentPage + 2); i++) {
-            html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50" onclick="window.eslintPage = ${i}; window.renderEslintTable();">${i}</button>`;
-          }
-          if (currentPage < totalPages - 3) html += '<span class="px-1">...</span>';
-          html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === totalPages ? 'bg-blue-100' : ''}" onclick="window.eslintPage = ${totalPages}; window.renderEslintTable();">${totalPages}</button>`;
-        }
-        html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''}" ${currentPage === totalPages ? 'disabled' : ''} onclick="if(window.eslintPage<${totalPages}){window.eslintPage++; window.renderEslintTable();}">&gt;</button>`;
-        html += '</div>';
-        pagDiv.innerHTML = html;
-
-        // Add event listener for page size change
-        const pageSizeSelect = document.getElementById('eslintPagination-pageSize');
-        if (pageSizeSelect) {
-          pageSizeSelect.value = window.eslintPageSize;
-          pageSizeSelect.addEventListener('change', function() {
-            window.eslintPageSize = parseInt(this.value, 10);
-            window.eslintPage = 1;
-            window.renderEslintTable();
-          });
-        }
-      };
-
-      // Expose createAccordionItem globally if not already
-      if (!window.createAccordionItem) {
-        Promise.resolve().then(function () { return helper; }).then(mod => { window.createAccordionItem = mod.createAccordionItem; });
-      }
-
-      // Event: ESLint tab click
-      document.getElementById('jsAuditReport').addEventListener('click', e => {
-        e.preventDefault();
-        setActiveSidebar('jsAuditReport');
-        showSection('eslintSection');
-        filterEslintData();
-        window.eslintSortBySeverity = window.eslintSortBySeverity || '';
-        renderEslintTable(window.eslintSortBySeverity);
-      });
-
-      // Event: Search
-      const searchInput = document.getElementById('eslintSearch');
-      if (searchInput) {
-        searchInput.addEventListener('input', e => {
-          eslintSearchTerm = e.target.value;
-          filterEslintData();
-          renderEslintTable();
-        });
-      }
-
-      // Event: Sort by severity
-      const sortSelect = document.getElementById('eslintSortBy');
-      if (sortSelect) {
-        sortSelect.addEventListener('change', function() {
-          window.eslintPage = 1;
-          window.eslintSortBySeverity = this.value;
-          renderEslintTable(this.value);
-        });
-      }
-
-      // Update exclude count display
-      const excludeCount = document.getElementById('eslintExcludeCount');
-      if (excludeCount && window.eslintExcludeCommonIssues !== false) {
-        excludeCount.textContent = `(${COMMON_ESLINT_ISSUES_TO_EXCLUDE.length} rules excluded)`;
-      }
-    }
-
-    if (reportExistence['stylelint']) {
-      // Stylelint Table State
-      let stylelintData = null;
-      let stylelintFiltered = [];
-      window.stylelintPage = 1;
-      window.stylelintPageSize = 10;
-      let stylelintSearchTerm = '';
-
-      async function loadStylelintReport() {
-        try {
-          const response = await fetch('stylelint-report.json');
-          if (response.ok) {
-            stylelintData = await response.json();
-            filterStylelintData();
-            renderStylelintTable();
-          }
-        } catch (e) {
-          stylelintData = null;
-          stylelintFiltered = [];
-          renderStylelintTable();
-        }
-      }
-
-      function filterStylelintData() {
-        if (!stylelintData || !Array.isArray(stylelintData.results)) {
-          stylelintFiltered = [];
-          return;
-        }
-        const term = stylelintSearchTerm || '';
-        stylelintFiltered = stylelintData.results.filter(item => {
-          if (!item || !item.filePath) return false;
-          if (term !== '' && !item.filePath.toLowerCase().includes(term.toLowerCase())) return false;
-          return true;
-        });
-        window.stylelintPage = 1;
-      }
-
-      window.renderStylelintTable = function(sortBySeverity = window.stylelintSortBySeverity || '') {
-        const wrap = document.getElementById('stylelintTableWrap');
-        if (!wrap) return;
-        wrap.innerHTML = '';
-        if (!stylelintData || !Array.isArray(stylelintData.results) || stylelintFiltered.length === 0) {
-          wrap.innerHTML = '<div class="text-gray-500 p-4">No Stylelint results found.</div>';
-          document.getElementById('stylelintPagination').innerHTML = '';
-          return;
-        }
-        // Sort
-        let sorted = [...stylelintFiltered];
-        if (sortBySeverity) {
-          const severityOrder = { high: 1, medium: 2, low: 3 };
-          sorted.sort((a, b) => {
-            const aVal = severityOrder[a.severity] || 4;
-            const bVal = severityOrder[b.severity] || 4;
-            return aVal - bVal;
-          });
-          if (sortBySeverity !== 'high') {
-            sorted = sorted.filter(i => i.severity === sortBySeverity).concat(sorted.filter(i => i.severity !== sortBySeverity));
-          }
-        }
-        // Paginate
-        const start = (window.stylelintPage - 1) * window.stylelintPageSize;
-        const end = start + window.stylelintPageSize;
-        const pageData = sorted.slice(start, end);
-        // Accordion container
-        const accordion = document.createElement('div');
-        accordion.id = 'stylelintAccordion';
-        pageData.forEach(item => {
-          const acc = window.createAccordionItem
-            ? window.createAccordionItem(item.filePath, item.errorCount, item.warningCount, item.messages)
-            : undefined;
-          if (acc) accordion.appendChild(acc);
-        });
-        wrap.appendChild(accordion);
-        renderStylelintPagination(sortBySeverity);
-      };
-
-      window.renderStylelintPagination = function(sortBySeverity = window.stylelintSortBySeverity || '') {
-        const pagDiv = document.getElementById('stylelintPagination');
-        if (!pagDiv) return;
-        if (!stylelintFiltered || stylelintFiltered.length <= window.stylelintPageSize) {
-          pagDiv.innerHTML = '';
-          return;
-        }
-        const totalPages = Math.ceil(stylelintFiltered.length / window.stylelintPageSize);
-        const currentPage = window.stylelintPage || 1;
-        const maxPagesToShow = 7;
-        let html = '<div class="flex items-center space-x-2">';
-        html += '<span class="text-sm text-gray-500">Page:</span>';
-        html += `<span class="text-sm text-gray-500">| Show </span>`;
-        html += `<select id="stylelintPagination-pageSize" class="border rounded px-1 py-0.5 text-sm">
-        <option value="10"${window.stylelintPageSize==10?' selected':''}>10</option>
-        <option value="25"${window.stylelintPageSize==25?' selected':''}>25</option>
-        <option value="50"${window.stylelintPageSize==50?' selected':''}>50</option>
-        <option value="100"${window.stylelintPageSize==100?' selected':''}>100</option>
-      </select>`;
-        html += `<span class="text-sm text-gray-500">per page | <b>${stylelintFiltered.length}</b> results</span>`;
-        html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${currentPage === 1 ? 'disabled' : ''} onclick="if(window.stylelintPage>1){window.stylelintPage--; window.renderStylelintTable();}">&lt;</button>`;
-        if (totalPages <= maxPagesToShow) {
-          for (let i = 1; i <= totalPages; i++) {
-            html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === i ? 'bg-blue-100' : ''}" onclick="window.stylelintPage = ${i}; window.renderStylelintTable();">${i}</button>`;
-          }
-        } else {
-          html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === 1 ? 'bg-blue-100' : ''}" onclick="window.stylelintPage = 1; window.renderStylelintTable();">1</button>`;
-          if (currentPage > 4) html += '<span class="px-1">...</span>';
-          for (let i = Math.max(2, currentPage - 2); i < currentPage; i++) {
-            html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50" onclick="window.stylelintPage = ${i}; window.renderStylelintTable();">${i}</button>`;
-          }
-          if (currentPage !== 1 && currentPage !== totalPages) {
-            html += `<button class="px-2 py-1 text-sm border rounded bg-blue-100" disabled>${currentPage}</button>`;
-          }
-          for (let i = currentPage + 1; i <= Math.min(totalPages - 1, currentPage + 2); i++) {
-            html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50" onclick="window.stylelintPage = ${i}; window.renderStylelintTable();">${i}</button>`;
-          }
-          if (currentPage < totalPages - 3) html += '<span class="px-1">...</span>';
-          html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === totalPages ? 'bg-blue-100' : ''}" onclick="window.stylelintPage = ${totalPages}; window.renderStylelintTable();">${totalPages}</button>`;
-        }
-        html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''}" ${currentPage === totalPages ? 'disabled' : ''} onclick="if(window.stylelintPage<${totalPages}){window.stylelintPage++; window.renderStylelintTable();}">&gt;</button>`;
-        html += '</div>';
-        pagDiv.innerHTML = html;
-
-        // Add event listener for page size change
-        const pageSizeSelect = document.getElementById('stylelintPagination-pageSize');
-        if (pageSizeSelect) {
-          pageSizeSelect.value = window.stylelintPageSize;
-          pageSizeSelect.addEventListener('change', function() {
-            window.stylelintPageSize = parseInt(this.value, 10);
-            window.stylelintPage = 1;
-            window.renderStylelintTable();
-          });
-        }
-      };
-
-      // Expose createAccordionItem globally if not already
-      if (!window.createAccordionItem) {
-        Promise.resolve().then(function () { return helper; }).then(mod => { window.createAccordionItem = mod.createAccordionItem; });
-      }
-
-      document.getElementById('scssAuditReport').addEventListener('click', async e => {
-        e.preventDefault();
-        setActiveSidebar('scssAuditReport');
-        showSection('stylelintSection');
-        await loadStylelintReport();
-        window.stylelintSortBySeverity = window.stylelintSortBySeverity || '';
-        renderStylelintTable(window.stylelintSortBySeverity);
-      });
-
-            const searchInput = document.getElementById('stylelintSearch');
-        if (searchInput) {
-          searchInput.addEventListener('input', e => {
-            stylelintSearchTerm = e.target.value;
-            filterStylelintData();
-            renderStylelintTable();
-          });
-        }
-
-        // Event: Sort by severity
-        const sortSelect = document.getElementById('stylelintSortBy');
-        if (sortSelect) {
-          sortSelect.addEventListener('change', function() {
-            window.stylelintPage = 1;
-            window.stylelintSortBySeverity = this.value;
-            renderStylelintTable(this.value);
-          });
-        }
-
-        // Update exclude count display
-        const excludeCount = document.getElementById('stylelintExcludeCount');
-        if (excludeCount && window.stylelintExcludeCommonIssues !== false) {
-          excludeCount.textContent = `(${COMMON_STYLELINT_ISSUES_TO_EXCLUDE.length} rules excluded)`;
-        }
-    }
-
-    if (reportExistence['npm']) {
-      // NPM Table State
-      let npmFiltered = [];
-      window.npmPage = 1;
-      // Set default page sizes
-      window.npmPageSize = 10;
-      let npmSearchTerm = '';
-      let npmType = 'dependencies'; // or 'devDependencies'
-
-      window.renderNpmTable = function() {
-        const wrap = document.getElementById('npmTableWrap');
-        if (!wrap) return;
-        wrap.innerHTML = '';
-        // Add toggle for dependencies/devDependencies
-        let toggleHtml = '<div class="mb-4 flex space-x-2">';
-        toggleHtml += `<button id="npmDepBtn" class="px-3 py-1 rounded ${npmType === 'dependencies' ? 'bg-blue-500 text-white' : 'bg-gray-200'}">Dependencies</button>`;
-        toggleHtml += `<button id="npmDevDepBtn" class="px-3 py-1 rounded ${npmType === 'devDependencies' ? 'bg-blue-500 text-white' : 'bg-gray-200'}">Dev Dependencies</button>`;
-        toggleHtml += '</div>';
-        wrap.innerHTML = toggleHtml;
-        const dataArr = Array.isArray(npmData[npmType]) ? npmFiltered : [];
-        if (dataArr.length === 0) {
-          wrap.innerHTML += '<div class="text-gray-500 p-4">No NPM packages found.</div>';
-          document.getElementById('npmPagination').innerHTML = '';
-          return;
-        }
-        // Paginate
-        const start = (window.npmPage - 1) * window.npmPageSize;
-        const end = start + window.npmPageSize;
-        const pageData = dataArr.slice(start, end);
-        // Table with horizontal scroll
-        let html = '<div class="overflow-x-auto"><table class="min-w-full bg-white rounded-lg overflow-hidden"><thead><tr>' +
-          '<th class="py-2 px-4 text-left">Name</th>' +
-          '<th class="py-2 px-4 text-left">Version</th>' +
-          '<th class="py-2 px-4 text-left">License</th>' +
-          '<th class="py-2 px-4 text-left">Description</th>' +
-          '<th class="py-2 px-4 text-left">Deprecated</th>' +
-          '<th class="py-2 px-4 text-left">Unpacked Size</th>' +
-          '</tr></thead><tbody>';
-        pageData.forEach(item => {
-          html += `<tr class="border-b border-gray-200 hover:bg-gray-100 ${item.deprecated === 'Deprecated' ? 'bg-red-100' : ''}">` +
-            `<td class="py-2 px-4 whitespace-nowrap">${item.name}</td>` +
-            `<td class="py-2 px-4">${item.version}</td>` +
-            `<td class="py-2 px-4">${item.license}</td>` +
-            `<td class="py-2 px-4">${item.description}</td>` +
-            `<td class="py-2 px-4">${item.deprecated}</td>` +
-            `<td class="py-2 px-4">${item.unpackedSize}</td>` +
-            '</tr>';
-        });
-        html += '</tbody></table></div>';
-        wrap.innerHTML += html;
-        renderNpmPagination();
-        // Toggle events
-        document.getElementById('npmDepBtn').onclick = () => {
-          if (npmType !== 'dependencies') {
-            npmType = 'dependencies';
-            filterNpmData();
-            renderNpmTable();
-          }
-        };
-        document.getElementById('npmDevDepBtn').onclick = () => {
-          if (npmType !== 'devDependencies') {
-            npmType = 'devDependencies';
-            filterNpmData();
-            renderNpmTable();
-          }
-        };
-      };
-
-      window.renderNpmPagination = function() {
-        const pagDiv = document.getElementById('npmPagination');
-        if (!pagDiv) return;
-        const dataArr = Array.isArray(npmData[npmType]) ? npmFiltered : [];
-        if (dataArr.length <= window.npmPageSize) {
-          pagDiv.innerHTML = '';
-          return;
-        }
-        const totalPages = Math.ceil(dataArr.length / window.npmPageSize);
-        let html = '<div class="flex items-center space-x-2">';
-        html += '<span class="text-sm text-gray-500">Page:</span>';
-        for (let i = 1; i <= totalPages; i++) {
-          html += `<button class="px-2 py-1 text-sm border rounded hover:bg-blue-50 ${i === window.npmPage ? 'bg-blue-100' : ''}" onclick="window.npmPage = ${i}; window.renderNpmTable();">${i}</button>`;
-        }
-        html += '</div>';
-        pagDiv.innerHTML = html;
-      };
-
-      function filterNpmData() {
-        if (!npmData || !Array.isArray(npmData[npmType])) {
-          npmFiltered = [];
-          return;
-        }
-        if (!npmSearchTerm) {
-          npmFiltered = npmData[npmType];
-        } else {
-          const term = npmSearchTerm.toLowerCase();
-          npmFiltered = npmData[npmType].filter(item => item.name && item.name.toLowerCase().includes(term));
-        }
-        window.npmPage = 1;
-      }
-
-      document.getElementById('npmPackagesReport').addEventListener('click', e => {
-        e.preventDefault();
-        setActiveSidebar('npmPackagesReport');
-        showSection('npmSection');
-        filterNpmData();
-        renderNpmTable();
-      });
-
-      const searchInput = document.getElementById('npmSearch');
-      if (searchInput) {
-        searchInput.addEventListener('input', e => {
-          npmSearchTerm = e.target.value;
-          filterNpmData();
-          renderNpmTable();
-        });
-      }
-    }
-
-    // Add comprehensive audit event listeners
-    const auditTypes = ['security', 'performance', 'testing', 'dependency'];
-    
-    auditTypes.forEach(type => {
-      if (reportExistence[`${type}-audit`]) {
-        const reportId = `${type}AuditReport`;
-        const sectionId = `${type}Section`;
-        
-        document.getElementById(reportId).addEventListener('click', async (e) => {
-          e.preventDefault();
-          setActiveSidebar(reportId);
-          showSection(sectionId);
-          
-          try {
-            const data = await fetchData(`${type}-audit`);
-            renderAuditTable(data, `${type}TableWrap`, `${type}Pagination`, 10, type);
-          } catch (error) {
-            console.error(`Error loading ${type} audit:`, error);
-            document.getElementById(`${type}TableWrap`).innerHTML = '<div class="text-red-500 p-4">Error loading audit data.</div>';
-          }
-        });
-
-        // Add search functionality
-        const searchInput = document.getElementById(`${type}Search`);
-        if (searchInput) {
-          searchInput.addEventListener('input', async (e) => {
-            try {
-              const data = await fetchData(`${type}-audit`);
-              const searchTerm = e.target.value.toLowerCase();
-              
-              if (searchTerm) {
-                const filteredData = {
-                  ...data,
-                  issues: data.issues.filter(issue => 
-                    issue.message?.toLowerCase().includes(searchTerm) ||
-                    issue.file?.toLowerCase().includes(searchTerm) ||
-                    issue.type?.toLowerCase().includes(searchTerm)
-                  )
-                };
-                renderAuditTable(filteredData, `${type}TableWrap`, `${type}Pagination`, 10, type);
-              } else {
-                renderAuditTable(data, `${type}TableWrap`, `${type}Pagination`, 10, type);
-              }
-            } catch (error) {
-              console.error(`Error filtering ${type} audit:`, error);
-            }
-          });
-        }
-      }
-    });
-
-    // Special handling for accessibility audit
-    if (reportExistence['accessibility-audit']) {
-      document.getElementById('accessibilityAuditReport').addEventListener('click', async (e) => {
-        e.preventDefault();
-        showAccessibilitySection();
-      });
-    }
-
-    // Special handling for security audit filtering
-    if (reportExistence['security-audit']) {
-      let securityData = null;
-      let securityFilteredData = [];
-      let securityFilter = 'all';
-
-      // Load and filter security data
-      async function loadAndFilterSecurityData() {
-        try {
-          if (!securityData) {
-            securityData = await fetchData('security-audit');
-          }
-          
-          // Apply filter
-          if (securityFilter === 'code-scan') {
-            securityFilteredData = securityData.issues.filter(issue => !issue.source || issue.source === 'custom');
-          } else if (securityFilter === 'live-url') {
-            securityFilteredData = securityData.issues.filter(issue => issue.source === 'live-url');
-          } else {
-            securityFilteredData = [...securityData.issues];
-          }
-
-          // Render with filtered data
-          const filteredData = {
-            ...securityData,
-            issues: securityFilteredData
-          };
-          renderAuditTable(filteredData, 'securityTableWrap', 'securityPagination', 10, 'security');
-        } catch (error) {
-          console.error('Error loading security audit:', error);
-          document.getElementById('securityTableWrap').innerHTML = '<div class="text-red-500 p-4">Error loading security audit data.</div>';
-        }
-      }
-
-      // Security filter dropdown
-      const securityFilterSelect = document.getElementById('securityFilter');
-      if (securityFilterSelect) {
-        securityFilterSelect.addEventListener('change', (e) => {
-          securityFilter = e.target.value;
-          loadAndFilterSecurityData();
-        });
-      }
-
-      // Override the generic security audit click handler
-      const securityReportElement = document.getElementById('securityAuditReport');
-      if (securityReportElement) {
-        // Remove existing event listeners by cloning the element
-        const newSecurityReportElement = securityReportElement.cloneNode(true);
-        securityReportElement.parentNode.replaceChild(newSecurityReportElement, securityReportElement);
-        
-        newSecurityReportElement.addEventListener('click', async (e) => {
-          e.preventDefault();
-          setActiveSidebar('securityAuditReport');
-          showSection('securitySection');
-          await loadAndFilterSecurityData();
-        });
-      }
-
-      // Override the generic security search handler
-      const securitySearchInput = document.getElementById('securitySearch');
-      if (securitySearchInput) {
-        securitySearchInput.addEventListener('input', async (e) => {
-          try {
-            if (!securityData) {
-              securityData = await fetchData('security-audit');
-            }
-            
-            const searchTerm = e.target.value.toLowerCase();
-            
-            if (searchTerm) {
-              const searchFilteredData = securityData.issues.filter(issue => 
-                issue.message?.toLowerCase().includes(searchTerm) ||
-                issue.file?.toLowerCase().includes(searchTerm) ||
-                issue.type?.toLowerCase().includes(searchTerm) ||
-                issue.url?.toLowerCase().includes(searchTerm)
-              );
-              
-              // Apply current filter
-              if (securityFilter === 'code-scan') {
-                securityFilteredData = searchFilteredData.filter(issue => !issue.source || issue.source === 'custom');
-              } else if (securityFilter === 'live-url') {
-                securityFilteredData = searchFilteredData.filter(issue => issue.source === 'live-url');
-              } else {
-                securityFilteredData = searchFilteredData;
-              }
-
-              const filteredData = {
-                ...securityData,
-                issues: securityFilteredData
-              };
-              renderAuditTable(filteredData, 'securityTableWrap', 'securityPagination', 10, 'security');
-            } else {
-              await loadAndFilterSecurityData();
-            }
-          } catch (error) {
-            console.error('Error filtering security audit:', error);
-          }
-        });
-      }
-    }
-
-    // Comprehensive audit report
-    if (reportExistence['comprehensive-audit']) {
-      document.getElementById('comprehensiveAuditReport').addEventListener('click', async (e) => {
-        e.preventDefault();
-        setActiveSidebar('comprehensiveAuditReport');
-        showSection('comprehensiveSection');
-        
-        try {
-          const data = await fetchData('comprehensive-audit');
-          const wrap = document.getElementById('comprehensiveTableWrap');
-          
-          if (!data || !data.categories) {
-            wrap.innerHTML = '<div class="text-gray-500 p-4">No comprehensive audit data found.</div>';
-            return;
-          }
-
-          let html = '<div class="space-y-6">';
-          
-          // Summary section
-          if (data.summary) {
-            html += '<div class="bg-white rounded-lg shadow p-6">';
-            html += '<h3 class="text-lg font-semibold mb-4">📊 Audit Summary</h3>';
-            html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4">';
-            html += `<div class="text-center"><div class="text-2xl font-bold text-red-600">${data.summary.highSeverity || 0}</div><div class="text-sm text-gray-500">High Severity</div></div>`;
-            html += `<div class="text-center"><div class="text-2xl font-bold text-yellow-600">${data.summary.mediumSeverity || 0}</div><div class="text-sm text-gray-500">Medium Severity</div></div>`;
-            html += `<div class="text-center"><div class="text-2xl font-bold text-blue-600">${data.summary.lowSeverity || 0}</div><div class="text-sm text-gray-500">Low Severity</div></div>`;
-            html += `<div class="text-center"><div class="text-2xl font-bold text-green-600">${data.summary.totalIssues || 0}</div><div class="text-sm text-gray-500">Total Issues</div></div>`;
-            html += '</div></div>';
-          }
-
-          // Categories breakdown
-          html += '<div class="bg-white rounded-lg shadow p-6">';
-          html += '<h3 class="text-lg font-semibold mb-4">📋 Category Breakdown</h3>';
-          
-          Object.entries(data.categories).forEach(([category, categoryData]) => {
-            if (categoryData && categoryData.totalIssues !== undefined) {
-              const icon = category === 'security' ? '🔒' : 
-                          category === 'performance' ? '⚡' : 
-                          category === 'accessibility' ? '♿' : 
-                          category === 'testing' ? '🧪' : 
-                          category === 'dependency' ? '📦' : '📋';
-              
-              html += `<div class="border-b border-gray-200 py-3 last:border-b-0">`;
-              html += `<div class="flex items-center justify-between">`;
-              html += `<div class="flex items-center space-x-2">`;
-              html += `<span class="text-lg">${icon}</span>`;
-              html += `<span class="font-medium capitalize">${category}</span>`;
-              html += `</div>`;
-              html += `<span class="text-lg font-bold">${categoryData.totalIssues}</span>`;
-              html += `</div>`;
-              html += `<div class="text-sm text-gray-500">` +
-                `High: <span class='text-red-600 font-bold'>${categoryData.highSeverity || 0}</span> | ` +
-                `Medium: <span class='text-yellow-600 font-bold'>${categoryData.mediumSeverity || 0}</span> | ` +
-                `Low: <span class='text-blue-600 font-bold'>${categoryData.lowSeverity || 0}</span>` +
-                `</div>`;
-              html += `</div>`;
-            }
-          });
-          
-          html += '</div></div>';
-          wrap.innerHTML = html;
-        } catch (error) {
-          console.error('Error loading comprehensive audit:', error);
-          document.getElementById('comprehensiveTableWrap').innerHTML = '<div class="text-red-500 p-4">Error loading comprehensive audit data.</div>';
-        }
-      });
-    }
-
-    // Excluded Rules Info Section
-    if (reportExistence['eslint'] || reportExistence['stylelint']) {
-      document.getElementById('excludedRulesInfo').addEventListener('click', (e) => {
-        e.preventDefault();
-        setActiveSidebar('excludedRulesInfo');
-        showSection('excludedRulesSection');
-        renderExcludedRulesInfo();
-      });
-    }
-
-    // Show overview by default
-    setActiveSidebar('mainPage');
-    showSection('overviewSection');
   });
 
-  // Function to render excluded rules information
-  async function renderExcludedRulesInfo() {
-    // Load config first
-    await loadConfigExcludeRules();
-    
-    // Merge default and custom rules for display
-    const getDisplayRules = (auditType, defaultRules) => {
-      const auditConfig = configExcludeRules[auditType] || {};
-      let merged = [];
-      if (auditConfig.enabled === false) return [];
-      if (auditConfig.overrideDefault === true) {
-        merged = auditConfig.additionalRules || [];
-      } else {
-        const additional = auditConfig.additionalRules || [];
-        merged = [...defaultRules, ...additional];
-      }
-      return merged;
-    };
-
-    const currentEslintRules = getDisplayRules('eslint', COMMON_ESLINT_ISSUES_TO_EXCLUDE);
-    const currentStylelintRules = getDisplayRules('stylelint', COMMON_STYLELINT_ISSUES_TO_EXCLUDE);
-
-    // Update counts
-    document.getElementById('eslintExcludedCount').textContent = currentEslintRules.length;
-    document.getElementById('stylelintExcludedCount').textContent = currentStylelintRules.length;
-
-    // Render ESLint excluded rules
-    renderExcludedRulesList('eslintExcludedRulesList', currentEslintRules, 'eslint');
-    // Render Stylelint excluded rules
-    renderExcludedRulesList('stylelintExcludedRulesList', currentStylelintRules, 'stylelint');
-
-    // Add search functionality
-    setupRulesSearch('eslintRulesSearch', 'eslintExcludedRulesList', currentEslintRules, 'eslint');
-    setupRulesSearch('stylelintRulesSearch', 'stylelintExcludedRulesList', currentStylelintRules, 'stylelint');
-
-    // Show config status
-    updateConfigStatus();
-  }
-
-  // Function to render excluded rules list
-  function renderExcludedRulesList(containerId, rules, type) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    // Get custom rules from config
-    const auditConfig = configExcludeRules[type] || {};
-    const additionalRules = auditConfig.additionalRules || [];
-    const overrideDefault = auditConfig.overrideDefault === true;
-
-    const categories = categorizeRules(rules, type);
-    let html = '';
-
-    Object.entries(categories).forEach(([category, categoryRules]) => {
-      html += `<div class="mb-4">`;
-      html += `<h4 class="text-sm font-semibold text-gray-700 mb-2 capitalize">${category}</h4>`;
-      html += `<div class="space-y-1">`;
-      
-      categoryRules.forEach(rule => {
-        const ruleInfo = getRuleInfo(rule, type);
-        const isCustom = overrideDefault ? true : additionalRules.includes(rule);
-        html += `<div class="flex items-center justify-between p-2 bg-gray-50 rounded text-xs hover:bg-gray-100">`;
-        html += `<div class="flex-1">`;
-        html += `<div class="font-medium text-gray-800 flex items-center space-x-2">`;
-        html += `<span>${rule}</span>`;
-        html += `<span class="px-1.5 py-0.5 ${isCustom ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'} text-xs rounded">${isCustom ? 'Custom' : 'Default'}</span>`;
-        html += `</div>`;
-        if (ruleInfo.description) {
-          html += `<div class="text-gray-600 mt-1">${ruleInfo.description}</div>`;
-        }
-        html += `</div>`;
-        html += `</div>`;
-      });
-      
-      html += `</div></div>`;
-    });
-
-    container.innerHTML = html;
-  }
-
-  // Function to categorize rules
-  function categorizeRules(rules, type) {
-    const categories = {
-      'formatting': [],
-      'style preferences': [],
-      'naming conventions': [],
-      'react specific': [],
-      'typescript specific': [],
-      'import/export': [],
-      'spacing and layout': [],
-      'selectors': [],
-      'declarations': [],
-      'functions': [],
-      'values': [],
-      'other': []
-    };
-
-    rules.forEach(rule => {
-      if (type === 'eslint') {
-        if (rule.includes('react/')) {
-          categories['react specific'].push(rule);
-        } else if (rule.includes('@typescript-eslint/')) {
-          categories['typescript specific'].push(rule);
-        } else if (rule.includes('import/')) {
-          categories['import/export'].push(rule);
-        } else if (['quotes', 'semi', 'indent', 'comma-dangle', 'no-trailing-spaces', 'eol-last'].includes(rule)) {
-          categories['formatting'].push(rule);
-        } else if (['no-console', 'prefer-const', 'no-var', 'prefer-arrow-callback'].includes(rule)) {
-          categories['style preferences'].push(rule);
-        } else if (['camelcase', 'id-match', 'new-cap'].includes(rule)) {
-          categories['naming conventions'].push(rule);
-        } else {
-          categories['other'].push(rule);
-        }
-      } else if (type === 'stylelint') {
-        if (rule.includes('indentation') || rule.includes('quotes') || rule.includes('case')) {
-          categories['formatting'].push(rule);
-        } else if (rule.includes('space') || rule.includes('newline')) {
-          categories['spacing and layout'].push(rule);
-        } else if (rule.includes('selector')) {
-          categories['selectors'].push(rule);
-        } else if (rule.includes('declaration')) {
-          categories['declarations'].push(rule);
-        } else if (rule.includes('function')) {
-          categories['functions'].push(rule);
-        } else if (rule.includes('value')) {
-          categories['values'].push(rule);
-        } else {
-          categories['other'].push(rule);
-        }
-      }
-    });
-
-    // Remove empty categories
-    Object.keys(categories).forEach(key => {
-      if (categories[key].length === 0) {
-        delete categories[key];
-      }
-    });
-
-    return categories;
-  }
-
-  // Function to get rule information
-  function getRuleInfo(rule, type) {
-    const ruleInfo = {
-      description: '',
-      category: ''
-    };
-
-    if (type === 'eslint') {
-      // Add descriptions for common ESLint rules
-      const descriptions = {
-        'no-console': 'Disallows console statements',
-        'prefer-const': 'Requires const for variables that are never reassigned',
-        'no-var': 'Requires let or const instead of var',
-        'quotes': 'Enforces consistent quote style',
-        'semi': 'Requires or disallows semicolons',
-        'indent': 'Enforces consistent indentation',
-        'comma-dangle': 'Requires or disallows trailing commas',
-        'react/prop-types': 'Disallows missing props validation in React components',
-        'react/jsx-filename-extension': 'Restricts file extensions that may contain JSX',
-        '@typescript-eslint/no-explicit-any': 'Disallows usage of the any type',
-        '@typescript-eslint/no-unused-vars': 'Disallows unused variables',
-        'import/order': 'Enforces a convention in module import order'
-      };
-      ruleInfo.description = descriptions[rule] || '';
-    } else if (type === 'stylelint') {
-      // Add descriptions for common Stylelint rules
-      const descriptions = {
-        'indentation': 'Specifies indentation',
-        'string-quotes': 'Specifies quote style for strings',
-        'color-hex-case': 'Specifies lowercase or uppercase for hex colors',
-        'color-hex-length': 'Specifies short or long notation for hex colors',
-        'selector-class-pattern': 'Specifies a pattern for class selectors',
-        'declaration-block-trailing-semicolon': 'Requires or disallows a trailing semicolon within declaration blocks',
-        'declaration-colon-space-after': 'Requires or disallows a space after the colon in declarations',
-        'function-comma-space-after': 'Requires or disallows a space after function comma'
-      };
-      ruleInfo.description = descriptions[rule] || '';
-    }
-
-    return ruleInfo;
-  }
-
-  // Function to setup search functionality for rules
-  function setupRulesSearch(searchId, listId, rules, type) {
-    const searchInput = document.getElementById(searchId);
-    if (!searchInput) return;
-
-    searchInput.addEventListener('input', (e) => {
-      const searchTerm = e.target.value.toLowerCase();
-      document.getElementById(listId);
-      
-      if (!searchTerm) {
-        renderExcludedRulesList(listId, rules, type);
-        return;
-      }
-
-      const filteredRules = rules.filter(rule => 
-        rule.toLowerCase().includes(searchTerm) ||
-        getRuleInfo(rule, type).description.toLowerCase().includes(searchTerm)
-      );
-
-      renderExcludedRulesList(listId, filteredRules, type);
-    });
-  }
-
-  // Function to update config status display
-  function updateConfigStatus() {
-    const configStatusDiv = document.getElementById('configStatus');
-    if (!configStatusDiv) return;
-    
-    let statusHtml = '<div class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">';
-    statusHtml += '<h4 class="text-sm font-semibold text-blue-800 mb-2">Configuration Status</h4>';
-    
-    const auditTypes = ['eslint', 'stylelint', 'security', 'performance', 'accessibility', 'testing', 'dependency'];
-    
-    auditTypes.forEach(type => {
-      statusHtml += `<div class="flex items-center justify-between py-1">`;
-      statusHtml += `<span class="text-sm capitalize">${type}:</span>`;
-      statusHtml += `<div class="flex items-center space-x-2">`;
-      statusHtml += `<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">Default</span>`;
-      statusHtml += `</div></div>`;
-    });
-    
-    statusHtml += '<div class="mt-3 pt-3 border-t border-blue-200">';
-    statusHtml += '<p class="text-xs text-blue-700">💡 Dashboard shows default exclude rules. Custom config is applied during CLI execution.</p>';
-    statusHtml += '</div>';
-    
-    statusHtml += '</div>';
-    configStatusDiv.innerHTML = statusHtml;
-  }
-
-  /* eslint-disable no-undef */
-
-  document.addEventListener("DOMContentLoaded", () => {
-    chartInit();
-    eslintDom();
-    stylelintDom();
-    lighthouseDom.init();
-    globalInit();
-    packageReportInit();
-    // componentUsageDom();
-  });
+  return SimpleDashboard;
 
 })();

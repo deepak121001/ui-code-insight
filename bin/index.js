@@ -1,12 +1,104 @@
 #!/usr/bin/env node
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { codeInsightInit } from "../build/code-insight.js";
+import { codeInsightInit, initConfig, createConfigWizard, generateCIConfigs, validateConfig } from "../build/code-insight.js";
 import fs from 'fs';
 import path from 'path';
 
 // URL configuration file path - will be set to report folder during execution
 let URL_CONFIG_FILE = path.join(process.cwd(), '.ui-code-insight-urls.json');
+
+// Parse command line arguments
+const args = process.argv.slice(2);
+const options = {
+  silent: false,
+  ci: false,
+  initConfig: false,
+  configWizard: false,
+  generateCI: false,
+  validate: false,
+  help: false
+};
+
+// Parse arguments
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+  
+  switch (arg) {
+    case '--silent':
+    case '-s':
+      options.silent = true;
+      break;
+    case '--ci':
+    case '-c':
+      options.ci = true;
+      break;
+    case '--init-config':
+      options.initConfig = true;
+      break;
+    case '--config-wizard':
+      options.configWizard = true;
+      break;
+    case '--generate-ci':
+      options.generateCI = true;
+      break;
+    case '--validate':
+      options.validate = true;
+      break;
+    case '--help':
+    case '-h':
+      options.help = true;
+      break;
+  }
+}
+
+// Show help if requested
+if (options.help) {
+  showHelp();
+  process.exit(0);
+}
+
+// Handle special commands
+if (options.initConfig) {
+  initConfig();
+  process.exit(0);
+}
+
+if (options.configWizard) {
+  createConfigWizard();
+  process.exit(0);
+}
+
+if (options.generateCI) {
+  generateCIConfigs();
+  process.exit(0);
+}
+
+if (options.validate) {
+  validateConfig();
+  process.exit(0);
+}
+
+function showHelp() {
+  console.log(chalk.blue('UI Code Insight - Help'));
+  console.log(chalk.blue('='.repeat(40)));
+  console.log(chalk.white('\nUsage:'));
+  console.log(chalk.white('  ui-code-insight [options]'));
+  console.log(chalk.white('\nOptions:'));
+  console.log(chalk.white('  --silent, -s          Run in silent mode (minimal output)'));
+  console.log(chalk.white('  --ci, -c              Run in CI mode with quality gates'));
+  console.log(chalk.white('  --init-config         Initialize configuration file'));
+  console.log(chalk.white('  --config-wizard       Run configuration wizard'));
+  console.log(chalk.white('  --generate-ci         Generate CI/CD configuration files'));
+  console.log(chalk.white('  --validate            Validate configuration file'));
+  console.log(chalk.white('  --help, -h            Show this help message'));
+  console.log(chalk.white('\nExamples:'));
+  console.log(chalk.white('  ui-code-insight                    # Interactive mode'));
+  console.log(chalk.white('  ui-code-insight --silent          # Silent mode'));
+  console.log(chalk.white('  ui-code-insight --ci              # CI mode'));
+  console.log(chalk.white('  ui-code-insight --init-config     # Initialize config'));
+  console.log(chalk.white('  ui-code-insight --generate-ci     # Generate CI configs'));
+}
 
 function getFriendlyConfigName(configKey) {
   if (configKey === 'airbnb') return 'Airbnb';
@@ -283,6 +375,24 @@ async function promptForBatchUrlTesting(reports, reportDir = null) {
 }
 
 async function main() {
+  // Skip interactive prompts in CI mode
+  if (options.ci) {
+    console.log(chalk.blue('🔧 Running in CI mode...'));
+    
+    try {
+      await codeInsightInit({
+        projectType: 'Other',
+        reports: ['all'],
+        silent: true,
+        ci: true
+      });
+    } catch (error) {
+      console.error(chalk.red('Error:', error.message));
+      process.exit(1);
+    }
+    return;
+  }
+
   const { projectType } = await inquirer.prompt([
     {
       type: 'list',
@@ -290,11 +400,10 @@ async function main() {
       message: 'What type of project is this?',
       choices: [
         'React',
-        'Node',
-        'Vanilla JS',
+        'Node.js',
+        'Vanilla JavaScript',
         'TypeScript',
         'TypeScript + React',
-        'EDS',
         'Other',
       ],
     },
@@ -318,7 +427,7 @@ async function main() {
         'stylelint-config-recommended',
       ],
     },
-    'Node': {
+    'Node.js': {
       eslint: [
         'eslint',
         'eslint-plugin-node',
@@ -326,7 +435,7 @@ async function main() {
       ],
       stylelint: [],
     },
-    'Vanilla JS': {
+    'Vanilla JavaScript': {
       eslint: [
         'eslint',
         'eslint-config-airbnb-base',
@@ -372,18 +481,6 @@ async function main() {
         'stylelint-config-recommended',
       ],
     },
-    'EDS': {
-      eslint: [
-        'eslint',
-        'eslint-config-airbnb-base',
-        "eslint-plugin-promise",
-        "eslint-plugin-security",
-      ],
-      stylelint: [
-        'stylelint',
-        'stylelint-config-standard',
-      ],
-    },
     'Other': {
       eslint: [
         'eslint',
@@ -420,26 +517,23 @@ async function main() {
     {
       type: 'checkbox',
       name: 'reports',
-      message: 'Which report(s) do you want to generate?',
+      message: 'Which audit(s) do you want to run?',
       choices: [
-        { name: 'All Reports', value: 'all' },
-        { name: 'Security Audit', value: 'security' },
-        { name: 'Performance Audit', value: 'performance' },
-        { name: 'Accessibility Audit', value: 'accessibility' },
-        { name: 'Lighthouse Audit', value: 'lighthouse' },
-        { name: 'Testing Audit', value: 'testing' },
-        { name: 'Dependency Audit', value: 'dependency' },
-        { name: 'ESLint Report', value: 'eslint' },
-        { name: 'Stylelint Report', value: 'stylelint' },
-        { name: 'Packages Report', value: 'packages' },
-        { name: 'Component Usage Report', value: 'component-usage' },
+        { name: 'All Audits', value: 'all' },
+        { name: '🔒 Security Audit', value: 'security' },
+        { name: '⚡ Performance Audit', value: 'performance' },
+        { name: '♿ Accessibility Audit', value: 'accessibility' },
+        { name: '🚀 Lighthouse Audit', value: 'lighthouse' },
+        { name: '📦 Dependency Audit', value: 'dependency' },
+        { name: '🔧 ESLint Report', value: 'eslint' },
+        { name: '🎨 Stylelint Report', value: 'stylelint' },
       ],
     },
   ]);
 
   // If only 'all' is selected, expand it to include all reports
   if (reports.length === 1 && reports.includes('all')) {
-    reports.push('security', 'performance', 'accessibility', 'lighthouse', 'testing', 'dependency', 'eslint', 'stylelint', 'packages', 'component-usage');
+    reports.push('security', 'performance', 'accessibility', 'lighthouse', 'dependency', 'eslint', 'stylelint');
   }
 
   // Create report directory early for URL configuration
@@ -460,7 +554,9 @@ async function main() {
       reports,
       lighthouseUrl,
       accessibilityUrls,
-      securityUrls
+      securityUrls,
+      silent: options.silent,
+      ci: options.ci
     });
   } catch (error) {
     console.error(chalk.red('Error:', error.message));
