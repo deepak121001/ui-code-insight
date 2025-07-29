@@ -8,7 +8,7 @@ import { execSync } from "child_process";
 import { copyStaticFiles } from "./utils.js";
 import { generateESLintReport } from "./eslint/eslint-report.js";
 import { generateStyleLintReport } from "./stylelint/stylelint-report.js";
-import { generateNpmPackageReport } from "./packages-report/packagesReport.js";
+
 import { generateComponentUsageReport } from "./component-usage/component-usage-report.js";
 
 const folderName = "report";
@@ -153,20 +153,7 @@ const generateStyleLintReportWrapper = async (
   }
 };
 
-/**
- * Generates an npm package report.
- * @param {string} projectType
- * @param {Array<string>} reports
- * @returns {void}
- */
-const generateNpmPackageReportWrapper = (projectType, reports) => {
-  try {
-    console.log(chalk.blue("Generating npm packages report..."));
-    generateNpmPackageReport();
-  } catch (err) {
-    handleReportError("Error generating npm packages report", err);
-  }
-};
+
 
 // Utility to copy config file to report directory if it exists
 function copyConfigToReportFolder() {
@@ -183,7 +170,6 @@ export default {
   generateESLintReport: generateESLintReportWrapper,
   generateStyleLintReport: generateStyleLintReportWrapper,
   generateComponentUsageReport: generateComponentUsageReportWrapper,
-  generateNpmPackageReport: generateNpmPackageReportWrapper,
   copyConfigToReportFolder, // Export for manual use if needed
 };
 

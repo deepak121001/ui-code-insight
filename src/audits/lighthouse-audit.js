@@ -48,7 +48,8 @@ export class LighthouseAudit {
             accessibility: desktopReport.categories?.accessibility?.score * 100,
             bestPractices: desktopReport.categories?.["best-practices"]?.score * 100,
             seo: desktopReport.categories?.seo?.score * 100,
-            issues: this.extractLighthouseIssues(desktopReport)
+            issues: this.extractLighthouseIssues(desktopReport),
+            coreWebVitals: this.extractCoreWebVitals(desktopReport)
           };
         } else {
           console.log(chalk.yellow(`  ⚠️  No desktop report found for ${url}`));
@@ -83,7 +84,8 @@ export class LighthouseAudit {
             accessibility: mobileReport.categories?.accessibility?.score * 100,
             bestPractices: mobileReport.categories?.["best-practices"]?.score * 100,
             seo: mobileReport.categories?.seo?.score * 100,
-            issues: this.extractLighthouseIssues(mobileReport)
+            issues: this.extractLighthouseIssues(mobileReport),
+            coreWebVitals: this.extractCoreWebVitals(mobileReport)
           };
         } else {
           console.log(chalk.yellow(`  ⚠️  No mobile report found for ${url}`));
@@ -146,6 +148,78 @@ export class LighthouseAudit {
     });
     
     return issues;
+  }
+
+  /**
+   * Extract Core Web Vitals from Lighthouse report
+   */
+  extractCoreWebVitals(report) {
+    const coreWebVitals = {};
+    
+    // Extract Core Web Vitals from audits
+    const audits = report.audits || {};
+    
+    // Largest Contentful Paint (LCP)
+    const lcpAudit = audits['largest-contentful-paint'];
+    if (lcpAudit) {
+      coreWebVitals.lcp = {
+        score: lcpAudit.score,
+        value: lcpAudit.numericValue ? (lcpAudit.numericValue / 1000).toFixed(2) : null,
+        unit: 's',
+        description: lcpAudit.description,
+        displayValue: lcpAudit.displayValue
+      };
+    }
+    
+    // First Input Delay (FID) - Note: FID is deprecated, using Total Blocking Time instead
+    const tbtAudit = audits['total-blocking-time'];
+    if (tbtAudit) {
+      coreWebVitals.tbt = {
+        score: tbtAudit.score,
+        value: tbtAudit.numericValue ? (tbtAudit.numericValue).toFixed(0) : null,
+        unit: 'ms',
+        description: tbtAudit.description,
+        displayValue: tbtAudit.displayValue
+      };
+    }
+    
+    // Cumulative Layout Shift (CLS)
+    const clsAudit = audits['cumulative-layout-shift'];
+    if (clsAudit) {
+      coreWebVitals.cls = {
+        score: clsAudit.score,
+        value: clsAudit.numericValue ? clsAudit.numericValue.toFixed(3) : null,
+        unit: '',
+        description: clsAudit.description,
+        displayValue: clsAudit.displayValue
+      };
+    }
+    
+    // First Contentful Paint (FCP)
+    const fcpAudit = audits['first-contentful-paint'];
+    if (fcpAudit) {
+      coreWebVitals.fcp = {
+        score: fcpAudit.score,
+        value: fcpAudit.numericValue ? (fcpAudit.numericValue / 1000).toFixed(2) : null,
+        unit: 's',
+        description: fcpAudit.description,
+        displayValue: fcpAudit.displayValue
+      };
+    }
+    
+    // Interaction to Next Paint (INP) - if available
+    const inpAudit = audits['interaction-to-next-paint'];
+    if (inpAudit) {
+      coreWebVitals.inp = {
+        score: inpAudit.score,
+        value: inpAudit.numericValue ? (inpAudit.numericValue).toFixed(0) : null,
+        unit: 'ms',
+        description: inpAudit.description,
+        displayValue: inpAudit.displayValue
+      };
+    }
+    
+    return coreWebVitals;
   }
 
   /**

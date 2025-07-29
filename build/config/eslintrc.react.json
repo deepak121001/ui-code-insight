@@ -10,8 +10,7 @@
   ],
   "plugins": [
     "react",
-    "security",
-    "promise"
+    "security"
   ],
   "parserOptions": {
     "ecmaFeatures": {
@@ -26,6 +25,22 @@
     }
   },
   "rules": {
+    "curly": "off",
+    "arrow-parens": "off",
+    "indent": "off",
+    "linebreak-style": "off",
+    "comma-dangle": "off",
+    "semi": "off",
+    "quotes": "off",
+    "arrow-body-style": "off",
+    "object-curly-newline": "off",
+    "react/jsx-filename-extension": "off",
+    "react/prop-types": "off",
+     "spaced-comment": "off",
+    "react/react-in-jsx-scope": "off",
+    "react/jsx-props-no-spreading": "off",
+    "jsx-a11y/anchor-is-valid": "off",
+    "react/function-component-definition": "off",
     "security/detect-object-injection": "warn",
     "security/detect-unsafe-regex": "warn",
     "security/detect-buffer-noassert": "warn",
@@ -38,6 +53,16 @@
     "security/detect-non-literal-regexp": "warn",
     "security/detect-non-literal-require": "warn",
     "security/detect-possible-timing-attacks": "warn",
-    "security/detect-pseudoRandomBytes": "warn"
+    "security/detect-pseudoRandomBytes": "warn",
+    "no-undef": "error",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "no-unreachable": "error",
+    "no-constant-condition": "error",
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "no-return-await": "error",
+    "no-prototype-builtins": "error",
+    "eqeqeq": ["error", "always"]
   }
-} 
+}

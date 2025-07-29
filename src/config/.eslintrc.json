@@ -32,7 +32,7 @@
   },
   "rules": {
     "yoda": 0,
-    "curly": 1,
+    "curly": "off",
     "consistent-return": 0,
     "@typescript-eslint/explicit-function-return-type": [0],
     "@typescript-eslint/no-explicit-any": [0],

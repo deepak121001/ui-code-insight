@@ -32,7 +32,14 @@ const defaultScssFilePathPattern = [
   '!**/build/**',
   '!**/coverage/**',
   '!**/report/**',
-  '!**/tools/**'
+  '!**/reports/**',
+  '!**/tools/**',
+  '!**/*.min.css',
+  '!**/*.bundle.css',
+  '!**/*.map',
+  '!**/.git/**',
+  '!**/vendor/**',
+  '!**/bower_components/**'
 ];
 
 let cachedConfig = null;

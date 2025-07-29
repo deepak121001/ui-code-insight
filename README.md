@@ -26,7 +26,7 @@ Check out the [Audit Sample Dashboard](https://deepak121001.github.io/Audit-Samp
 | **🌐 Live URL Testing** | Test real websites for accessibility, security & performance |
 | **📊 Interactive Dashboard** | Beautiful visual reports with actionable insights |
 | **⚡ Fast & Efficient** | Optimized for large projects with batch processing |
-| **🛡️ Industry Standards** | Uses ESLint, Stylelint, Lighthouse, and axe-core |
+| **🛡️ Industry Standards** | Uses ESLint, Stylelint, Lighthouse, axe-core, npm audit |
 | **🎯 Framework Agnostic** | Works with React, Vue, Angular, TypeScript, Vanilla JS |
 | **💡 Actionable Results** | Detailed recommendations with specific fixes |
 | **🔧 CI/CD Integration** | GitHub Actions, GitLab CI, Jenkins support |
@@ -69,19 +69,31 @@ ui-code-insight
 ❯ Yes
 ```
 
+### 🔐 Modern Security Tools
+
+**Automatically Included:**
+
+- **📦 npm audit**: Dependency vulnerability scanning
+- **🔒 Enhanced Secret Detection**: Modern regex-based secret scanning
+- **🔒 ESLint Security**: Code security analysis
+- **🌐 Live URL Security**: Puppeteer-based security testing
+
+> **Note**: UI Code Insight uses modern, actively maintained security tools with no external dependencies.
+
 ---
 
 ## 🔍 Core Audit Categories
 
 ### 🔒 **Security Audit**
-**Code Scanning + Live URL Testing**
+**Modern Security Tools + Code Scanning + Live URL Testing**
 
-- **Hardcoded Secrets Detection**: API keys, passwords, tokens, private keys
-- **Input Validation**: Missing validation attributes, unsafe DOM insertion
-- **File Upload Security**: Type restrictions, size limits, sanitization
-- **Code Injection**: eval(), Function constructor, dynamic code execution
-- **Network Security**: Insecure HTTP, development URLs, token exposure
-- **Live URL Security**: Security headers, CSP, XSS vulnerabilities, HTTPS usage
+
+- **📦 Dependency Vulnerabilities**: npm audit integration for package security
+- **🔐 Enhanced Secret Detection**: Modern regex-based secret scanning
+- **🔒 Code Security**: ESLint security plugins + custom pattern matching
+- **📁 File Upload Security**: Type restrictions, sanitization checks
+- **✅ Input Validation**: Missing validation attributes, unsafe DOM insertion
+- **🌐 Security Headers**: CSP, HSTS, X-Frame-Options, XSS protection
 
 ### ⚡ **Performance Audit**
 **Code Analysis + Bundle Analysis**

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Data Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>Security Data Debug Test</h1>
+    
+    <div class="test-section">
+        <h2>1. File Loading Test</h2>
+        <div id="fileLoadResult"></div>
+        <button onclick="testFileLoading()">Test File Loading</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Data Structure Test</h2>
+        <div id="dataStructureResult"></div>
+        <button onclick="testDataStructure()">Test Data Structure</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Table Rendering Test</h2>
+        <div id="tableRenderResult"></div>
+        <div id="securityTableWrap" style="border: 1px solid #ccc; padding: 10px; min-height: 100px;">
+            <p>Table will be rendered here...</p>
+        </div>
+        <button onclick="testTableRendering()">Test Table Rendering</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. Dashboard Integration Test</h2>
+        <div id="dashboardResult"></div>
+        <button onclick="testDashboardIntegration()">Test Dashboard Integration</button>
+    </div>
+
+    <script>
+        let securityData = null;
+        
+        async function testFileLoading() {
+            const resultDiv = document.getElementById('fileLoadResult');
+            resultDiv.innerHTML = '<div class="info">Loading security-audit-report.json...</div>';
+            
+            try {
+                const response = await fetch('./security-audit-report.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                securityData = await response.json();
+                resultDiv.innerHTML = `
+                    <div class="success">✅ File loaded successfully!</div>
+                    <div class="info">File size: ${JSON.stringify(securityData).length} characters</div>
+                    <div class="info">Total issues: ${securityData.totalIssues || 'N/A'}</div>
+                    <div class="info">Issues array length: ${securityData.issues?.length || 'N/A'}</div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error loading file: ${error.message}</div>`;
+            }
+        }
+        
+        function testDataStructure() {
+            const resultDiv = document.getElementById('dataStructureResult');
+            
+            if (!securityData) {
+                resultDiv.innerHTML = '<div class="error">❌ No data loaded. Run file loading test first.</div>';
+                return;
+            }
+            
+            const analysis = {
+                hasIssues: !!securityData.issues,
+                issuesLength: securityData.issues?.length || 0,
+                firstIssue: securityData.issues?.[0] || null,
+                hasRequiredFields: false,
+                missingFields: []
+            };
+            
+            if (analysis.firstIssue) {
+                const requiredFields = ['type', 'severity', 'message', 'file'];
+                analysis.hasRequiredFields = requiredFields.every(field => analysis.firstIssue.hasOwnProperty(field));
+                analysis.missingFields = requiredFields.filter(field => !analysis.firstIssue.hasOwnProperty(field));
+            }
+            
+            resultDiv.innerHTML = `
+                <div class="success">✅ Data structure analysis complete</div>
+                <pre>${JSON.stringify(analysis, null, 2)}</pre>
+                ${analysis.firstIssue ? `<h4>First Issue Sample:</h4><pre>${JSON.stringify(analysis.firstIssue, null, 2)}</pre>` : ''}
+            `;
+        }
+        
+        function testTableRendering() {
+            const resultDiv = document.getElementById('tableRenderResult');
+            const tableWrap = document.getElementById('securityTableWrap');
+            
+            if (!securityData) {
+                resultDiv.innerHTML = '<div class="error">❌ No data loaded. Run file loading test first.</div>';
+                return;
+            }
+            
+            try {
+                // Simulate the dashboard's loadSecurityData function
+                if (securityData && securityData.issues && securityData.issues.length > 0) {
+                    const data = securityData.issues.slice(0, 5).map(issue => ({
+                        type: issue.type || 'Vulnerability',
+                        severity: issue.severity || 'medium',
+                        issue: issue.message || issue.issue || 'Security issue',
+                        location: issue.file || 'Unknown',
+                        description: issue.ruleId || issue.description || 'No description'
+                    }));
+                    
+                    renderTable(tableWrap, data, ['Type', 'Severity', 'Issue', 'Location', 'Description']);
+                    resultDiv.innerHTML = `<div class="success">✅ Table rendered successfully with ${data.length} rows</div>`;
+                } else {
+                    tableWrap.innerHTML = '<div class="error">No security issues found</div>';
+                    resultDiv.innerHTML = '<div class="error">❌ No issues data available</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error rendering table: ${error.message}</div>`;
+            }
+        }
+        
+        function renderTable(container, data, headers) {
+            if (!container || !data || !headers) return;
+            
+            const table = document.createElement('table');
+            table.style.width = '100%';
+            table.style.borderCollapse = 'collapse';
+            
+            // Create header
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                th.style.border = '1px solid #ddd';
+                th.style.padding = '8px';
+                th.style.backgroundColor = '#f0f0f0';
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // Create body
+            const tbody = document.createElement('tbody');
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                headers.forEach(header => {
+                    const td = document.createElement('td');
+                    const value = row[header.toLowerCase()] || row[header] || '';
+                    td.textContent = value;
+                    td.style.border = '1px solid #ddd';
+                    td.style.padding = '8px';
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            
+            container.innerHTML = '';
+            container.appendChild(table);
+        }
+        
+        function testDashboardIntegration() {
+            const resultDiv = document.getElementById('dashboardResult');
+            
+            if (!securityData) {
+                resultDiv.innerHTML = '<div class="error">❌ No data loaded. Run file loading test first.</div>';
+                return;
+            }
+            
+            // Simulate the dashboard's calculateMetrics function
+            const securityIssues = securityData.issues?.length || 0;
+            const criticalIssues = securityData.issues?.filter(issue => issue.severity === 'high').length || 0;
+            const securityScore = Math.max(0, 100 - (securityIssues * 2) - (criticalIssues * 5));
+            
+            resultDiv.innerHTML = `
+                <div class="success">✅ Dashboard integration test complete</div>
+                <div class="info">Security Issues: ${securityIssues}</div>
+                <div class="info">Critical Issues: ${criticalIssues}</div>
+                <div class="info">Calculated Security Score: ${securityScore}</div>
+                <div class="info">Expected in dashboard: Security Score should show ${securityScore}</div>
+            `;
+        }
+        
+        // Auto-run file loading test on page load
+        window.addEventListener('load', () => {
+            setTimeout(testFileLoading, 500);
+        });
+    </script>
+</body>
+</html> 

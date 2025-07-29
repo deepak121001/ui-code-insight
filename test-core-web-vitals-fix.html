@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Core Web Vitals Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .metric-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 8px 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .metric-name {
+            font-weight: 600;
+            color: #374151;
+        }
+        .metric-value {
+            font-weight: bold;
+            color: #059669;
+        }
+        .metric-score {
+            font-size: 12px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Core Web Vitals Fix Test</h1>
+    <div id="results"></div>
+    <div id="extracted-vitals"></div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+        const extractedDiv = document.getElementById('extracted-vitals');
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            resultsDiv.appendChild(div);
+        }
+
+        function createMetricCard(name, value, score, unit = '') {
+            const scorePercent = Math.round(score * 100);
+            const scoreClass = scorePercent >= 90 ? 'text-green-600' : scorePercent >= 50 ? 'text-yellow-600' : 'text-red-600';
+            
+            return `
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-name">${name}</span>
+                        <span class="metric-value">${value}${unit}</span>
+                    </div>
+                    <div class="metric-score ${scoreClass}">Score: ${scorePercent}%</div>
+                </div>
+            `;
+        }
+
+        // Mock the extraction function to test the logic
+        function extractCoreWebVitalsFromIssues(issues) {
+            const coreWebVitals = {};
+            
+            issues.forEach(issue => {
+                switch (issue.type) {
+                    case 'performance_largest-contentful-paint':
+                        coreWebVitals.lcp = {
+                            score: issue.score,
+                            value: extractTimeFromDescription(issue.description),
+                            unit: 's',
+                            description: issue.description
+                        };
+                        break;
+                    case 'performance_total-blocking-time':
+                        coreWebVitals.tbt = {
+                            score: issue.score,
+                            value: extractTimeFromDescription(issue.description),
+                            unit: 'ms',
+                            description: issue.description
+                        };
+                        break;
+                    case 'performance_cumulative-layout-shift':
+                        coreWebVitals.cls = {
+                            score: issue.score,
+                            value: extractCLSFromDescription(issue.description),
+                            unit: '',
+                            description: issue.description
+                        };
+                        break;
+                    case 'performance_first-contentful-paint':
+                        coreWebVitals.fcp = {
+                            score: issue.score,
+                            value: extractTimeFromDescription(issue.description),
+                            unit: 's',
+                            description: issue.description
+                        };
+                        break;
+                }
+            });
+            
+            return coreWebVitals;
+        }
+
+        function extractTimeFromDescription(description) {
+            if (!description) return null;
+            
+            // Look for time patterns like "2.5s", "1500ms", etc.
+            const timeMatch = description.match(/(\d+(?:\.\d+)?)\s*(s|ms)/);
+            if (timeMatch) {
+                const value = parseFloat(timeMatch[1]);
+                const unit = timeMatch[2];
+                if (unit === 'ms') {
+                    return value.toFixed(0); // Return as number for TBT
+                }
+                return value.toFixed(2); // Return as number for LCP/FCP
+            }
+            return null;
+        }
+
+        function extractCLSFromDescription(description) {
+            if (!description) return null;
+            
+            // Look for CLS patterns like "0.15", "0.25", etc.
+            const clsMatch = description.match(/(\d+(?:\.\d+)?)/);
+            if (clsMatch) {
+                return parseFloat(clsMatch[1]).toFixed(3);
+            }
+            return null;
+        }
+
+        async function testCoreWebVitalsFix() {
+            addResult('🔍 Testing Core Web Vitals extraction from issues array...', 'info');
+
+            try {
+                // Test loading Lighthouse data
+                const response = await fetch('./lightHouseCombine-report.json');
+                if (response.ok) {
+                    const lighthouseData = await response.json();
+                    addResult('✅ Lighthouse data loaded successfully', 'success');
+                    
+                    if (Array.isArray(lighthouseData) && lighthouseData.length > 0) {
+                        const firstReport = lighthouseData[0];
+                        addResult(`📊 Found ${lighthouseData.length} URL reports`, 'info');
+                        
+                        // Test extraction from issues array
+                        if (firstReport.desktop?.issues) {
+                            addResult('🖥️ Testing desktop issues extraction...', 'info');
+                            
+                            const extractedVitals = extractCoreWebVitalsFromIssues(firstReport.desktop.issues);
+                            console.log('Extracted Core Web Vitals:', extractedVitals);
+                            
+                            extractedDiv.innerHTML = '<h2>Extracted Core Web Vitals (Desktop)</h2>';
+                            let demoHTML = '';
+                            
+                            if (extractedVitals.lcp) {
+                                addResult(`✅ LCP extracted: ${extractedVitals.lcp.value}s (Score: ${Math.round(extractedVitals.lcp.score * 100)}%)`, 'success');
+                                demoHTML += createMetricCard('Largest Contentful Paint (LCP)', extractedVitals.lcp.value, extractedVitals.lcp.score, 's');
+                            } else {
+                                addResult('❌ LCP not found in issues', 'error');
+                            }
+                            
+                            if (extractedVitals.tbt) {
+                                addResult(`✅ TBT extracted: ${extractedVitals.tbt.value}ms (Score: ${Math.round(extractedVitals.tbt.score * 100)}%)`, 'success');
+                                demoHTML += createMetricCard('Total Blocking Time (TBT)', extractedVitals.tbt.value, extractedVitals.tbt.score, 'ms');
+                            } else {
+                                addResult('❌ TBT not found in issues', 'error');
+                            }
+                            
+                            if (extractedVitals.cls) {
+                                addResult(`✅ CLS extracted: ${extractedVitals.cls.value} (Score: ${Math.round(extractedVitals.cls.score * 100)}%)`, 'success');
+                                demoHTML += createMetricCard('Cumulative Layout Shift (CLS)', extractedVitals.cls.value, extractedVitals.cls.score);
+                            } else {
+                                addResult('❌ CLS not found in issues', 'error');
+                            }
+                            
+                            if (extractedVitals.fcp) {
+                                addResult(`✅ FCP extracted: ${extractedVitals.fcp.value}s (Score: ${Math.round(extractedVitals.fcp.score * 100)}%)`, 'success');
+                                demoHTML += createMetricCard('First Contentful Paint (FCP)', extractedVitals.fcp.value, extractedVitals.fcp.score, 's');
+                            } else {
+                                addResult('❌ FCP not found in issues', 'error');
+                            }
+                            
+                            extractedDiv.innerHTML += demoHTML;
+                            
+                            // Test mobile extraction
+                            if (firstReport.mobile?.issues) {
+                                addResult('📱 Testing mobile issues extraction...', 'info');
+                                
+                                const mobileVitals = extractCoreWebVitalsFromIssues(firstReport.mobile.issues);
+                                console.log('Mobile Extracted Core Web Vitals:', mobileVitals);
+                                
+                                if (Object.keys(mobileVitals).length > 0) {
+                                    addResult('✅ Mobile Core Web Vitals extracted successfully', 'success');
+                                } else {
+                                    addResult('⚠️ No mobile Core Web Vitals found', 'warning');
+                                }
+                            }
+                            
+                        } else {
+                            addResult('❌ No desktop issues found in report', 'error');
+                        }
+                        
+                    } else {
+                        addResult('❌ Unexpected data structure - expected array', 'error');
+                    }
+                    
+                } else {
+                    addResult(`❌ Failed to load Lighthouse data: ${response.status}`, 'error');
+                }
+
+            } catch (error) {
+                addResult(`❌ Test failed with error: ${error.message}`, 'error');
+                console.error('Test error:', error);
+            }
+        }
+
+        // Run the test when page loads
+        testCoreWebVitalsFix();
+    </script>
+</body>
+</html> 

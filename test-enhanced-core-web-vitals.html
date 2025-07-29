@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Core Web Vitals Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .metric-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 8px 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .metric-name {
+            font-weight: 600;
+            color: #374151;
+        }
+        .metric-value {
+            font-weight: bold;
+            color: #059669;
+        }
+        .metric-score {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #f3f4f6;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .score-good { background: linear-gradient(90deg, #10b981, #059669); }
+        .score-needs-improvement { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .score-poor { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    </style>
+</head>
+<body>
+    <h1>🚀 Enhanced Core Web Vitals Test</h1>
+    <div id="results"></div>
+    <div id="core-web-vitals-demo"></div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+        const demoDiv = document.getElementById('core-web-vitals-demo');
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            resultsDiv.appendChild(div);
+        }
+
+        function createMetricCard(name, value, score, unit = '') {
+            const scorePercent = Math.round(score * 100);
+            const scoreClass = scorePercent >= 90 ? 'score-good' : scorePercent >= 50 ? 'score-needs-improvement' : 'score-poor';
+            
+            return `
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-name">${name}</span>
+                        <span class="metric-value">${value}${unit}</span>
+                    </div>
+                    <div class="metric-score">Score: ${scorePercent}%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill ${scoreClass}" style="width: ${scorePercent}%"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function testEnhancedCoreWebVitals() {
+            addResult('🔍 Testing Enhanced Core Web Vitals functionality...', 'info');
+
+            try {
+                // Test loading Lighthouse data
+                const response = await fetch('./lightHouseCombine-report.json');
+                if (response.ok) {
+                    const lighthouseData = await response.json();
+                    addResult('✅ Lighthouse data loaded successfully', 'success');
+                    
+                    if (Array.isArray(lighthouseData) && lighthouseData.length > 0) {
+                        const firstReport = lighthouseData[0];
+                        addResult(`📊 Found ${lighthouseData.length} URL reports`, 'info');
+                        
+                        // Test Core Web Vitals extraction
+                        if (firstReport.desktop?.coreWebVitals) {
+                            addResult('🖥️ Desktop Core Web Vitals found:', 'success');
+                            demoDiv.innerHTML = '<h2>Desktop Core Web Vitals Demo</h2>';
+                            
+                            const desktopVitals = firstReport.desktop.coreWebVitals;
+                            let demoHTML = '';
+                            
+                            if (desktopVitals.lcp) {
+                                demoHTML += createMetricCard('Largest Contentful Paint (LCP)', desktopVitals.lcp.value, desktopVitals.lcp.score, 's');
+                            }
+                            
+                            if (desktopVitals.tbt) {
+                                demoHTML += createMetricCard('Total Blocking Time (TBT)', desktopVitals.tbt.value, desktopVitals.tbt.score, 'ms');
+                            }
+                            
+                            if (desktopVitals.cls) {
+                                demoHTML += createMetricCard('Cumulative Layout Shift (CLS)', desktopVitals.cls.value, desktopVitals.cls.score);
+                            }
+                            
+                            if (desktopVitals.fcp) {
+                                demoHTML += createMetricCard('First Contentful Paint (FCP)', desktopVitals.fcp.value, desktopVitals.fcp.score, 's');
+                            }
+                            
+                            if (desktopVitals.inp) {
+                                demoHTML += createMetricCard('Interaction to Next Paint (INP)', desktopVitals.inp.value, desktopVitals.inp.score, 'ms');
+                            }
+                            
+                            demoDiv.innerHTML += demoHTML;
+                            
+                            // Log the structure for debugging
+                            console.log('Desktop Core Web Vitals structure:', desktopVitals);
+                            
+                        } else {
+                            addResult('⚠️ No Core Web Vitals data found in desktop report', 'warning');
+                        }
+                        
+                        if (firstReport.mobile?.coreWebVitals) {
+                            addResult('📱 Mobile Core Web Vitals found:', 'success');
+                            
+                            const mobileVitals = firstReport.mobile.coreWebVitals;
+                            console.log('Mobile Core Web Vitals structure:', mobileVitals);
+                            
+                            // Add mobile demo if desktop demo exists
+                            if (demoDiv.innerHTML) {
+                                demoDiv.innerHTML += '<h2>Mobile Core Web Vitals Demo</h2>';
+                                let mobileDemoHTML = '';
+                                
+                                if (mobileVitals.lcp) {
+                                    mobileDemoHTML += createMetricCard('Largest Contentful Paint (LCP)', mobileVitals.lcp.value, mobileVitals.lcp.score, 's');
+                                }
+                                
+                                if (mobileVitals.tbt) {
+                                    mobileDemoHTML += createMetricCard('Total Blocking Time (TBT)', mobileVitals.tbt.value, mobileVitals.tbt.score, 'ms');
+                                }
+                                
+                                if (mobileVitals.cls) {
+                                    mobileDemoHTML += createMetricCard('Cumulative Layout Shift (CLS)', mobileVitals.cls.value, mobileVitals.cls.score);
+                                }
+                                
+                                if (mobileVitals.fcp) {
+                                    mobileDemoHTML += createMetricCard('First Contentful Paint (FCP)', mobileVitals.fcp.value, mobileVitals.fcp.score, 's');
+                                }
+                                
+                                if (mobileVitals.inp) {
+                                    mobileDemoHTML += createMetricCard('Interaction to Next Paint (INP)', mobileVitals.inp.value, mobileVitals.inp.score, 'ms');
+                                }
+                                
+                                demoDiv.innerHTML += mobileDemoHTML;
+                            }
+                            
+                        } else {
+                            addResult('⚠️ No Core Web Vitals data found in mobile report', 'warning');
+                        }
+                        
+                        // Test data structure validation
+                        const expectedMetrics = ['lcp', 'tbt', 'cls', 'fcp', 'inp'];
+                        const desktopVitals = firstReport.desktop?.coreWebVitals || {};
+                        const mobileVitals = firstReport.mobile?.coreWebVitals || {};
+                        
+                        addResult('🔍 Validating Core Web Vitals data structure...', 'info');
+                        
+                        expectedMetrics.forEach(metric => {
+                            if (desktopVitals[metric]) {
+                                addResult(`✅ Desktop ${metric.toUpperCase()}: ${desktopVitals[metric].value}${desktopVitals[metric].unit} (Score: ${Math.round(desktopVitals[metric].score * 100)}%)`, 'success');
+                            } else {
+                                addResult(`❌ Desktop ${metric.toUpperCase()}: Not found`, 'error');
+                            }
+                            
+                            if (mobileVitals[metric]) {
+                                addResult(`✅ Mobile ${metric.toUpperCase()}: ${mobileVitals[metric].value}${mobileVitals[metric].unit} (Score: ${Math.round(mobileVitals[metric].score * 100)}%)`, 'success');
+                            } else {
+                                addResult(`❌ Mobile ${metric.toUpperCase()}: Not found`, 'error');
+                            }
+                        });
+                        
+                    } else {
+                        addResult('❌ Unexpected data structure - expected array', 'error');
+                    }
+                    
+                } else {
+                    addResult(`❌ Failed to load Lighthouse data: ${response.status}`, 'error');
+                }
+
+            } catch (error) {
+                addResult(`❌ Test failed with error: ${error.message}`, 'error');
+                console.error('Test error:', error);
+            }
+        }
+
+        // Run the test when page loads
+        testEnhancedCoreWebVitals();
+    </script>
+</body>
+</html> 

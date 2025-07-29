@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lighthouse Data Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Lighthouse Data Loading Test</h1>
+    <div id="results"></div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            resultsDiv.appendChild(div);
+        }
+
+        async function testLighthouseData() {
+            addResult('🔍 Testing Lighthouse data loading...', 'info');
+
+            try {
+                // Test loading Lighthouse data
+                const response = await fetch('./lightHouseCombine-report.json');
+                if (response.ok) {
+                    const lighthouseData = await response.json();
+                    addResult('✅ Lighthouse data loaded successfully', 'success');
+                    
+                    console.log('Lighthouse data structure:', lighthouseData);
+                    
+                    if (Array.isArray(lighthouseData) && lighthouseData.length > 0) {
+                        const firstReport = lighthouseData[0];
+                        addResult(`📊 Found ${lighthouseData.length} URL reports`, 'info');
+                        
+                        if (firstReport.desktop) {
+                            addResult('🖥️ Desktop data found:', 'info');
+                            addResult(`Performance: ${firstReport.desktop.performance}`, 'info');
+                            addResult(`Accessibility: ${firstReport.desktop.accessibility}`, 'info');
+                            addResult(`Best Practices: ${firstReport.desktop.bestPractices}`, 'info');
+                            addResult(`SEO: ${firstReport.desktop.seo}`, 'info');
+                            addResult(`Issues: ${firstReport.desktop.issues?.length || 0}`, 'info');
+                        }
+                        
+                        if (firstReport.mobile) {
+                            addResult('📱 Mobile data found:', 'info');
+                            addResult(`Performance: ${firstReport.mobile.performance}`, 'info');
+                            addResult(`Accessibility: ${firstReport.mobile.accessibility}`, 'info');
+                            addResult(`Best Practices: ${firstReport.mobile.bestPractices}`, 'info');
+                            addResult(`SEO: ${firstReport.mobile.seo}`, 'info');
+                            addResult(`Issues: ${firstReport.mobile.issues?.length || 0}`, 'info');
+                        }
+                        
+                        // Test Core Web Vitals extraction
+                        if (firstReport.desktop?.issues) {
+                            const lcpIssue = firstReport.desktop.issues.find(issue => 
+                                issue.type === 'performance_largest-contentful-paint'
+                            );
+                            if (lcpIssue) {
+                                addResult(`🎯 Desktop LCP Score: ${lcpIssue.score}`, 'success');
+                            }
+                        }
+                        
+                        if (firstReport.mobile?.issues) {
+                            const lcpIssue = firstReport.mobile.issues.find(issue => 
+                                issue.type === 'performance_largest-contentful-paint'
+                            );
+                            if (lcpIssue) {
+                                addResult(`🎯 Mobile LCP Score: ${lcpIssue.score}`, 'success');
+                            }
+                        }
+                        
+                    } else {
+                        addResult('❌ Unexpected data structure - expected array', 'error');
+                    }
+                    
+                } else {
+                    addResult(`❌ Failed to load Lighthouse data: ${response.status}`, 'error');
+                }
+
+            } catch (error) {
+                addResult(`❌ Test failed with error: ${error.message}`, 'error');
+                console.error('Test error:', error);
+            }
+        }
+
+        // Run the test when page loads
+        testLighthouseData();
+    </script>
+</body>
+</html> 

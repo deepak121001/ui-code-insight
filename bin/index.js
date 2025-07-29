@@ -521,9 +521,9 @@ async function main() {
       choices: [
         { name: 'All Audits', value: 'all' },
         { name: '🔒 Security Audit', value: 'security' },
-        { name: '⚡ Performance Audit', value: 'performance' },
+        { name: '⚡ Code Performance Audit', value: 'performance' },
         { name: '♿ Accessibility Audit', value: 'accessibility' },
-        { name: '🚀 Lighthouse Audit', value: 'lighthouse' },
+        { name: '🚀 Runtime Performance Audit', value: 'lighthouse' },
         { name: '📦 Dependency Audit', value: 'dependency' },
         { name: '🔧 ESLint Report', value: 'eslint' },
         { name: '🎨 Stylelint Report', value: 'stylelint' },

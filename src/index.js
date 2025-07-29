@@ -85,6 +85,12 @@ export async function codeInsightInit(options = {}) {
           }
           const result = await orchestrator.runSpecificAudit(reportType);
           auditResults.categories[reportType] = result;
+        } else if (reportType === 'performance:enhanced') {
+          if (!silent) {
+            console.log(chalk.blue(`\n🚀 Running Enhanced Performance Audit...`));
+          }
+          const result = await orchestrator.runEnhancedPerformanceAudit();
+          auditResults.categories['performance:enhanced'] = result;
         }
       }
       

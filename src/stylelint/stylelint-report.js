@@ -9,106 +9,14 @@ import { getConfigPattern, getMergedExcludeRules } from '../config-loader.js';
 
 const { lint } = stylelint;
 
-// Default Stylelint rules to exclude (commonly disabled by project architects)
+// Default Stylelint rules to exclude (minimal list - only user-requested exclusions)
 const DEFAULT_STYLELINT_EXCLUDE_RULES = [
-  // Formatting and style rules
-  'indentation', 'string-quotes', 'color-hex-case', 'color-hex-length',
-  'color-named', 'color-no-invalid-hex', 'font-family-name-quotes',
-  'font-weight-notation', 'function-calc-no-unspaced-operator',
-  'function-comma-newline-after', 'function-comma-newline-before',
-  'function-comma-space-after', 'function-comma-space-before',
-  'function-max-empty-lines', 'function-name-case', 'function-parentheses-newline-inside',
-  'function-parentheses-space-inside', 'function-url-quotes', 'function-whitespace-after',
-  'number-leading-zero', 'number-max-precision', 'number-no-trailing-zeros',
-  'string-no-newline', 'unit-case', 'unit-no-unknown', 'value-keyword-case',
-  'value-list-comma-newline-after', 'value-list-comma-newline-before',
-  'value-list-comma-space-after', 'value-list-comma-space-before',
-  'value-list-max-empty-lines', 'value-no-vendor-prefix', 'property-case',
-  'property-no-vendor-prefix', 'declaration-bang-space-after',
-  'declaration-bang-space-before', 'declaration-colon-newline-after',
-  'declaration-colon-space-after', 'declaration-colon-space-before',
-  'declaration-block-no-duplicate-properties', 'declaration-block-no-redundant-longhand-properties',
-  'declaration-block-no-shorthand-property-overrides', 'declaration-block-semicolon-newline-after',
-  'declaration-block-semicolon-newline-before', 'declaration-block-semicolon-space-after',
-  'declaration-block-semicolon-space-before', 'declaration-block-trailing-semicolon',
-  'block-closing-brace-empty-line-before', 'block-closing-brace-newline-after',
-  'block-closing-brace-newline-before', 'block-closing-brace-space-after',
-  'block-closing-brace-space-before', 'block-no-empty', 'block-opening-brace-newline-after',
-  'block-opening-brace-newline-before', 'block-opening-brace-space-after',
-  'block-opening-brace-space-before', 'selector-attribute-brackets-space-inside',
-  'selector-attribute-operator-space-after', 'selector-attribute-operator-space-before',
-  'selector-attribute-quotes', 'selector-combinator-space-after',
-  'selector-combinator-space-before', 'selector-descendant-combinator-no-non-space',
-  'selector-max-compound-selectors', 'selector-max-specificity', 'selector-no-qualifying-type',
-  'selector-pseudo-class-case', 'selector-pseudo-class-no-unknown',
-  'selector-pseudo-class-parentheses-space-inside', 'selector-pseudo-element-case',
-  'selector-pseudo-element-colon-notation', 'selector-pseudo-element-no-unknown',
-  'selector-type-case', 'selector-type-no-unknown', 'selector-max-empty-lines',
-  'rule-empty-line-before', 'at-rule-empty-line-before', 'at-rule-name-case',
-  'at-rule-name-newline-after', 'at-rule-name-space-after', 'at-rule-no-unknown',
-  'at-rule-semicolon-newline-after', 'at-rule-semicolon-space-before',
-  'comment-empty-line-before', 'comment-no-empty', 'comment-whitespace-inside',
-  'comment-word-blacklist', 'max-empty-lines', 'max-line-length', 'max-nesting-depth',
-  'no-browser-hacks', 'no-descending-specificity', 'no-duplicate-selectors',
-  'no-empty-source', 'no-eol-whitespace', 'no-extra-semicolons', 'no-invalid-double-slash-comments',
-  'no-missing-end-of-source-newline', 'no-unknown-animations', 'alpha-value-notation',
-  'color-function-notation', 'hue-degree-notation', 'import-notation',
-  'keyframe-selector-notation', 'media-feature-name-value-allowed-list',
-  'media-feature-range-notation', 'selector-not-notation', 'shorthand-property-no-redundant-values',
-  
-  // Naming convention rules commonly disabled
-  'selector-class-pattern',
-  'selector-id-pattern',
-  'selector-nested-pattern',
-  'custom-property-pattern',
-  'keyframes-name-pattern',
-  'class-name-pattern',
-  'id-pattern',
-  
-  // SCSS specific rules commonly disabled
-  'scss/selector-no-redundant-nesting-selector',
-  'scss/at-rule-no-unknown',
-  'scss/at-import-partial-extension',
-  'scss/at-import-no-partial-leading-underscore',
-  'scss/at-import-partial-extension-blacklist',
-  'scss/at-import-partial-extension-whitelist',
-  'scss/at-rule-conditional-no-parentheses',
-  'scss/at-rule-no-vendor-prefix',
-  'scss/comment-no-empty',
-  'scss/comment-no-loud',
-  'scss/declaration-nested-properties',
-  'scss/declaration-nested-properties-no-divided-groups',
-  'scss/dollar-variable-colon-newline-after',
-  'scss/dollar-variable-colon-space-after',
-  'scss/dollar-variable-colon-space-before',
-  'scss/dollar-variable-default',
-  'scss/dollar-variable-empty-line-after',
-  'scss/dollar-variable-empty-line-before',
-  'scss/dollar-variable-first-in-block',
-  'scss/dollar-variable-no-missing-interpolation',
-  'scss/dollar-variable-pattern',
-  'scss/double-slash-comment-whitespace-inside',
-  'scss/function-color-relative',
-  'scss/function-no-unknown',
-  'scss/function-quote-no-quoted-strings-inside',
-  'scss/function-unquote-no-unquoted-strings-inside',
-  'scss/map-keys-quotes',
-  'scss/media-feature-value-dollar-variable',
-  'scss/no-duplicate-dollar-variables',
-  'scss/no-duplicate-mixins',
-  'scss/no-global-function-names',
-  'scss/operator-no-newline-after',
-  'scss/operator-no-newline-before',
-  'scss/operator-no-unspaced',
-  'scss/partial-no-import',
-  'scss/percent-placeholder-pattern',
-  'scss/selector-nest-combinators',
-  'scss/selector-no-union-class-name',
-  
-  // Prettier-related rules to exclude (since we removed Prettier config)
-  'prettier/prettier',
-  'stylelint-config-prettier',
-  'stylelint-config-prettier-scss'
+  // User-requested exclusions only
+  'scss/double-slash-comment-empty-line-before',
+  'scss/load-partial-extension',
+  'declaration-empty-line-before',
+  'color-function-notation',
+  'selector-max-universal'
 ];
 
 // Constants for configuration files
@@ -167,7 +75,7 @@ const logSuccess = (text) => console.log(chalk.green(text));
  * @returns {null}
  */
 const handleFileReadError = (filePath, error) => {
-  console.error(chalk.red(`Error reading file ${filePath}: ${error}`));
+  console.error(chalk.red(`[Stylelint] Error reading file ${filePath}: ${error.message}`));
   return null;
 };
 
@@ -237,6 +145,16 @@ const lintFile = async (filePath, lintStyleConfigFile) => {
       })),
     };
   } catch (err) {
+    // Log specific error types for better debugging
+    if (err.code === 'ENOENT') {
+      console.error(chalk.red(`[Stylelint] File not found: ${filePath}`));
+    } else if (err.code === 'EACCES') {
+      console.error(chalk.red(`[Stylelint] Permission denied: ${filePath}`));
+    } else if (err.code === 'EISDIR') {
+      console.error(chalk.red(`[Stylelint] Path is directory, not file: ${filePath}`));
+    } else {
+      console.error(chalk.red(`[Stylelint] Unexpected error reading ${filePath}: ${err.message}`));
+    }
     return handleFileReadError(filePath, err);
   }
 };
@@ -272,25 +190,35 @@ const lintAllFiles = async (files, folderPath, lintStyleConfigFile, projectType,
   }
   process.stdout.write(`\r[Stylelint] Progress: ${files.length}/${files.length} files checked\n`);
 
-  // Filter messages based on exclude rules and update error counts
-  const filteredResults = results.map(result => {
-    const filteredMessages = result.messages.filter(message => !excludeRules.includes(message.rule));
-    
-    // Ensure error count matches actual message count
-    const actualErrorCount = filteredMessages.length;
-    
-    // Log if there's a mismatch between error count and message count
-    if (result.errorCount > 0 && actualErrorCount === 0) {
-      console.log(`[Stylelint Warning] ${result.filePath}: Error count (${result.errorCount}) doesn't match message count (${actualErrorCount})`);
-    }
-    
-    return {
-      ...result,
-      errorCount: actualErrorCount,
-      warningCount: 0,
-      messages: filteredMessages
-    };
-  });
+  // Filter out null results (files that couldn't be read) and filter messages based on exclude rules
+  const filteredResults = results
+    .filter(result => result !== null) // Remove null results from file read errors
+    .map(result => {
+      // Filter out messages for rules that are in the exclude list
+      const filteredMessages = result.messages.filter(message => {
+        // Don't filter out "Unknown rule" errors as they indicate configuration issues
+        if (message.message && message.message.includes('Unknown rule')) {
+          return true;
+        }
+        return !excludeRules.includes(message.rule);
+      });
+      
+      // Count errors and warnings separately
+      const actualErrors = filteredMessages.filter(msg => msg.severity === 'error').length;
+      const actualWarnings = filteredMessages.filter(msg => msg.severity === 'warning').length;
+      
+      // Log if there's a mismatch between error count and message count
+      if (result.errorCount > 0 && actualErrors === 0 && actualWarnings === 0) {
+        console.log(`[Stylelint Warning] ${result.filePath}: Error count (${result.errorCount}) doesn't match message count (${filteredMessages.length})`);
+      }
+      
+      return {
+        ...result,
+        errorCount: actualErrors,
+        warningCount: actualWarnings,
+        messages: filteredMessages
+      };
+    });
 
   // BEM naming convention check
   let bemFound = false;
@@ -346,5 +274,32 @@ export const generateStyleLintReport = async (
   // Use config-driven pattern for SCSS/CSS/LESS files
   const files = await globby(getConfigPattern('scssFilePathPattern'));
 
-  await lintAllFiles(files, folderPath, lintStyleConfigFile, projectType, reports);
+  // Validate files before processing
+  const validFiles = files.filter(filePath => {
+    try {
+      // Check if file exists and is readable
+      const stats = fs.statSync(filePath);
+      if (!stats.isFile()) {
+        console.log(`[Stylelint] Skipping non-file: ${filePath}`);
+        return false;
+      }
+      
+      // Check if file has valid CSS/SCSS extension
+      const ext = path.extname(filePath).toLowerCase();
+      const validExtensions = ['.css', '.scss', '.sass', '.less'];
+      if (!validExtensions.includes(ext)) {
+        console.log(`[Stylelint] Skipping non-CSS file: ${filePath}`);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.log(`[Stylelint] Skipping inaccessible file: ${filePath} (${error.message})`);
+      return false;
+    }
+  });
+
+  console.log(`[Stylelint] Found ${files.length} files, ${validFiles.length} are valid for processing`);
+
+  await lintAllFiles(validFiles, folderPath, lintStyleConfigFile, projectType, reports);
 };

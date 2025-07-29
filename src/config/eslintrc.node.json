@@ -6,18 +6,18 @@
   "extends": [
     "eslint:recommended",
     "plugin:node/recommended",
-    "airbnb"
+    "airbnb-base"
   ],
   "plugins": [
     "node",
-    "security",
-    "promise"
+    "security"
   ],
   "parserOptions": {
-    "ecmaVersion": 12,
+    "ecmaVersion": "latest",
     "sourceType": "module"
   },
   "rules": {
+
     "security/detect-object-injection": "warn",
     "security/detect-unsafe-regex": "warn",
     "security/detect-buffer-noassert": "warn",
@@ -30,6 +30,27 @@
     "security/detect-non-literal-regexp": "warn",
     "security/detect-non-literal-require": "warn",
     "security/detect-possible-timing-attacks": "warn",
-    "security/detect-pseudoRandomBytes": "warn"
+    "security/detect-pseudoRandomBytes": "warn",
+
+    "no-undef": "error",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "no-unreachable": "error",
+    "no-constant-condition": "error",
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "no-return-await": "error",
+    "no-prototype-builtins": "error",
+    "eqeqeq": ["error", "always"],
+
+    "arrow-parens": "off",
+    "object-curly-spacing": "off",
+    "comma-dangle": "off",
+    "semi": "off",
+    "quotes": "off",
+    "indent": "off",
+    "space-before-function-paren": "off",
+    "max-len": "off",
+     "spaced-comment": "off"
   }
-} 
+}

@@ -237,12 +237,16 @@ export class SecurityAudit {
   async checkForSecrets() {
     console.log(chalk.blue('🔒 Checking for hardcoded secrets...'));
   
+    // Enhanced pattern-based secret detection (modern approach)
+    // Improved to avoid false positives like item.id, className, CSS selectors, etc.
+    console.log(chalk.blue('🔐 Running enhanced secret detection...'));
     const secretPatterns = [
-      /\b(const|let|var)\s+\w*(password|api[_-]?key|secret|token|auth|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?id|client[_-]?secret|firebase[_-]?key|connection\s*string)\w*\s*=\s*['"][^'"`]+['"]/i,
-      /['"]?(password|api[_-]?key|secret|token|auth|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?id|client[_-]?secret)['"]?\s*:\s*['"][^'"`]+['"]/i,
-      /\b(PASSWORD|SECRET|TOKEN|KEY|ACCESS_KEY|PRIVATE_KEY)\s*=\s*[^'"`\n\r]+/i,
+      // Enhanced secret detection patterns (more specific to avoid false positives)
+      /\b(const|let|var)\s+\w*(password|api[_-]?key|secret|token|auth|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?id|client[_-]?secret)\w*\s*=\s*['"][^'"`]{12,}['"]/i,
+      /['"]?(password|api[_-]?key|secret|token|auth|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?id|client[_-]?secret)['"]?\s*:\s*['"][^'"`]{12,}['"]/i,
+      /\b(PASSWORD|SECRET|TOKEN|KEY|ACCESS_KEY|PRIVATE_KEY)\s*=\s*[^'"`\n\r]{12,}/i,
       /-----BEGIN\s+\w+PRIVATE KEY-----[\s\S]+?-----END\s+\w+PRIVATE KEY-----/g,
-      /\b(const|let|var)\s+\w*(api|access|secret|auth|token|key)\w*\s*=\s*['"][\w\-]{16,}['"]/i,
+      /\b(const|let|var)\s+\w*(firebase[_-]?key|connection\s*string|database[_-]?url|db[_-]?url)\w*\s*=\s*['"][^'"`]{12,}['"]/i,
     ];
   
     try {
@@ -267,7 +271,24 @@ export class SecurityAudit {
                 /=\s*['"][^'"`]+['"]/ .test(trimmed) &&
                 !/(===|!==|==|!=)/.test(trimmed) &&
                 !/\w+\s*\(/.test(trimmed) &&
-                !/`.*`/.test(trimmed)
+                !/`.*`/.test(trimmed) &&
+                // Exclude common false positives
+                !/\.(id|key|name|type|value|label|text|content)\s*[:=]/.test(trimmed) &&
+                !/\b(item|user|data|config|props|state|element|node|component)\./.test(trimmed) &&
+                !/\b(className|style|href|src|alt|title|onClick|onChange|onSubmit)\s*[:=]/.test(trimmed) &&
+                !/\b(div|span|p|h[1-6]|button|input|form|label)\s*[:=]/.test(trimmed) &&
+                !/\b(key|ref|children|defaultValue|placeholder)\s*[:=]/.test(trimmed) &&
+                // Exclude CSS selectors, jQuery selectors, and DOM queries
+                !/['"`][.#][^'"`]*['"`]/.test(trimmed) &&
+                !/['"`]\s*[.#][^'"`]*\s*[.#][^'"`]*['"`]/.test(trimmed) &&
+                !/\b(document|window|jQuery|\$)\s*\./.test(trimmed) &&
+                !/\b(querySelector|getElementById|getElementsByClassName)\s*\(/.test(trimmed) &&
+                // Exclude common variable names that contain "password" but aren't secrets
+                !/\b(password|Password)\s*=\s*['"`][^'"`]*[.#][^'"`]*['"`]/.test(trimmed) &&
+                !/\b(password|Password)\s*=\s*['"`][^'"`]*selector[^'"`]*['"`]/i.test(trimmed) &&
+                !/\b(password|Password)\s*=\s*['"`][^'"`]*form[^'"`]*['"`]/i.test(trimmed) &&
+                !/\b(password|Password)\s*=\s*['"`][^'"`]*input[^'"`]*['"`]/i.test(trimmed) &&
+                !/\b(password|Password)\s*=\s*['"`][^'"`]*field[^'"`]*['"`]/i.test(trimmed)
               ) {
                 // Limit in-memory issues
                 if (this.issueCount >= MAX_IN_MEMORY_ISSUES) {
@@ -275,14 +296,43 @@ export class SecurityAudit {
                   return;
                 }
                 
+                // Extract the secret type from the pattern match (more specific)
+                let secretType = 'unknown';
+                
+                // Additional check to avoid false positives for CSS selectors and DOM queries
+                const isLikelySelector = /['"`][.#][^'"`]*['"`]/.test(trimmed) || 
+                                        /['"`][^'"`]*form[^'"`]*['"`]/i.test(trimmed) ||
+                                        /['"`][^'"`]*input[^'"`]*['"`]/i.test(trimmed) ||
+                                        /['"`][^'"`]*field[^'"`]*['"`]/i.test(trimmed);
+                
+                if (!isLikelySelector) {
+                  if (trimmed.match(/\bpassword\b/i)) secretType = 'password';
+                  else if (trimmed.match(/\bapi[_-]?key\b/i)) secretType = 'API key';
+                  else if (trimmed.match(/\bsecret\b/i)) secretType = 'secret';
+                  else if (trimmed.match(/\btoken\b/i)) secretType = 'token';
+                  else if (trimmed.match(/\bprivate[_-]?key\b/i)) secretType = 'private key';
+                  else if (trimmed.match(/\bclient[_-]?id\b/i)) secretType = 'client ID';
+                  else if (trimmed.match(/\bclient[_-]?secret\b/i)) secretType = 'client secret';
+                  else if (trimmed.match(/\bfirebase[_-]?key\b/i)) secretType = 'Firebase key';
+                  else if (trimmed.match(/\bconnection\s*string\b/i)) secretType = 'connection string';
+                  else if (trimmed.match(/\bdatabase[_-]?url\b/i)) secretType = 'database URL';
+                }
+                
+                // Skip if it's likely a selector or DOM query
+                if (isLikelySelector) {
+                  continue;
+                }
+                
                 this.securityIssues.push({
                   type: 'hardcoded_secret',
                   file,
                   line: index + 1,
                   severity: 'high',
-                  message: 'Potential hardcoded secret detected',
+                  message: `Potential hardcoded ${secretType} detected`,
+                  description: `Line ${index + 1}: Hardcoded ${secretType} found in source code. This poses a significant security risk as secrets in source code can be exposed through version control, build artifacts, or code reviews. The ${secretType} should be moved to environment variables or a secure secrets management system.`,
                   code: trimmed,
                   context: this.printContext(lines, index),
+                  recommendation: `Move the ${secretType} to environment variables (e.g., process.env.${secretType.toUpperCase().replace(/\s+/g, '_')}) or use a secure secrets management system`
                 });
                 this.issueCount++;
                 break;
@@ -354,11 +404,11 @@ export class SecurityAudit {
    * Check for outdated dependencies with known vulnerabilities
    */
 async checkDependencyVulnerabilities() {
-  console.log(chalk.blue('🔒 Checking for dependency vulnerabilities...'));
+  console.log(chalk.blue('🔒 Checking for dependency vulnerabilities (production dependencies only)...'));
   
   try {
-    // Run npm audit to check for vulnerabilities
-    const auditResult = execSync('npm audit --json', { 
+    // Run npm audit to check for vulnerabilities - EXCLUDING devDependencies
+    const auditResult = execSync('npm audit --json --omit dev', { 
       encoding: 'utf8', 
       cwd: process.cwd(),
       stdio: 'pipe'
@@ -368,12 +418,21 @@ async checkDependencyVulnerabilities() {
     if (auditData.vulnerabilities && Object.keys(auditData.vulnerabilities).length > 0) {
       Object.keys(auditData.vulnerabilities).forEach(packageName => {
         const vuln = auditData.vulnerabilities[packageName];
+        
+        // Extract vulnerability details with better fallbacks
+        const title = vuln.title || vuln.name || 'Unknown vulnerability';
+        const description = vuln.description || vuln.summary || 'No description available';
+        const severity = vuln.severity || 'medium';
+        const recommendation = vuln.recommendation || vuln.fix || 'Update package version';
+        const version = vuln.version || vuln.installedVersion || 'unknown';
+        
         this.securityIssues.push({
           type: 'dependency_vulnerability',
-          package: packageName,
-          severity: vuln.severity || 'medium',
-          message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
-          recommendation: vuln.recommendation || 'Update package version'
+          package: `${packageName}@${version}`,
+          severity: severity,
+          message: `Vulnerability in ${packageName}: ${title}`,
+          description: `Package ${packageName} (version ${version}) has a ${severity} severity vulnerability: ${title}. ${description} This vulnerability affects a production dependency and should be addressed promptly.`,
+          recommendation: recommendation
         });
       });
     } else {
@@ -382,6 +441,7 @@ async checkDependencyVulnerabilities() {
         type: 'no_vulnerabilities',
         severity: 'info',
         message: 'No known vulnerabilities found in dependencies',
+        description: 'All production dependencies (excluding devDependencies) have been scanned and no known security vulnerabilities were detected. This is excellent for security posture.',
         positive: true
       });
     }
@@ -390,17 +450,27 @@ async checkDependencyVulnerabilities() {
     if (error.status === 1) {
       try {
         const output = error.stdout.toString();
+        console.log(chalk.gray('🔍 npm audit output length:', output.length));
         const auditData = JSON.parse(output);
         
         if (auditData.vulnerabilities) {
           Object.keys(auditData.vulnerabilities).forEach(packageName => {
             const vuln = auditData.vulnerabilities[packageName];
+            
+            // Extract vulnerability details with better fallbacks
+            const title = vuln.title || vuln.name || 'Unknown vulnerability';
+            const description = vuln.description || vuln.summary || 'No description available';
+            const severity = vuln.severity || 'medium';
+            const recommendation = vuln.recommendation || vuln.fix || 'Update package version';
+            const version = vuln.version || vuln.installedVersion || 'unknown';
+            
             this.securityIssues.push({
               type: 'dependency_vulnerability',
-              package: packageName,
-              severity: vuln.severity || 'medium',
-              message: `Vulnerability in ${packageName}: ${vuln.title || 'Unknown vulnerability'}`,
-              recommendation: vuln.recommendation || 'Update package version'
+              package: `${packageName}@${version}`,
+              severity: severity,
+              message: `Vulnerability in ${packageName}: ${title}`,
+              description: `Package ${packageName} (version ${version}) has a ${severity} severity vulnerability: ${title}. ${description} This vulnerability affects a production dependency and should be addressed promptly.`,
+              recommendation: recommendation
             });
           });
         }
@@ -409,6 +479,15 @@ async checkDependencyVulnerabilities() {
       }
     } else {
       console.warn(chalk.yellow('Warning: Could not run npm audit - this may be due to network issues or npm configuration'));
+      
+      // Add a fallback message
+      this.securityIssues.push({
+        type: 'npm_audit_error',
+        severity: 'warning',
+        message: 'npm audit could not be executed',
+        description: 'This may be due to network issues, npm configuration, or permission problems',
+        recommendation: 'Try running "npm audit" manually to check for vulnerabilities'
+      });
     }
   }
 }
@@ -485,10 +564,12 @@ async checkDependencyVulnerabilities() {
                   line: message.line,
                   severity: message.severity === 2 ? 'high' : 'medium',
                   message: message.message,
+                  description: `Line ${message.line}: ESLint security rule violation (${message.ruleId}). This indicates a potential security vulnerability that should be addressed. The rule ${message.ruleId} has detected a security-related code pattern that requires attention.`,
                   ruleId: message.ruleId,
                   code,
                   context,
-                  source: 'eslint'
+                  source: 'eslint',
+                  recommendation: 'Review and fix the security issue according to the ESLint rule requirements. Check the ESLint documentation for specific guidance on this rule.'
                 };
                 stream.write(JSON.stringify(issue) + '\n');
               }
@@ -535,7 +616,7 @@ async checkDependencyVulnerabilities() {
           const trimmed = line.trim();
           if (!trimmed) return;
           
-          // File input without accept attribute
+          // File input without accept attribute (most critical)
           const fileInputMatches = [...trimmed.matchAll(/<input[^>]+type=["']file["'][^>]*>/gi)];
           for (const match of fileInputMatches) {
             if (!/accept=/.test(match[0])) {
@@ -545,53 +626,12 @@ async checkDependencyVulnerabilities() {
                 line: index + 1,
                 severity: 'medium',
                 message: 'File input without file type restriction (accept attribute missing)',
+                description: `Line ${index + 1}: File upload input found without accept attribute. This allows users to upload any file type, including potentially malicious files like executables, scripts, or other dangerous file types. The accept attribute provides client-side validation to restrict file types.`,
                 code: trimmed,
-                context: this.printContext(lines, index)
+                context: this.printContext(lines, index),
+                recommendation: 'Add accept attribute to restrict file types (e.g., accept=".pdf,.doc,.docx" for documents, accept="image/*" for images)'
               });
             }
-          }
-          
-          // File input without size validation (look for max attribute)
-          for (const match of fileInputMatches) {
-            if (!/max/.test(match[0])) {
-              this.securityIssues.push({
-                type: 'file_upload_no_size_limit',
-                file,
-                line: index + 1,
-                severity: 'medium',
-                message: 'File input without file size limit (max attribute missing)',
-                code: trimmed,
-                context: this.printContext(lines, index)
-              });
-            }
-          }
-        });
-      } catch (err) {
-        console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
-      }
-    }
-    
-    // JS: look for direct use of file.name (no sanitization)
-    const jsFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    for (const file of jsFiles) {
-      try {
-        const content = await fsp.readFile(file, 'utf8');
-        const lines = content.split('\n');
-        
-        lines.forEach((line, index) => {
-          const trimmed = line.trim();
-          if (!trimmed) return;
-          
-          if (/\.name\b/.test(trimmed) && !/sanitize|replace|slugify/.test(trimmed)) {
-            this.securityIssues.push({
-              type: 'file_upload_filename_no_sanitization',
-              file,
-              line: index + 1,
-              severity: 'medium',
-              message: 'File name used directly in upload logic (no sanitization/renaming detected)',
-              code: trimmed,
-              context: this.printContext(lines, index)
-            });
           }
         });
       } catch (err) {
@@ -616,28 +656,37 @@ async checkDependencyVulnerabilities() {
           const inputMatches = [...trimmed.matchAll(/<input[^>]+>/gi)];
           for (const match of inputMatches) {
             if (!/required|pattern|maxlength/.test(match[0])) {
-              this.securityIssues.push({
-                type: 'input_no_validation',
-                file,
-                line: index + 1,
-                severity: 'medium',
-                message: 'Input field missing validation attributes (required, pattern, maxlength)',
-                code: trimmed,
-                context: this.printContext(lines, index)
-              });
+                          this.securityIssues.push({
+              type: 'input_no_validation',
+              file,
+              line: index + 1,
+              severity: 'medium',
+              message: 'Input field missing validation attributes (required, pattern, maxlength)',
+              description: `Line ${index + 1}: Input field found without validation attributes. This input lacks client-side validation which can lead to injection attacks, XSS vulnerabilities, or data integrity issues. Input validation helps prevent malicious data from reaching the server.`,
+              code: trimmed,
+              context: this.printContext(lines, index),
+              recommendation: 'Add appropriate validation attributes: required (for mandatory fields), pattern (for format validation), maxlength/minlength (for length limits), or type-specific attributes like email, number, url'
+            });
             }
           }
           
           // Check for unsafe DOM insertion
           if (/innerHTML|dangerouslySetInnerHTML/.test(trimmed)) {
+            // Determine which unsafe method is being used
+            let unsafeMethod = 'unknown';
+            if (trimmed.includes('innerHTML')) unsafeMethod = 'innerHTML';
+            else if (trimmed.includes('dangerouslySetInnerHTML')) unsafeMethod = 'dangerouslySetInnerHTML';
+            
             this.securityIssues.push({
               type: 'input_unsafe_dom_insertion',
               file,
               line: index + 1,
               severity: 'high',
-              message: 'Potential unsafe DOM insertion (innerHTML or dangerouslySetInnerHTML)',
+              message: `Potential unsafe DOM insertion (${unsafeMethod})`,
+              description: `Line ${index + 1}: ${unsafeMethod} usage detected. This method can lead to XSS attacks if user input is not properly sanitized. ${unsafeMethod} bypasses React's built-in XSS protection and allows arbitrary HTML/JavaScript execution.`,
               code: trimmed,
-              context: this.printContext(lines, index)
+              context: this.printContext(lines, index),
+              recommendation: `Replace ${unsafeMethod} with safer alternatives: use textContent for plain text, createElement for DOM manipulation, or React components for dynamic content. If HTML insertion is necessary, use a sanitization library like DOMPurify`
             });
           }
         });
@@ -721,12 +770,23 @@ async checkDependencyVulnerabilities() {
       
       // Add issues for missing headers
       missingHeaders.forEach(header => {
+        const headerDescriptions = {
+          'Content-Security-Policy': 'Content Security Policy (CSP) helps prevent XSS attacks by controlling which resources can be loaded and executed. Missing CSP leaves your application vulnerable to various injection attacks.',
+          'Strict-Transport-Security': 'HSTS forces browsers to use HTTPS for all future requests, preventing protocol downgrade attacks and cookie hijacking.',
+          'X-Frame-Options': 'Prevents clickjacking attacks by controlling whether a browser should be allowed to render a page in a frame, iframe, embed, or object.',
+          'X-Content-Type-Options': 'Prevents MIME type sniffing attacks by ensuring browsers respect the declared content type.',
+          'X-XSS-Protection': 'Enables browser\'s built-in XSS protection (though CSP is more effective for modern applications).',
+          'Referrer-Policy': 'Controls how much referrer information should be included with requests, helping with privacy and security.',
+          'Permissions-Policy': 'Controls which browser features and APIs can be used, helping prevent abuse of powerful APIs.'
+        };
+        
         this.securityIssues.push({
           type: 'missing_security_header',
           file: url,
           line: 1,
           severity: header === 'Content-Security-Policy' ? 'high' : 'medium',
           message: `Missing ${header} security header`,
+          description: headerDescriptions[header] || `Missing ${header} security header which helps protect against various web attacks.`,
           code: `HTTP Response Headers`,
           context: `Live URL: ${url}`,
           recommendation: `Add ${header} header to server configuration`,
@@ -744,9 +804,10 @@ async checkDependencyVulnerabilities() {
           line: 1,
           severity: 'high',
           message: `${header}: ${issue}`,
+          description: `Weak ${header} configuration contains unsafe directives that can be exploited by attackers. These directives bypass security protections and should be avoided.`,
           code: `${header}: ${value}`,
           context: `Live URL: ${url}`,
-          recommendation: `Strengthen ${header} configuration by removing unsafe directives`,
+          recommendation: `Strengthen ${header} configuration by removing unsafe directives like 'unsafe-inline' and 'unsafe-eval'`,
           source: 'live-url',
           url: url,
           header: header,
@@ -762,9 +823,10 @@ async checkDependencyVulnerabilities() {
           line: 1,
           severity: 'high',
           message: 'Insecure HTTP transport detected',
+          description: 'HTTP traffic is transmitted in plain text, making it vulnerable to interception, man-in-the-middle attacks, and data theft. All web traffic should use HTTPS encryption.',
           code: `URL: ${url}`,
           context: `Live URL uses HTTP instead of HTTPS`,
-          recommendation: 'Use HTTPS for all web traffic',
+          recommendation: 'Use HTTPS for all web traffic and implement HSTS headers',
           source: 'live-url',
           url: url
         });
@@ -844,72 +906,32 @@ async checkDependencyVulnerabilities() {
 
   
 
-  async runEnhancedPatternChecks() {
-    console.log(chalk.blue('🔍 Running enhanced pattern checks...'));
 
-    const SUSPICIOUS_PATTERNS = [
-      { type: 'eval_usage', pattern: /\beval\s*\(/, message: 'Avoid using eval()', severity: 'high' },
-      { type: 'function_constructor', pattern: /new Function\s*\(/, message: 'Avoid using Function constructor', severity: 'high' },
-      { type: 'insecure_transport', pattern: /fetch\(['"]http:\/\//, message: 'Insecure HTTP request detected', severity: 'high' },
-      { type: 'token_exposure', pattern: /Authorization:\s*Bearer\s+[\w\-]+\.[\w\-]+\.[\w\-]+/, message: 'Bearer token might be exposed in code', severity: 'high' },
-      { type: 'dev_url', pattern: /['"]http:\/\/localhost[:\/]/, message: 'Dev/localhost URL found in code', severity: 'medium' },
-      { type: 'xss_dom', pattern: /\.innerHTML\s*=|\.outerHTML\s*=|\.insertAdjacentHTML\s*\(/, message: 'Potential DOM XSS with innerHTML or related API', severity: 'high' },
-    ];
-    
-    const jsFiles = await globby(getConfigPattern('jsFilePathPattern'));
-    
-    const processor = async (file) => {
-      try {
-        const content = await fsp.readFile(file, 'utf8');
-        const lines = content.split('\n');
-        
-        for (let index = 0; index < lines.length; index++) {
-          const line = lines[index];
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          
-          for (const rule of SUSPICIOUS_PATTERNS) {
-            if (rule.pattern.test(trimmed)) {
-              // Limit in-memory issues
-              if (this.issueCount >= MAX_IN_MEMORY_ISSUES) {
-                console.warn(chalk.yellow('⚠️ Maximum in-memory issues reached, skipping further issues'));
-                return;
-              }
-              
-              this.securityIssues.push({
-                type: rule.type,
-                file,
-                line: index + 1,
-                severity: rule.severity,
-                message: rule.message,
-                code: trimmed,
-                context: this.printContext(lines, index)
-              });
-              this.issueCount++;
-            }
-          }
-        }
-        
-        // Clear lines array to free memory
-        lines.length = 0;
-      } catch (err) {
-        console.warn(chalk.yellow(`⚠️ Could not read file ${file}: ${err.message}`));
-      }
-    };
-    
-    await this.processFilesInBatches(jsFiles, processor, 'enhanced_patterns');
-  }
+
+
     
   
   async runSecurityAudit(urls = []) {
     console.log(chalk.cyan.bold('\n🔍 Running Full Security Audit...'));
     
-    // Run code scanning
+    // Run industry-standard security tools
+    console.log(chalk.blue('\n📦 Running npm audit (dependency vulnerabilities)...'));
+    await this.checkDependencyVulnerabilities();
+    
+    console.log(chalk.blue('\n🔐 Running enhanced secret detection...'));
     await this.checkForSecrets();
+    
+
+    
+    // Run existing custom security checks
+    console.log(chalk.blue('\n🔍 Running ESLint security analysis...'));
     await this.checkESLintSecurityIssues();
+    
+    console.log(chalk.blue('\n📁 Running file upload security checks...'));
     await this.checkFileUploadSecurity();
+    
+    console.log(chalk.blue('\n✅ Running input validation checks...'));
     await this.checkInputValidation();
-    await this.runEnhancedPatternChecks();
 
     // Run live URL testing if URLs provided
     if (urls && urls.length > 0) {

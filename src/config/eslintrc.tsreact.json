@@ -7,20 +7,25 @@
     "airbnb",
     "airbnb-typescript",
     "plugin:@typescript-eslint/recommended",
-    "plugin:import/typescript"
+    "plugin:@typescript-eslint/recommended-requiring-type-checking",
+    "plugin:react-hooks/recommended",
+    "plugin:import/typescript",
+    "plugin:security/recommended",
+    "plugin:promise/recommended"
   ],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "ecmaFeatures": {
       "jsx": true
     },
-    "ecmaVersion": 12,
+    "ecmaVersion": 2023,
     "sourceType": "module",
     "project": "./tsconfig.json"
   },
   "plugins": [
     "@typescript-eslint",
     "react",
+    "react-hooks",
     "security",
     "promise"
   ],
@@ -30,18 +35,36 @@
     }
   },
   "rules": {
-    "security/detect-object-injection": "warn",
-    "security/detect-unsafe-regex": "warn",
-    "security/detect-buffer-noassert": "warn",
-    "security/detect-child-process": "warn",
-    "security/detect-disable-mustache-escape": "warn",
-    "security/detect-eval-with-expression": "warn",
-    "security/detect-new-buffer": "warn",
-    "security/detect-no-csrf-before-method-override": "warn",
-    "security/detect-non-literal-fs-filename": "warn",
-    "security/detect-non-literal-regexp": "warn",
-    "security/detect-non-literal-require": "warn",
-    "security/detect-possible-timing-attacks": "warn",
-    "security/detect-pseudoRandomBytes": "warn"
+    "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/no-misused-promises": "error",
+    "@typescript-eslint/explicit-function-return-type": "warn",
+    "@typescript-eslint/consistent-type-definitions": ["error", "interface"],
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+
+    "react/function-component-definition": [
+      2,
+      {
+        "namedComponents": "arrow-function",
+        "unnamedComponents": "arrow-function"
+      }
+    ],
+    "react/react-in-jsx-scope": "off",
+
+    "no-console": "warn",
+    "no-alert": "error",
+    "no-eval": "error",
+    "spaced-comment": "off",
+
+    "import/order": [
+      "warn",
+      {
+        "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
+        "newlines-between": "always"
+      }
+    ],
+
+    "promise/always-return": "off", 
+
+    "security/detect-object-injection": "warn"
   }
-} 
+}

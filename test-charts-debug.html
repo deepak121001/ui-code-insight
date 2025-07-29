@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Charts Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            border: 2px solid #ddd;
+            padding: 20px;
+            margin: 10px 0;
+            min-height: 200px;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <h1>Charts Debug Test</h1>
+    
+    <div class="test-section">
+        <h2>🔍 Chart Container Check</h2>
+        <div id="container-check">
+            <p>Checking if chart containers exist:</p>
+            <div id="category-container-check"></div>
+            <div id="severity-container-check"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Test Charts</h2>
+        <div class="chart-container">
+            <h3>Issues by Category</h3>
+            <div id="issuesByCategoryChart" class="h-64"></div>
+        </div>
+        <div class="chart-container">
+            <h3>Issues by Severity</h3>
+            <div id="issuesBySeverityChart" class="h-64"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Manual Chart Test</h2>
+        <button onclick="testCharts()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            Test Charts with Sample Data
+        </button>
+        <div id="test-results"></div>
+    </div>
+
+    <script>
+        // Check if containers exist
+        function checkContainers() {
+            const categoryContainer = document.getElementById('issuesByCategoryChart');
+            const severityContainer = document.getElementById('issuesBySeverityChart');
+            
+            const categoryCheck = document.getElementById('category-container-check');
+            const severityCheck = document.getElementById('severity-container-check');
+            
+            if (categoryContainer) {
+                categoryCheck.innerHTML = '<p class="success">✅ Category chart container found</p>';
+            } else {
+                categoryCheck.innerHTML = '<p class="error">❌ Category chart container NOT found</p>';
+            }
+            
+            if (severityContainer) {
+                severityCheck.innerHTML = '<p class="success">✅ Severity chart container found</p>';
+            } else {
+                severityCheck.innerHTML = '<p class="error">❌ Severity chart container NOT found</p>';
+            }
+        }
+
+        // Test charts with sample data
+        function testCharts() {
+            console.log('🧪 Testing charts with sample data...');
+            
+            // Sample data
+            const sampleData = {
+                eslint: {
+                    results: [
+                        { messages: [{ severity: 2 }, { severity: 1 }, { severity: 0 }] },
+                        { messages: [{ severity: 1 }, { severity: 0 }] }
+                    ]
+                },
+                stylelint: {
+                    results: [
+                        { messages: [{ severity: 'error' }, { severity: 'warning' }] }
+                    ]
+                },
+                security: {
+                    issues: [
+                        { severity: 'critical' },
+                        { severity: 'high' },
+                        { severity: 'medium' }
+                    ]
+                },
+                performance: {
+                    issues: [
+                        { severity: 'high' },
+                        { severity: 'medium' }
+                    ]
+                },
+                accessibility: {
+                    issues: [
+                        { severity: 'medium' },
+                        { severity: 'low' }
+                    ]
+                }
+            };
+
+            // Test category chart
+            const categoryContainer = document.getElementById('issuesByCategoryChart');
+            if (categoryContainer) {
+                const categories = {
+                    'ESLint': 0,
+                    'Stylelint': 0,
+                    'Security': 0,
+                    'Performance': 0,
+                    'Accessibility': 0
+                };
+
+                // Count issues from each category
+                if (sampleData.eslint && sampleData.eslint.results) {
+                    sampleData.eslint.results.forEach(result => {
+                        if (result.messages) {
+                            categories['ESLint'] += result.messages.length;
+                        }
+                    });
+                }
+
+                if (sampleData.stylelint && sampleData.stylelint.results) {
+                    sampleData.stylelint.results.forEach(result => {
+                        if (result.messages) {
+                            categories['Stylelint'] += result.messages.length;
+                        }
+                    });
+                }
+
+                if (sampleData.security && sampleData.security.issues) {
+                    categories['Security'] = sampleData.security.issues.length;
+                }
+
+                if (sampleData.performance && sampleData.performance.issues) {
+                    categories['Performance'] = sampleData.performance.issues.length;
+                }
+
+                if (sampleData.accessibility && sampleData.accessibility.issues) {
+                    categories['Accessibility'] = sampleData.accessibility.issues.length;
+                }
+
+                const chartData = Object.entries(categories)
+                    .filter(([category, count]) => count > 0)
+                    .map(([category, count]) => ({ category, count }));
+
+                console.log('📊 Category data:', categories, 'Filtered:', chartData);
+
+                if (chartData.length > 0) {
+                    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+                    let chartHTML = '<div class="space-y-3">';
+                    
+                    chartData.forEach((item, index) => {
+                        const percentage = (item.count / chartData.reduce((sum, d) => sum + d.count, 0)) * 100;
+                        const color = colors[index % colors.length];
+                        
+                        chartHTML += `
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-4 h-4 rounded-full" style="background-color: ${color}"></div>
+                                    <span class="text-sm font-medium text-gray-700">${item.category}</span>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-32 bg-gray-200 rounded-full h-2">
+                                        <div class="h-2 rounded-full" style="background-color: ${color}; width: ${percentage}%"></div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-gray-900 w-8 text-right">${item.count}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    chartHTML += '</div>';
+                    categoryContainer.innerHTML = chartHTML;
+                    console.log('✅ Category chart updated with sample data');
+                }
+            }
+
+            // Test severity chart
+            const severityContainer = document.getElementById('issuesBySeverityChart');
+            if (severityContainer) {
+                const severities = {
+                    'Critical': 0,
+                    'High': 0,
+                    'Medium': 0,
+                    'Low': 0
+                };
+
+                // Count by severity
+                if (sampleData.eslint && sampleData.eslint.results) {
+                    sampleData.eslint.results.forEach(result => {
+                        if (result.messages) {
+                            result.messages.forEach(message => {
+                                if (message.severity === 2) {
+                                    severities['Critical']++;
+                                } else if (message.severity === 1) {
+                                    severities['Medium']++;
+                                } else {
+                                    severities['Low']++;
+                                }
+                            });
+                        }
+                    });
+                }
+
+                if (sampleData.stylelint && sampleData.stylelint.results) {
+                    sampleData.stylelint.results.forEach(result => {
+                        if (result.messages) {
+                            result.messages.forEach(message => {
+                                if (message.severity === 'error') {
+                                    severities['Critical']++;
+                                } else {
+                                    severities['Medium']++;
+                                }
+                            });
+                        }
+                    });
+                }
+
+                if (sampleData.security && sampleData.security.issues) {
+                    sampleData.security.issues.forEach(issue => {
+                        if (issue.severity === 'critical') {
+                            severities['Critical']++;
+                        } else if (issue.severity === 'high') {
+                            severities['High']++;
+                        } else if (issue.severity === 'medium') {
+                            severities['Medium']++;
+                        } else {
+                            severities['Low']++;
+                        }
+                    });
+                }
+
+                if (sampleData.performance && sampleData.performance.issues) {
+                    sampleData.performance.issues.forEach(issue => {
+                        if (issue.severity === 'critical') {
+                            severities['Critical']++;
+                        } else if (issue.severity === 'high') {
+                            severities['High']++;
+                        } else if (issue.severity === 'medium') {
+                            severities['Medium']++;
+                        } else {
+                            severities['Low']++;
+                        }
+                    });
+                }
+
+                if (sampleData.accessibility && sampleData.accessibility.issues) {
+                    sampleData.accessibility.issues.forEach(issue => {
+                        if (issue.severity === 'critical') {
+                            severities['Critical']++;
+                        } else if (issue.severity === 'high') {
+                            severities['High']++;
+                        } else if (issue.severity === 'medium') {
+                            severities['Medium']++;
+                        } else {
+                            severities['Low']++;
+                        }
+                    });
+                }
+
+                const severityData = Object.entries(severities)
+                    .filter(([severity, count]) => count > 0)
+                    .map(([severity, count]) => ({ severity, count }));
+
+                console.log('📊 Severity data:', severities, 'Filtered:', severityData);
+
+                if (severityData.length > 0) {
+                    const colors = {
+                        'Critical': '#EF4444',
+                        'High': '#F59E0B',
+                        'Medium': '#3B82F6',
+                        'Low': '#10B981'
+                    };
+                    
+                    let chartHTML = '<div class="space-y-3">';
+                    
+                    severityData.forEach((item) => {
+                        const percentage = (item.count / severityData.reduce((sum, d) => sum + d.count, 0)) * 100;
+                        const color = colors[item.severity];
+                        
+                        chartHTML += `
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-4 h-4 rounded-full" style="background-color: ${color}"></div>
+                                    <span class="text-sm font-medium text-gray-700">${item.severity}</span>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-32 bg-gray-200 rounded-full h-2">
+                                        <div class="h-2 rounded-full" style="background-color: ${color}; width: ${percentage}%"></div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-gray-900 w-8 text-right">${item.count}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    chartHTML += '</div>';
+                    severityContainer.innerHTML = chartHTML;
+                    console.log('✅ Severity chart updated with sample data');
+                }
+            }
+
+            document.getElementById('test-results').innerHTML = '<p class="success">✅ Charts test completed! Check console for details.</p>';
+        }
+
+        // Run container check when page loads
+        document.addEventListener('DOMContentLoaded', checkContainers);
+    </script>
+</body>
+</html> 

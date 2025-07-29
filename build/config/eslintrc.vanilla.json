@@ -1,11 +1,12 @@
 {
   "env": {
     "browser": true,
-    "es2021": true
+    "es2021": true,
+    "node": false
   },
   "extends": [
     "eslint:recommended",
-    "airbnb"
+    "airbnb-base"
   ],
   "parserOptions": {
     "ecmaVersion": 12,
@@ -28,6 +29,19 @@
     "security/detect-non-literal-regexp": "warn",
     "security/detect-non-literal-require": "warn",
     "security/detect-possible-timing-attacks": "warn",
-    "security/detect-pseudoRandomBytes": "warn"
+    "security/detect-pseudoRandomBytes": "warn",
+    "arrow-parens": ["off"],                    
+    "func-names": "off",                       
+    "no-console": "warn",                       
+    "no-alert": "warn",             
+    "no-underscore-dangle": "off", 
+    "import/extensions": ["error", "ignorePackages"],
+    "promise/always-return": "warn",
+    "promise/no-return-wrap": "error",
+    "promise/param-names": "error",
+    "promise/catch-or-return": "warn",
+    "promise/no-nesting": "warn",
+    "curly": "off",
+     "spaced-comment": "off"
   }
-} 
+}
